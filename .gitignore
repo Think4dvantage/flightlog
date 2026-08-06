@@ -1,0 +1,30 @@
+# Secrets and local config — only config.yml.example is committed
+config.yml
+.env
+*.pem
+
+# Runtime data: SQLite DB, WAL sidecars, uploaded IGC files
+/data/
+/logs/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

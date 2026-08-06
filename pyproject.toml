@@ -1,0 +1,71 @@
+[project]
+name = "flightlog"
+version = "0.1.0"
+description = "Multiuser paragliding flight log with IGC analysis and an API-first design"
+authors = [{ name = "Raphael Eymann", email = "r+flightlog@eymanns.ch" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+
+# Pins verified against PyPI on 2026-08-06. Never copy a pin from a sibling repo —
+# see .ai/instructions/02-backend-conventions.md.
+dependencies = [
+    "fastapi (>=0.141.1,<0.142.0)",
+    "uvicorn[standard] (>=0.52.1,<0.53.0)",
+    "pydantic (>=2.13.4,<3.0.0)",
+    "sqlalchemy (>=2.0.51,<3.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "pyjwt (>=2.13.0,<3.0.0)",
+    "bcrypt (>=5.0.0,<6.0.0)",
+    "email-validator (>=2.3.0,<3.0.0)",
+    "python-multipart (>=0.0.32,<0.1.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+]
+
+[project.optional-dependencies]
+# Pulled in from v0.2 (importer) and v0.4 (IGC). Kept out of the default install so the
+# v0.1 image stays small and the libigc/Python-version question is isolated.
+importer = ["openpyxl (>=3.1.5,<4.0.0)"]
+igc = ["libigc (>=1.2.0,<2.0.0)"]
+
+[project.urls]
+Repository = "https://github.com/Think4dvantage/flightlog"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)",
+    # 1.x is required for pytest 9 — the 0.26.x line caps pytest below 9.
+    "pytest-asyncio (>=1.4.0,<2.0.0)",
+    "coverage[toml] (>=7.15.3,<8.0.0)",
+    "ruff (>=0.16.1,<0.17.0)",
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "flightlog", from = "src" }]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning:flightlog.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008", # FastAPI's Depends() in defaults is the framework's own idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+
+[tool.coverage.run]
+source = ["src/flightlog"]
+branch = true

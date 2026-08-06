@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <h1 id="heading" data-i18n="app.name">Flightlog</h1>
+      <p class="muted" id="subtitle" data-i18n="app.tagline">Paragliding flight log</p>
+      <p id="hint" class="muted"></p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { bootstrapPage } from '/static/bootstrap.js';
+    import { isLoggedIn, loadCurrentUser } from '/static/auth.js';
+
+    await bootstrapPage({ page: 'home' });
+
+    const hint = document.getElementById('hint');
+
+    if (isLoggedIn()) {
+      const user = await loadCurrentUser();
+      if (user) {
+        // display_name is user data — inserted with textContent, never innerHTML.
+        document.getElementById('heading').textContent =
+          `${window.t('home.welcome')}, ${user.display_name}`;
+        hint.textContent = window.t('home.empty_hint');
+        console.log(`[FL:home] signed in as ${user.email}`);
+      }
+    } else {
+      hint.textContent = window.t('home.signed_out');
+      console.log('[FL:home] anonymous visitor');
+    }
+  </script>
+</body>
+</html>

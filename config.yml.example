@@ -1,0 +1,44 @@
+# Flightlog configuration.
+#
+# Copy to config.yml and fill in. config.yml is gitignored; only this example is committed.
+#
+# Generate a JWT secret with:
+#   openssl rand -hex 32
+# The app REFUSES TO START if auth.jwt_secret is empty, shorter than 32 characters,
+# or one of the known placeholder values.
+
+database:
+  path: data/flightlog.db
+
+auth:
+  jwt_secret: "CHANGE_ME_openssl_rand_hex_32"
+  jwt_algorithm: HS256
+  access_token_expire_minutes: 60
+  refresh_token_expire_days: 30
+
+  # Private now, public-ready later. With this false, POST /api/auth/register returns 403
+  # and accounts are created by an admin instead.
+  allow_self_registration: false
+
+  # Used once, at first startup, and skipped entirely if any user already exists.
+  bootstrap_admin_email: ""
+  bootstrap_admin_password: ""
+
+storage:
+  # Raw IGC files live on disk, content-addressed. Never in the database.
+  igc_dir: data/igc
+  max_igc_bytes: 5242880
+
+sites:
+  # Creating a site within this radius of an existing one returns 409 with the candidates.
+  dedup_radius_m: 250.0
+  allow_user_sites: true
+
+logging:
+  level: info
+  file: ""
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  reload: false

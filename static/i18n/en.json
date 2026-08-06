@@ -1,0 +1,42 @@
+{
+  "app": {
+    "name": "Flightlog",
+    "tagline": "Paragliding flight log"
+  },
+  "nav": {
+    "flights": "Flights",
+    "sites": "Sites",
+    "equipment": "Equipment",
+    "stats": "Statistics",
+    "login": "Log in",
+    "logout": "Log out"
+  },
+  "auth": {
+    "login_title": "Log in",
+    "register_title": "Create account",
+    "email": "Email",
+    "email_placeholder": "you@example.com",
+    "password": "Password",
+    "password_placeholder": "At least 10 characters",
+    "display_name": "Display name",
+    "display_name_placeholder": "How your name appears",
+    "submit_login": "Log in",
+    "submit_register": "Create account",
+    "no_account": "Need an account?",
+    "have_account": "Already have an account?",
+    "register_link": "Register",
+    "login_link": "Log in",
+    "registration_closed": "Registration is closed on this instance. Ask an administrator for an account.",
+    "logging_in": "Logging in…",
+    "creating": "Creating account…"
+  },
+  "home": {
+    "welcome": "Welcome back",
+    "signed_out": "Log in to see your flights.",
+    "empty_hint": "The flight log lands in v0.2. Nothing to show yet."
+  },
+  "common": {
+    "loading": "Loading…",
+    "error_generic": "Something went wrong. Please try again."
+  }
+}

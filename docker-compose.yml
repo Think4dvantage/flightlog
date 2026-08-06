@@ -1,0 +1,27 @@
+services:
+  flightlog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flightlog:latest
+    container_name: flightlog
+    restart: unless-stopped
+    environment:
+      CONFIG_PATH: /app/config.yml
+    volumes:
+      - ./config.yml:/app/config.yml:ro,z
+      # DB and IGC files share one LOCAL named volume. Never a NAS bind mount —
+      # SQLite WAL over SMB/NFS is unsafe.
+      - flightlog_data:/app/data
+      - ./logs:/app/logs:z
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  flightlog_data:

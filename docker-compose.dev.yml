@@ -1,0 +1,35 @@
+services:
+  flightlog:
+    container_name: flightlog-dev
+    image: flightlog:dev
+    ports:
+      # 8000 = VidFactory, 8001 = Lenticularis dev, 8002 = here.
+      - "8002:8000"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      # Keeps .pyc files out of the read-only source mount, where stale bytecode
+      # would otherwise shadow edited sources.
+      PYTHONPYCACHEPREFIX: /tmp/pycache
+    volumes:
+      - ./config.yml:/app/config.yml:ro,z
+      - ./src:/app/src:ro,z
+      - ./static:/app/static:ro,z
+      - flightlog_data:/app/data
+      - ./logs:/app/logs:z
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.flightlog-dev.rule=Host(`fl-dev.sdh.lol`)"
+      - "traefik.http.routers.flightlog-dev.entrypoints=websecure"
+      - "traefik.http.routers.flightlog-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.flightlog-dev.service=flightlog-dev"
+      - "traefik.http.services.flightlog-dev.loadbalancer.server.port=8000"
+
+networks:
+  proxy:
+    external: true

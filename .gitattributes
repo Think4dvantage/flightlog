@@ -1,0 +1,23 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.gz binary
+*.zip binary
+*.xlsx binary
+*.db binary
+
+# Vendored libraries must stay byte-exact.
+static/vendor/** -text
+
+# IGC files carry an optional G-record digital signature computed over the raw bytes.
+# Line-ending normalisation invalidates it and can break strict parsers. Never normalise.
+*.igc -text
+*.IGC -text

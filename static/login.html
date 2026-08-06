@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container-narrow">
+    <div class="card">
+      <h1 data-i18n="auth.login_title">Log in</h1>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email" data-i18n="auth.email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="username"
+                 data-i18n-placeholder="auth.email_placeholder" required>
+        </div>
+
+        <div class="field">
+          <label for="password" data-i18n="auth.password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+
+        <button type="submit" id="submitBtn" data-i18n="auth.submit_login">Log in</button>
+      </form>
+
+      <p class="muted" id="registerHint" style="margin-top:1rem; display:none;">
+        <span data-i18n="auth.no_account">Need an account?</span>
+        <a href="/register" data-i18n="auth.register_link">Register</a>
+      </p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { bootstrapPage } from '/static/bootstrap.js';
+    import { storeTokens, errorMessage, isLoggedIn } from '/static/auth.js';
+
+    await bootstrapPage({ page: 'auth' });
+
+    if (isLoggedIn()) {
+      console.log('[FL:auth] already logged in, redirecting to /');
+      window.location.href = '/';
+    }
+
+    const alertBox = document.getElementById('alert');
+    const form = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showError(message) {
+      alertBox.textContent = message;
+      alertBox.classList.add('visible');
+      console.warn(`[FL:auth] ${message}`);
+    }
+
+    // Hide the register link when the instance has self-registration disabled.
+    try {
+      const res = await fetch('/api/auth/registration-status');
+      const { self_registration } = await res.json();
+      console.log(`[FL:auth] self_registration=${self_registration}`);
+      if (self_registration) {
+        document.getElementById('registerHint').style.display = '';
+      }
+    } catch (err) {
+      console.error('[FL:auth] could not read registration status', err);
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      alertBox.classList.remove('visible');
+      submitBtn.disabled = true;
+      submitBtn.textContent = window.t('auth.logging_in');
+
+      const payload = {
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+      };
+      console.log(`[FL:auth] login attempt for ${payload.email}`);
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          showError(await errorMessage(res));
+          return;
+        }
+
+        storeTokens(await res.json());
+        console.log('[FL:auth] login succeeded, redirecting to /');
+        window.location.href = '/';
+      } catch (err) {
+        console.error('[FL:auth] login request failed', err);
+        showError(window.t('common.error_generic'));
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = window.t('auth.submit_login');
+      }
+    });
+  </script>
+</body>
+</html>

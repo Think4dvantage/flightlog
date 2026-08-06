@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create account — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container-narrow">
+    <div class="card">
+      <h1 data-i18n="auth.register_title">Create account</h1>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <form id="registerForm" novalidate>
+        <div class="field">
+          <label for="display_name" data-i18n="auth.display_name">Display name</label>
+          <input type="text" id="display_name" name="display_name" autocomplete="name"
+                 data-i18n-placeholder="auth.display_name_placeholder" required>
+        </div>
+
+        <div class="field">
+          <label for="email" data-i18n="auth.email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="username"
+                 data-i18n-placeholder="auth.email_placeholder" required>
+        </div>
+
+        <div class="field">
+          <label for="password" data-i18n="auth.password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="new-password"
+                 minlength="10" data-i18n-placeholder="auth.password_placeholder" required>
+        </div>
+
+        <button type="submit" id="submitBtn" data-i18n="auth.submit_register">Create account</button>
+      </form>
+
+      <p class="muted" style="margin-top:1rem;">
+        <span data-i18n="auth.have_account">Already have an account?</span>
+        <a href="/login" data-i18n="auth.login_link">Log in</a>
+      </p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { bootstrapPage } from '/static/bootstrap.js';
+    import { storeTokens, errorMessage } from '/static/auth.js';
+
+    await bootstrapPage({ page: 'auth' });
+
+    const alertBox = document.getElementById('alert');
+    const form = document.getElementById('registerForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showError(message) {
+      alertBox.textContent = message;
+      alertBox.classList.add('visible');
+      console.warn(`[FL:auth] ${message}`);
+    }
+
+    // Registration may be disabled instance-wide. Say so up front rather than letting
+    // the user fill the form and collect a 403.
+    try {
+      const res = await fetch('/api/auth/registration-status');
+      const { self_registration } = await res.json();
+      console.log(`[FL:auth] self_registration=${self_registration}`);
+      if (!self_registration) {
+        showError(window.t('auth.registration_closed'));
+        form.querySelectorAll('input, button').forEach((el) => { el.disabled = true; });
+      }
+    } catch (err) {
+      console.error('[FL:auth] could not read registration status', err);
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      alertBox.classList.remove('visible');
+      submitBtn.disabled = true;
+      submitBtn.textContent = window.t('auth.creating');
+
+      const payload = {
+        display_name: document.getElementById('display_name').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+      };
+      console.log(`[FL:auth] register attempt for ${payload.email}`);
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          showError(await errorMessage(res));
+          return;
+        }
+
+        storeTokens(await res.json());
+        console.log('[FL:auth] registration succeeded, redirecting to /');
+        window.location.href = '/';
+      } catch (err) {
+        console.error('[FL:auth] register request failed', err);
+        showError(window.t('common.error_generic'));
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = window.t('auth.submit_register');
+      }
+    });
+  </script>
+</body>
+</html>
