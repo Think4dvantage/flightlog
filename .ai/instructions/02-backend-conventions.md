@@ -3,11 +3,27 @@
 ## Dependency Freshness — Rule That Must Not Be Broken
 
 **Every third-party dependency is pinned to the latest stable release at the time it is added, verified
-against its registry (PyPI, the project's GitHub releases) — never copied from a sibling repo.**
+against its registry — never copied from a sibling repo.**
 
-Lenticularis and VidFactory carry pins that were current when written and have since drifted by whole
-major versions. Copying them silently starts this project on old software. Re-verify at the start of
-each milestone and when adding any new package.
+"Dependency" means **all four** of these, and the rule was already broken on two of them during v0.1:
+
+| Kind | Verify against | v0.1 miss |
+|---|---|---|
+| Python packages | PyPI JSON API | `pytest-asyncio` copied as `0.26.0`; actual latest was `1.4.0`, and 0.26 caps pytest below 9 — the install failed outright |
+| GitHub Actions | `gh api /repos/<owner>/<repo>/releases/latest` | `actions/checkout@v4` copied from Lenticularis; actual latest was **v7**. Every action was 1–3 majors behind and CI warned about deprecated Node 20 |
+| Vendored JS libraries | Upstream GitHub releases | Verified correct — Leaflet 1.9.4, Chart.js 4.5.1 |
+| Base container images | Registry / endoflife.date | Verified — `python:3.14-slim` |
+
+Verify programmatically rather than by reading a web page; a summarised page is how the
+`pytest-asyncio` version was got wrong:
+
+```bash
+python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('https://pypi.org/pypi/<pkg>/json'))['info']['version'])"
+gh api /repos/<owner>/<repo>/releases/latest --jq .tag_name
+```
+
+Lenticularis and VidFactory carry pins that were current when written and have since drifted. Copying
+them silently starts this project on old software. Re-verify at the start of each milestone.
 
 When a dependency turns out to be stale or unmaintained, say so and propose the replacement rather than
 inheriting it. Two such replacements are already baked in — see `01-project-overview.md`.
