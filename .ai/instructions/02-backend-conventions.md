@@ -41,12 +41,17 @@ router = APIRouter(prefix="/api/gliders", tags=["gliders"])
 
 
 def _get_own_glider(glider_id: str, current_user: User, db: Session) -> Glider:
-    """404 if it does not exist, 403 if it is not yours. Every router has one of these."""
+    """
+    404 whether the row is missing or simply not yours — never a 403 here.
+
+    A 403 would confirm the id exists and belongs to someone else, which is the same
+    existence-leak class of bug `04-constraints.md` calls out for the buddy-link endpoint.
+    See `06-testing-conventions.md`'s coverage table: "another user's row -> 404, never
+    403-with-existence-leak." Every router has one of these helpers.
+    """
     row = db.get(Glider, glider_id)
-    if row is None:
+    if row is None or row.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Glider not found")
-    if row.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not your glider")
     return row
 
 

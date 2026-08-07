@@ -18,16 +18,18 @@ Add a new SQLite table for `{entity}` following the project conventions:
            Index("ix_entities_owner", "owner_id"),
        )
 
-       id         = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+       id         = Column(String, primary_key=True, default=new_uuid)
        owner_id   = Column(String, ForeignKey("users.id", ondelete="CASCADE"),
                            nullable=False, index=True)
        name       = Column(String, nullable=False)
-       created_at = Column(DateTime(timezone=True), nullable=False,
-                           default=lambda: datetime.now(timezone.utc))
+       created_at = Column(UtcDateTime, nullable=False, default=utcnow)
    ```
 
    - Every user-owned table carries `owner_id`, NOT NULL and indexed.
-   - Use timezone-aware `datetime.now(timezone.utc)`, never the deprecated `datetime.utcnow`.
+   - **Every datetime column is `UtcDateTime`, never `DateTime(timezone=True)`.** SQLite stores no
+     offset, so the plain SQLAlchemy type silently returns a naive datetime on read — `UtcDateTime`
+     (defined in `database/models.py`) re-attaches UTC. Use the module's `new_uuid` / `utcnow` helpers
+     rather than inlining `uuid.uuid4()` / `datetime.now(timezone.utc)`.
    - Add the table to the module docstring's table list.
 
 2. **Nothing else is needed for a new table.** `Base.metadata.create_all()` runs on every startup and

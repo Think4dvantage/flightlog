@@ -8,7 +8,9 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.1** — skeleton and authentication. See `.ai/context/features.md` for the roadmap.
+Status: **v0.2 shipped** (not yet tagged) — core data model, owner-scoped CRUD, and the Excel import that
+moved all 600 flights out of the spreadsheet. v0.3 (flight log UI, the MVP boundary) is next. See
+`.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
 
@@ -21,9 +23,19 @@ Shipped in v0.1:
 - Typed error envelope on every response
 - Server-side static asset cache-busting
 
-Coming, in order: the flight log and Excel import (v0.2), the flight log UI (v0.3 — the point at which
-the spreadsheet is retired), IGC ingest with thermal and glide analysis (v0.4), statistics (v0.6), the
-public API (v0.7).
+Shipped in v0.2:
+
+- Owner-scoped CRUD for sites, gliders, harnesses, flight categories, buddies and flights
+- Computed altitude figures (gain, site height difference, total descent) — derived on read, never
+  stored, so a site elevation correction retroactively fixes every flight that used it
+- A two-sided buddy account-link flow that never leaks whether an email is registered
+- A one-shot Excel importer (`python -m flightlog.core.importer`) — dry-run by default, idempotent,
+  with a region-count reconciliation and an altitude-figure cross-check against the spreadsheet's own
+  derived columns, and buddy-name proposals from flight comments (never auto-created)
+
+Coming, in order: the flight log UI (v0.3 — the point at which the spreadsheet is retired), IGC ingest
+with thermal and glide analysis (v0.4), the secondary sheets and XContest import (v0.5), statistics
+(v0.6), the public API (v0.7).
 
 ## Getting started
 
@@ -83,10 +95,10 @@ CI runs all three on Python 3.13 and 3.14.
 ```
 src/flightlog/
   api/          app factory, dependencies, error envelope, routers
-  core/         domain logic — importer, IGC analysis, statistics
+  core/         domain logic — flights, aliases, importer, IGC analysis, statistics
   database/     ORM models and engine setup
   models/       Pydantic request/response schemas
-  services/     auth, API keys, geo helpers
+  services/     auth, API keys
 static/         no build step; vanilla ES modules, vendored Leaflet and Chart.js
 tests/backend/  pytest suite
 .ai/            conventions, architecture notes and workflow prompts

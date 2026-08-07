@@ -4,7 +4,8 @@ This is the source of truth for the data model, the domain algorithms and the de
 It records not just *what* the design is, but *why it is not the obvious alternative*, and what breaks
 if someone "fixes" it.
 
-Status: **v0.1 in progress.** Only the tables and routes marked shipped exist.
+Status: **v0.2 shipped.** Core data + Excel import — see `specs/001-core-data-import/` for the spec,
+plan and research behind it.
 
 ---
 
@@ -12,18 +13,18 @@ Status: **v0.1 in progress.** Only the tables and routes marked shipped exist.
 
 | Table | Status | Key columns |
 |---|---|---|
-| `users` | v0.1 | `id`, `email` (unique), `display_name`, `hashed_password`, `role`, `is_active`, `locale`, `timezone`, `units`, `seeded_at`, `created_at` |
+| `users` | **shipped v0.1** | `id`, `email` (unique), `display_name`, `hashed_password`, `role`, `is_active`, `locale`, `timezone`, `units`, `seeded_at`, `last_login_at`, `created_at`, `updated_at` |
 | `api_keys` | v0.7 | `id`, `owner_id`, `name`, `key_prefix` (unique), `key_hash`, `scopes`, `last_used_at`, `revoked_at` |
-| `regions` | v0.2 | `id`, `name`, `sort_order` — global reference data, not user-scoped |
-| `sites` | v0.2 | `id`, `owner_id` (nullable), `name`, `is_launch`, `is_landing`, `lat`, `lon`, `elevation_m`, `region_id`, `coord_source`, `wind_directions` |
-| `user_site_prefs` | v0.2 | `(user_id, site_id)` PK, `alias`, `elevation_m`, `is_favourite`, `is_hidden` |
+| `regions` | **shipped v0.2** | `id`, `name`, `sort_order` — global reference data, not user-scoped |
+| `sites` | **shipped v0.2** | `id`, `owner_id` (nullable), `name`, `is_launch`, `is_landing`, `lat`, `lon`, `elevation_m`, `elevation_igc_m`, `region_id`, `coord_source`, `coord_accuracy_m` |
+| `user_site_prefs` | **shipped v0.2** | `(user_id, site_id)` PK, `alias`, `elevation_m`, `is_favourite`, `is_hidden` |
 | `site_observations` | v0.4 | `id`, `site_id`, `lat`, `lon`, `alt_m`, `track_id`, `kind` |
-| `gliders` | v0.2 | `id`, `owner_id`, `brand`, `model`, `size`, `nickname`, `en_class`, `is_own`, `retired_at` |
-| `harnesses` | v0.2 | `id`, `owner_id`, `brand`, `model`, `size`, `harness_type`, `reserve_next_repack`, `retired_at` |
-| `flight_categories` | v0.2 | `id`, `owner_id`, `name`, `slug`, `is_hike_fly`, `is_training`, `sort_order`, `archived_at` |
-| `buddies` | v0.2 | `id`, `owner_id`, `display_name`, `linked_user_id`, `link_state` |
-| `flights` | v0.2 | see below |
-| `flight_buddies` | v0.2 | `(flight_id, buddy_id)` |
+| `gliders` | **shipped v0.2** | `id`, `owner_id`, `brand`, `model`, `size`, `nickname`, `en_class`, `is_own`, `retired_at` |
+| `harnesses` | **shipped v0.2** | `id`, `owner_id`, `brand`, `model`, `size`, `harness_type`, `reserve_next_repack`, `retired_at` |
+| `flight_categories` | **shipped v0.2** | `id`, `owner_id`, `name`, `slug`, `is_hike_fly`, `is_training`, `sort_order`, `archived_at` |
+| `buddies` | **shipped v0.2** | `id`, `owner_id`, `display_name`, `linked_user_id`, `link_state` |
+| `flights` | **shipped v0.2** | see below |
+| `flight_buddies` | **shipped v0.2** | `(flight_id, buddy_id)` |
 | `media_links` | v0.3 | `id`, `flight_id`, `owner_id`, `url`, `kind`, `provider` |
 | `tracker_links` | v0.3 | `id`, `flight_id`, `owner_id`, `provider`, `url`, `external_id` |
 | `flight_links` | v0.7 | `id`, `flight_id`, `kind`, `external_id`, `url`, `label` — VidFactory pushes here |
@@ -50,6 +51,54 @@ Status: **v0.1 in progress.** Only the tables and routes marked shipped exist.
 `PRAGMA foreign_keys=ON` is never set, so `ondelete="CASCADE"` is documentation. The ORM's
 `cascade="all, delete-orphan"` on the relationship is what actually deletes children. Write both; rely
 on the relationship.
+
+---
+
+## Timestamps — `UtcDateTime`, not `DateTime(timezone=True)`
+
+SQLite has no native timestamp type and stores no offset, so a plain `DateTime(timezone=True)` column
+silently returns a **naive** datetime on read. The value is UTC, but nothing in the API response says
+so — a client receives `2026-08-06T13:12:59.275499` and cannot tell UTC from local time.
+
+`database/models.py` defines a `UtcDateTime` `TypeDecorator` that coerces to UTC on write and
+re-attaches UTC on read. **Every datetime column uses it.** Never `DateTime` directly.
+
+This was found by inspecting a live response, not by a test — the naive value round-trips through
+SQLAlchemy perfectly well, so nothing fails. It matters because the VidFactory contract publishes
+`takeoff_at_utc` and every IGC segment is anchored on absolute UTC; an ambiguous timestamp there is a
+misaligned video timeline. Pinned by `test_timestamps_are_serialised_with_an_explicit_utc_offset`.
+
+---
+
+## Error handlers must register against Starlette's `HTTPException`
+
+FastAPI's `HTTPException` subclasses Starlette's. Unmatched routes and other framework-level errors
+raise the **parent**, so a handler registered against the FastAPI subclass never fires for them and
+those responses escape the typed envelope — a 404 comes back as `{"detail": "Not Found"}`.
+
+`main.py` therefore registers `starlette.exceptions.HTTPException`. Caught by
+`test_unknown_route_returns_the_envelope`.
+
+---
+
+## `check_db_health()` takes the engine as an argument
+
+It reads `app.state.engine`, not `db.py`'s module-level `_engine`. Reaching into module state made the
+check report `"not initialised"` for any caller that wired its own engine — which is every test, since
+they override `get_db` rather than calling `init_db()`.
+
+---
+
+## The app version is resolved with a fallback, and it is the cache key
+
+`importlib.metadata.version()` only works when the package is pip-installed. The container runs
+`poetry install --no-root` and puts `src/` on `PYTHONPATH`, so **there is no distribution metadata in
+the image** — the naive implementation reported `0.0.0-dev` in production.
+
+Because the version is the static-asset cache key, that would have frozen the cache key across every
+future deploy and left returning browsers on stale CSS and JS indefinitely. `_resolve_version()` falls
+back to reading `pyproject.toml`, which is copied into the image alongside `src/`. Pinned by
+`test_app_version_matches_pyproject`, which asserts it is never `0.0.0-dev`.
 
 ---
 
@@ -198,8 +247,20 @@ Two deliberate disagreements with the Excel's `Übersicht` sheet — **confirm t
 
 1. The workbook's reverse-launch share (33.5%) is computed over a stale `$N$2:$N$499` range and misses
    102 flights. The correct figure is 209/600 ≈ 34.8%.
-2. The workbook's twelve region counts sum to **596**, not 600. The importer recomputes the aggregation
-   and reports unassigned launches by name rather than creating an "Other" bucket.
+2. The workbook's twelve region counts sum to **596**, not 600. **Root cause, confirmed by reading the
+   formulas directly** (`specs/001-core-data-import/research.md`): three launch sites (`Ober
+   Burgfeldstand`, `Lauberhorn`, `Alp Unterburgfeld`) were added to the workbook after its initial
+   version. Every yearly column's `Flight Area` SUM formula was updated to include the new launch rows,
+   but the `Total` column's formula was not — it still only sums the original set. A fourth site,
+   `Fiescheralp`, is genuinely unreferenced by any region formula, in any column. The importer's own
+   `SITE_REGION` mapping (`src/flightlog/core/aliases.py`) is reconstructed from the more complete
+   yearly formulas, so it reproduces a *different* residual mismatch than the raw 596-vs-600 gap: it
+   counts more flights for `Interlaken` and `Grindelwald` than the stale Total column does, and shows
+   `Fiescheralp`'s one flight as genuinely unmapped. Both numbers are reported side by side
+   (`ImportReport.region_mismatches`); neither is silently treated as correct.
+3. Row 387's stored `Altgain` (350) disagrees with `max_alt_m − launch_elev` (1930 − 1930 = 0) — the one
+   altitude-figure mismatch found across all 600 flights by the importer's formula cross-check
+   (`ImportReport.altgain_mismatches`). Reported, never overwritten in either direction.
 
 ---
 
@@ -216,10 +277,16 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 
 | Prefix | Router | Status |
 |---|---|---|
-| `/api/auth` | `auth.py` | v0.1 — register (flag-gated), login, refresh, `/me`, `/registration-status` |
-| `/health` | `health.py` | v0.1 |
-| `/api/sites` `/api/gliders` `/api/harnesses` `/api/categories` `/api/buddies` | — | v0.2 |
-| `/api/flights` | `flights.py` | v0.2 |
+| `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
+| `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
+| — | `pages.py` | **shipped v0.1** — `/`, `/login`, `/register`, `include_in_schema=False` |
+| `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
+| `/api/sites` | `sites.py` | **shipped v0.2** — CRUD + `PUT /{id}/prefs` |
+| `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
+| `/api/categories` | `categories.py` | **shipped v0.2** — CRUD + `PUT /reorder` + `POST /{id}/archive` |
+| `/api/buddies` | `buddies.py` | **shipped v0.2** — CRUD + `POST /{id}/link` (always 202) + `/link/accept` + `/link/decline` |
+| `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m` |
+| — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
 | `/api/stats` | `stats.py` | v0.6 |
 | `/api/integration/v1` | `integration.py` | v0.7 — frozen contract, versioned separately from the UI's models |
 
@@ -264,7 +331,38 @@ healthcheck:
 DB and IGC files share one **named Docker volume**. Never a NAS bind mount — SQLite WAL over SMB/NFS is
 unsafe. One volume also makes backup a single `tar` of that volume.
 
+### Runtime — Python 3.14 is proven, with one caveat
+
+`python:3.14-slim` built and pushed **multi-arch (amd64 + arm64) in 5m29s** on the v0.1.0 tag, and CI
+passes on both 3.13 and 3.14. The plan's fallback to 3.13 was not needed.
+
+⚠ **This does not settle the question for v0.4.** `libigc` is an optional extra and is not installed
+yet; it declares `>=3.12` with no upper bound and pulls scientific dependencies. Re-run the build gate
+when IGC analysis lands — that is when a wheel gap would appear, and the arm64 leg under QEMU is where
+it would hurt.
+
+`requires-python = ">=3.13,<4.0"`: 3.13 is what local development runs, 3.14 is what the image ships,
+and the CI matrix covers both so a runtime upgrade is proven rather than assumed.
+
+### The first tagged release does not dispatch its own publish workflow
+
+A tag pushed in the **same push that first introduces the workflow file** does not trigger it — the tag
+event is evaluated before the new workflow is registered for that ref. This happened on v0.1.0: `main`
+and `v0.1.0` went up together, only "Backend tests" ran, and the tag had to be deleted and re-pushed:
+
+```bash
+git push origin :refs/tags/vX.Y.Z && git push origin vX.Y.Z
+```
+
+The publish workflow now also has a `workflow_dispatch` trigger, so this can be resolved without
+touching tags — and an image can be rebuilt for a base-image security fix without minting a release.
+
 ### Versioning
 
 `pyproject.toml`'s version is both the image tag source and the static-asset cache key. A static change
-without a version bump leaves returning users on the old file for up to a year.
+without a version bump leaves returning users on the old file for up to a year. See the version
+resolution note above — the resolution path matters as much as the bump.
+
+Images publish to `ghcr.io/think4dvantage/flightlog`, tagged `vX.Y.Z`, `X.Y.Z`, `X.Y`, `X` and `latest`
+from a single 3-part semver tag. Tags must be 3-part or the `metadata-action` semver patterns silently
+do not activate.

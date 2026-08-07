@@ -28,7 +28,7 @@ from flightlog.config import (
     SitesConfig,
     StorageConfig,
 )
-from flightlog.database.db import get_db
+from flightlog.database.db import _seed_regions, get_db
 from flightlog.database.models import Base, User
 from flightlog.services.auth import create_access_token, hash_password
 
@@ -89,6 +89,7 @@ def db_engine():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
+    _seed_regions(engine)  # real init_db() always seeds regions; tests should see the same state
     yield engine
     Base.metadata.drop_all(engine)
     engine.dispose()

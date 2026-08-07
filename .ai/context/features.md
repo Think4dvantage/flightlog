@@ -1,35 +1,64 @@
 # Feature History & Backlog
 
-## Current Version: v0.1 (in progress)
+## Current Version: v0.2 (shipped, not yet tagged)
 
-Nothing has shipped yet. The roadmap below is the plan of record; each milestone states its scope
-boundary and what is deliberately deferred.
+v0.1 shipped and is tagged `v0.1.0`. v0.2 is implemented and tested but not yet released as a tag. The
+roadmap below is the plan of record for what remains; each milestone states its scope boundary and what
+is deliberately deferred.
+
+---
+
+## Shipped Milestones
+
+### v0.2 — Core data + Excel import
+
+Spec, plan, research and data model live in `specs/001-core-data-import/`. Nine new tables
+(`regions`, `sites`, `user_site_prefs`, `gliders`, `harnesses`, `flight_categories`, `buddies`,
+`flights`, `flight_buddies`), owner-scoped CRUD across seven routers, `core/flights.py`'s
+COALESCE-chain altitude figures (computed on read, never stored), `core/aliases.py`'s
+byte-verified normalization tables, and `core/importer.py` — dry-run by default, idempotent via
+`import_key`, with region reconciliation, a formula cross-check, and buddy-name proposals.
+
+**The 600 flights land here** — verified against the real `olddata/Flugbuch.xlsx`: exactly 600
+flights import, a second `--write` run changes nothing, and the importer's own checks surface
+(rather than silently resolve) three real data-quality findings inherited from the spreadsheet — the
+region-formula bug behind the 596-vs-600 gap (see `architecture.md`'s Statistics section for the
+confirmed root cause), one `Altgain` figure that disagrees with a recomputed value (row 387), and one
+harness (`Advance Success 2`, 3 flights) that is retired gear absent from the current master list.
+
+120 tests passing (60 new since v0.1's 60); `ruff check` and `ruff format --check` clean.
+
+**Deferred:** IGC, statistics, any UI beyond the raw API, the secondary Excel sheets (hiking,
+ground-handling, tandem, goals), XContest import.
+
+**Not yet done:** verified against a live boot with a real `config.yml` (v0.1's release note did this;
+v0.2 has not yet been exercised over live HTTP). Not yet tagged.
+
+### v0.1 — Skeleton & auth (2026-08-06, tag `v0.1.0`)
+
+App factory + lifespan, `/health` with liveness/readiness semantics, typed error envelope with three
+global handlers (registered against **Starlette's** `HTTPException`, not FastAPI's subclass — see
+`context/architecture.md`), security headers + CSP `script-src 'self'`, GZip, `?v=` cache-busting from
+`pyproject.toml` with a `tomllib` fallback for the no-root container install, `init_db()` + WAL pragmas
++ `_run_column_migrations()`, the `users` table with a `UtcDateTime` type decorator, JWT
+register/login/refresh/`/me`/password-change via PyJWT + bcrypt, `auth.allow_self_registration: false`
+gate, login/register/index pages, `shared.css` / `bootstrap.js` / `auth.js` / `i18n.js`, vendored
+Leaflet 1.9.4 + Chart.js 4.5.1, Docker on `python:3.14-slim` + compose + dev overlay, both GitHub
+Actions workflows, `conftest.py` with the StaticPool and ASGITransport traps documented.
+
+**Deploy note:** multi-arch (amd64+arm64) image built and pushed in 5m29s — `python:3.14-slim` is
+proven for this dependency set. Not yet proven for `libigc` (arrives v0.4); re-run the build gate then.
+
+**Verified in production shape**, not just under test: booted with a real `config.yml`, exercised
+`/health`, login, `/me`, the 401/404/422 error envelopes and static cache headers over live HTTP.
+
+60 tests passing; `ruff check` and `ruff format --check` clean on Python 3.13 and 3.14.
+
+**Deferred:** OAuth, roles beyond pilot/admin, any flight data.
 
 ---
 
 ## Roadmap
-
-### v0.1 — Skeleton & auth
-
-App factory + lifespan, `/health`, typed error envelope with three global handlers, security headers +
-CSP `script-src 'self'`, GZip, `?v=` cache-busting from `pyproject.toml`, `init_db()` + WAL pragmas +
-`_run_column_migrations()`, the `users` table, JWT register/login/refresh/`/me` via PyJWT + bcrypt,
-`auth.allow_self_registration: false` gate, login/register pages, `shared.css` / `bootstrap.js` /
-`auth.js` / `i18n.js`, vendored Leaflet + Chart.js, Docker + compose + dev overlay, both workflows,
-`conftest.py` with the StaticPool and ASGITransport traps documented.
-
-**Deferred:** OAuth, roles beyond pilot/admin, any flight data.
-
-### v0.2 — Core data + Excel import
-
-`regions`, `sites`, `site_observations`, `user_site_prefs`, `gliders`, `harnesses`,
-`flight_categories`, `flights`, `buddies`, `flight_buddies`. Owner-scoped CRUD for all of them.
-`core/aliases.py` and `core/importer.py` with a dry-run report, buddy proposals, region-count
-verification, the formula cross-check and `import_key` idempotency.
-
-**The 600 flights land here.**
-
-**Deferred:** IGC, statistics, any UI beyond the raw API.
 
 ### v0.3 — Flight log UI · **← MVP BOUNDARY**
 
@@ -100,6 +129,11 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Per-site wind-window editing with a compass-rose control
 - Import from other logbook formats (SkyViz, XCTrack, Flyskyhy)
 - Photo thumbnails resolved from `media_links` without hosting the images
+- Grant the deploy `gh` token `read:packages` so published image tags can be verified from this repo
+  rather than inferred from the workflow config
+- Re-run the `python:3.14-slim` multi-arch build gate once `libigc` (a v0.4 optional dependency,
+  requires Python ≥3.12 with no declared upper bound) is actually installed — v0.1's green build did
+  not include it
 
 ### Shelved
 

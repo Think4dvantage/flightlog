@@ -19,7 +19,7 @@ from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from flightlog.database.models import Base, User
+from flightlog.database.models import Base, Region, User
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,43 @@ def init_db(db_path: str) -> Engine:
     logger.info("Database initialised at %s (journal_mode=%s)", db_path, mode)
 
     _run_column_migrations(_engine)
+    _seed_regions(_engine)
 
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
     return _engine
+
+
+# Transcribed once from the legacy workbook's "Flight Area" SUM formulas — the mapping only
+# exists implicitly there as which Launch Statistics rows each region's formula references.
+# See specs/001-core-data-import/research.md. Order matches the workbook's own row order.
+_REGIONS = [
+    "Interlaken",
+    "Mürren",
+    "Grindelwald",
+    "Gantrischgebiet",
+    "Jura",
+    "Brienz",
+    "Niesen",
+    "Adelboden-Lenk",
+    "Marbach",
+    "Schwarzsee",
+    "Dürstetten",
+    "Fiesch",
+]
+
+
+def _seed_regions(engine: Engine) -> None:
+    """Shared reference data, not owner-scoped. A Python list plus an existence check — never
+    a .sql fixture. Safe to re-run."""
+    with Session(engine) as db:
+        seeded = 0
+        for order, name in enumerate(_REGIONS):
+            if db.execute(select(Region.id).where(Region.name == name)).first() is not None:
+                continue
+            db.add(Region(name=name, sort_order=order))
+            seeded += 1
+        db.commit()
+        logger.info("Seeded regions: %d added, %d already present", seeded, len(_REGIONS) - seeded)
 
 
 def _run_column_migrations(engine: Engine) -> None:
