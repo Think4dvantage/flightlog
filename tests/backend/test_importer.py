@@ -190,6 +190,18 @@ def test_real_workbook_imports_exactly_600_flights(db_session, owner):
 
 
 @pytest.mark.skipif(not REAL_WORKBOOK_PATH.exists(), reason="olddata/Flugbuch.xlsx not present")
+def test_real_workbook_import_creates_no_new_regions(db_session, owner):
+    """Every region name SITE_REGION (aliases.py) can produce must already be seeded by
+    _seed_regions (db.py) under the same spelling. A mismatch — e.g. "Dürstetten" seeded
+    vs "Därstetten" mapped — doesn't fail loudly: the importer just creates a second,
+    orphaned region row via _get_or_create_region, silently duplicating a typo'd
+    transcription bug that aliases.py itself already had to catch once (research.md)."""
+    report = run_import(db_session, str(REAL_WORKBOOK_PATH), owner.id, write=True)
+
+    assert report.regions_written == 0
+
+
+@pytest.mark.skipif(not REAL_WORKBOOK_PATH.exists(), reason="olddata/Flugbuch.xlsx not present")
 def test_real_workbook_region_reconciliation_reproduces_the_known_gap(db_session, owner):
     """
     research.md's confirmed finding: the Total-column region formulas in Übersicht fell

@@ -78,7 +78,7 @@ _REGIONS = [
     "Adelboden-Lenk",
     "Marbach",
     "Schwarzsee",
-    "Dürstetten",
+    "Därstetten",
     "Fiesch",
 ]
 
