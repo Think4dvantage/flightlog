@@ -134,6 +134,11 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Re-run the `python:3.14-slim` multi-arch build gate once `libigc` (a v0.4 optional dependency,
   requires Python ≥3.12 with no declared upper bound) is actually installed — v0.1's green build did
   not include it
+- `config.py`'s `log_effective_config()` doesn't log `auth.bootstrap_admin_email` or whether
+  `auth.bootstrap_admin_password` is set (the way it already does `auth.jwt_secret set=%s`). Surfaced
+  while diagnosing a post-v0.2.0-deploy login failure — the fastest signal was `db.py`'s own
+  "Bootstrap admin: ..." log line, but confirming whether the deploy pipeline actually delivered the
+  secret into `config.yml` at all took longer than it should have. Two log lines would close the gap.
 
 ### Shelved
 

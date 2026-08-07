@@ -2,11 +2,24 @@
 
 ## In Progress
 
-Nothing blocking. v0.2 (core data + Excel import) is implemented and tested — 120 tests passing,
-`ruff check`/`ruff format --check` clean, version bumped to `0.2.0`, tagged `v0.2.0` and pushed. Both
-CI workflows are green on the final commit (`15dcb0a`). Live-boot verification against a real
-`config.yml` (the way v0.1's release note describes) is happening on the homelab host directly — that
-host's compose/deploy config lives in a separate repo, not here.
+Nothing blocking. **v0.2.0 is deployed and confirmed live** at `fl.sdh.lol` — login works, the typed
+error envelope is confirmed working over real HTTP (`/stats` correctly 404s as `ENTITY_NOT_FOUND`,
+since neither the page nor `/api/stats` exist before v0.6). 120 tests passing, `ruff check`/`ruff
+format --check` clean, tagged `v0.2.0` on commit `15dcb0a`, both CI workflows green.
+
+A post-deploy login issue (bootstrap admin password not working) was hit and resolved on the host side;
+the exact root cause among the three candidates below wasn't confirmed back to this session, so it's
+recorded as a set of possibilities rather than a single diagnosis:
+1. Secret delivered as a container env var instead of templated into `config.yml` (the app only reads
+   `config.yml` + `CONFIG_PATH`, never other env vars) — seeder would log "not configured, skipping".
+2. A stale user row in a persisted volume blocking the one-shot seeder — seeder would log "users already
+   exist, skipping".
+3. A trailing newline from the GitHub Actions secret baked into the hashed password — seeder would log
+   "Bootstrap admin created: ...", but login would still fail.
+
+Whichever it was, `config.py`'s `log_effective_config()` doesn't log `bootstrap_admin_email` or whether
+`bootstrap_admin_password` is set, unlike `jwt_secret`'s `set=%s` pattern — noted in `features.md`'s
+backlog as a small operability gap that would make this faster to diagnose next time.
 
 **The tag was moved once.** The first `v0.2.0` push (`a6dee4c`) had a real gap: `poetry install --with
 dev` in CI and `--only main` in the Dockerfile both skip optional-dependency extras, so `openpyxl` was
@@ -18,9 +31,13 @@ shipping a known-broken tag — safe only because it was minutes old and not yet
 
 ## Next Step
 
-Once the host confirms `v0.2.0` boots cleanly and the importer works end-to-end against a real
-`config.yml`, start v0.3 — flight log UI (the MVP boundary). Read `.ai/context/features.md` → "v0.3"
-for scope.
+Still open: whether `python -m flightlog.core.importer` has actually been run against the real
+workbook on the host (dry-run first, then `--write`) — it's only ever been exercised under pytest so
+far, never inside a booted container. Worth confirming before treating the 600 flights as landed in
+production.
+
+Once that's confirmed, start v0.3 — flight log UI (the MVP boundary). Read `.ai/context/features.md` →
+"v0.3" for scope.
 
 ## Open Questions
 
