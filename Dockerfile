@@ -10,9 +10,12 @@ RUN pip install --no-cache-dir --upgrade pip setuptools
 RUN pip install --no-cache-dir poetry==2.4.1
 
 COPY pyproject.toml poetry.lock* README.md ./
+# --extras importer: python -m flightlog.core.importer is a shipped v0.2 feature and must
+# run inside the container, not just under pytest — openpyxl is not part of the base
+# dependency set (see pyproject.toml).
 RUN poetry config virtualenvs.create false \
     && poetry lock \
-    && poetry install --only main --no-interaction --no-ansi --no-root
+    && poetry install --only main --extras importer --no-interaction --no-ansi --no-root
 
 COPY src/ ./src/
 COPY static/ ./static/

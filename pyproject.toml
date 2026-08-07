@@ -23,8 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Pulled in from v0.2 (importer) and v0.4 (IGC). Kept out of the default install so the
-# v0.1 image stays small and the libigc/Python-version question is isolated.
+# Kept as separate extras, not baked into the base dependency list, so each stays an
+# explicit opt-in and the libigc/Python-version question (arriving v0.4) stays isolated.
+# The Dockerfile installs `importer` (--extras importer) since python -m
+# flightlog.core.importer is a real, shipped v0.2 feature that must run in the container,
+# not just under pytest. `igc` stays uninstalled everywhere until v0.4 actually uses it.
 importer = ["openpyxl (>=3.1.5,<4.0.0)"]
 igc = ["libigc (>=1.2.0,<2.0.0)"]
 
