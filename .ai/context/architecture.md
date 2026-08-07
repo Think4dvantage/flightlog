@@ -262,6 +262,15 @@ Two deliberate disagreements with the Excel's `Übersicht` sheet — **confirm t
    altitude-figure mismatch found across all 600 flights by the importer's formula cross-check
    (`ImportReport.altgain_mismatches`). Reported, never overwritten in either direction.
 
+**`database/db.py`'s `_seed_regions()` list and `core/aliases.py`'s `SITE_REGION` values must use
+identical spelling for every region name.** `_get_or_create_region` matches by exact string, not fuzzy —
+a spelling drift between the two doesn't error, it silently creates a second, orphaned region row on the
+next real write. This happened once already: `_seed_regions()` had `"Dürstetten"` (ü) after `aliases.py`
+was corrected to the byte-verified `"Därstetten"` (ä), and the live production write against the real
+600-row workbook created a duplicate before anyone noticed. Pinned by
+`test_real_workbook_import_creates_no_new_regions`, which asserts `regions_written == 0` against the
+real workbook — every region name it can produce must already be seeded.
+
 ---
 
 ## API Contracts

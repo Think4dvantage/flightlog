@@ -2,10 +2,34 @@
 
 ## In Progress
 
-Nothing blocking. **v0.2.0 is deployed and confirmed live** at `fl.sdh.lol` — login works, the typed
-error envelope is confirmed working over real HTTP (`/stats` correctly 404s as `ENTITY_NOT_FOUND`,
-since neither the page nor `/api/stats` exist before v0.6). 120 tests passing, `ruff check`/`ruff
-format --check` clean, tagged `v0.2.0` on commit `15dcb0a`, both CI workflows green.
+**The real workbook import has now been run against the live container — 600 flights are confirmed
+landed in production.** `python -m flightlog.core.importer` (dry-run, then `--write`) was exercised via
+`docker cp` + `docker exec` (never direct SSH/`docker-compose` on the host — see `04-constraints.md`).
+The dry-run report matched every documented finding exactly: 600/600 rows resolved, the three region
+mismatches (Interlaken/Grindelwald higher, `Fiesch`/`Fiescheralp` unmapped), the row-387 Altgain
+mismatch, the `Advance Success 2` unresolved harness, and 7 buddy-name proposals. `--write` then
+committed all 600.
+
+**That write surfaced a real bug, now fixed on `main` (commits `7345d28`, `e4ae0b8`), not yet
+redeployed:** `database/db.py`'s `_seed_regions()` still had `"Dürstetten"` (ü) — the exact transcription
+typo `aliases.py`'s `SITE_REGION` had already been corrected away from, to `"Därstetten"` (ä). The
+spelling mismatch meant the importer's `_get_or_create_region` couldn't match the seeded row by name, so
+it silently created a 13th, duplicate region on the write. Fixed in `db.py`, and a regression test
+(`test_real_workbook_import_creates_no_new_regions`, asserting `regions_written == 0` against the real
+workbook) was added since nothing previously pinned seed-spelling-vs-alias-spelling agreement. 121 tests
+passing, `ruff check` clean, `ruff format --check` clean on everything touched (5 pre-existing unrelated
+`.ai/*.md` doc-fence formatting issues remain, not touched by this fix). `poetry.lock` was also committed
+for the first time — it was documented as committed in `01-project-overview.md` but never actually was.
+
+**Not yet done: the orphan `"Dürstetten"` (ü) region row still exists in the live prod DB** — the code
+fix doesn't retroactively clean it up, and the fixed image hasn't been rebuilt/redeployed yet. Two
+commands are ready and were handed to the user (check row has 0 sites attached, then delete it) but
+execution and confirmation are still pending as of this note.
+
+v0.2.0 is deployed and confirmed live at `fl.sdh.lol` — login works, the typed error envelope is
+confirmed working over real HTTP (`/stats` correctly 404s as `ENTITY_NOT_FOUND`, since neither the page
+nor `/api/stats` exist before v0.6). Tagged `v0.2.0` on commit `15dcb0a`, both CI workflows green as of
+that tag (not yet re-run against the two new commits above).
 
 A post-deploy login issue (bootstrap admin password not working) was hit and resolved on the host side;
 the exact root cause among the three candidates below wasn't confirmed back to this session, so it's
@@ -31,20 +55,26 @@ shipping a known-broken tag — safe only because it was minutes old and not yet
 
 ## Next Step
 
-Still open: whether `python -m flightlog.core.importer` has actually been run against the real
-workbook on the host (dry-run first, then `--write`) — it's only ever been exercised under pytest so
-far, never inside a booted container. Worth confirming before treating the 600 flights as landed in
-production.
-
-Once that's confirmed, start v0.3 — flight log UI (the MVP boundary). Read `.ai/context/features.md` →
-"v0.3" for scope.
+Still open, in order:
+1. User runs the two `docker exec` commands already handed to them to check-then-delete the orphan
+   `"Dürstetten"` region row from the live DB.
+2. Rebuild and redeploy the image (commits `7345d28`, `e4ae0b8` are on `main` but not yet released) so a
+   fresh volume never reseeds the wrong spelling again. No version bump was made — backend-only fix, not
+   a static-asset change — so this can ship as a `docker-publish.yml` `workflow_dispatch` run against
+   `main`, or wait and fold into whatever ships v0.3, whichever the user prefers.
+3. Once both are done, start v0.3 — flight log UI (the MVP boundary). Read `.ai/context/features.md` →
+   "v0.3" for scope.
 
 ## Open Questions
 
-None blocking. Two things flagged for later, already in the backlog in `features.md`:
+None blocking. Three things flagged for later, already in the backlog in `features.md`:
 - Grant the deploy `gh` token `read:packages` so published image tags can be verified directly.
 - Re-run the `python:3.14-slim` multi-arch build gate once `libigc` is actually installed (v0.4) —
   v0.1's green build did not include it, so the runtime question is only half-answered.
+- Whether to add a startup-time or test-time cross-check that every name `SITE_REGION` (or any future
+  alias table) can produce is actually present in its corresponding seed list — the `Dürstetten`/
+  `Därstetten` bug was only caught because this session happened to inspect `regions_written` by hand;
+  the existing test suite had no assertion that would have failed on it.
 
 ## Context
 

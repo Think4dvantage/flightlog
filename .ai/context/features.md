@@ -1,10 +1,11 @@
 # Feature History & Backlog
 
-## Current Version: v0.2 (shipped, not yet tagged)
+## Current Version: v0.2 (shipped, tagged `v0.2.0`)
 
-v0.1 shipped and is tagged `v0.1.0`. v0.2 is implemented and tested but not yet released as a tag. The
-roadmap below is the plan of record for what remains; each milestone states its scope boundary and what
-is deliberately deferred.
+v0.1 is tagged `v0.1.0`. v0.2 is tagged `v0.2.0` (commit `15dcb0a`) and its 600 flights are confirmed
+imported into the live production database — see `RESUME.md` for the region-seeding bug found and fixed
+during that write, and the pending prod cleanup + redeploy. The roadmap below is the plan of record for
+what remains; each milestone states its scope boundary and what is deliberately deferred.
 
 ---
 
@@ -26,13 +27,19 @@ region-formula bug behind the 596-vs-600 gap (see `architecture.md`'s Statistics
 confirmed root cause), one `Altgain` figure that disagrees with a recomputed value (row 387), and one
 harness (`Advance Success 2`, 3 flights) that is retired gear absent from the current master list.
 
-120 tests passing (60 new since v0.1's 60); `ruff check` and `ruff format --check` clean.
+121 tests passing (61 new since v0.1's 60, including a post-deploy regression test — see below);
+`ruff check` and `ruff format --check` clean.
 
 **Deferred:** IGC, statistics, any UI beyond the raw API, the secondary Excel sheets (hiking,
 ground-handling, tandem, goals), XContest import.
 
-**Not yet done:** verified against a live boot with a real `config.yml` (v0.1's release note did this;
-v0.2 has not yet been exercised over live HTTP). Not yet tagged.
+**Verified against a live boot**, including running the importer itself inside the deployed container
+(not just under pytest): dry-run and `--write` both exercised via `docker exec` against the real
+workbook, all 600 flights landed. That run surfaced one real bug — `database/db.py`'s region-seed list
+had the same transcription typo (`Dürstetten` vs the byte-verified `Därstetten`) that `aliases.py` had
+already been corrected for — which silently created a 13th, orphaned region row. Fixed on `main`, with a
+regression test asserting a real-workbook import creates zero new regions. Not yet redeployed to prod;
+the orphan row and the fix are both still pending as of this note — see `RESUME.md`.
 
 ### v0.1 — Skeleton & auth (2026-08-06, tag `v0.1.0`)
 
