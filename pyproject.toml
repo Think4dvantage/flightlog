@@ -1,6 +1,6 @@
 [project]
 name = "flightlog"
-version = "0.2.0"
+version = "0.2.1"
 description = "Multiuser paragliding flight log with IGC analysis and an API-first design"
 authors = [{ name = "Raphael Eymann", email = "r+flightlog@eymanns.ch" }]
 license = { text = "MIT" }
