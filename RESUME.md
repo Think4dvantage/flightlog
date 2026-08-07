@@ -3,9 +3,18 @@
 ## In Progress
 
 Nothing blocking. v0.2 (core data + Excel import) is implemented and tested — 120 tests passing,
-`ruff check`/`ruff format --check` clean, version bumped to `0.2.0`, tagged `v0.2.0` and pushed.
-Live-boot verification against a real `config.yml` (the way v0.1's release note describes) is happening
-on the homelab host directly — that host's compose/deploy config lives in a separate repo, not here.
+`ruff check`/`ruff format --check` clean, version bumped to `0.2.0`, tagged `v0.2.0` and pushed. Both
+CI workflows are green on the final commit (`15dcb0a`). Live-boot verification against a real
+`config.yml` (the way v0.1's release note describes) is happening on the homelab host directly — that
+host's compose/deploy config lives in a separate repo, not here.
+
+**The tag was moved once.** The first `v0.2.0` push (`a6dee4c`) had a real gap: `poetry install --with
+dev` in CI and `--only main` in the Dockerfile both skip optional-dependency extras, so `openpyxl` was
+missing from both the CI test environment and the shipped container image — `python -m
+flightlog.core.importer` would have crashed inside it. Local testing hadn't caught this because the dev
+sandbox already had `openpyxl` installed outside Poetry, masking the gap. Fixed by adding `--extras
+importer` to both, and the `v0.2.0` tag was deleted and recreated against the fix commit rather than
+shipping a known-broken tag — safe only because it was minutes old and not yet pulled by anything.
 
 ## Next Step
 
@@ -57,6 +66,16 @@ None blocking. Two things flagged for later, already in the backlog in `features
   `0.26.0` when `1.4.0` was current, and every GitHub Action was copied from Lenticularis 1–3 majors
   behind (`actions/checkout@v4` → `@v7`, etc.). `openpyxl`'s pin was re-verified at the start of v0.2
   and is still current (3.1.5).
+- **A dependency being pinned correctly is not the same as it being installed where it's needed.**
+  `openpyxl` was correctly declared as the `importer` extra in `pyproject.toml`, but neither
+  `.github/workflows/test.yml` (`poetry install --with dev`) nor the `Dockerfile` (`poetry install
+  --only main`) actually installed it — both need `--extras importer` explicitly, since Poetry doesn't
+  pull optional extras in by default. A local sandbox that happened to have `openpyxl` installed outside
+  Poetry masked this until the real CI run failed on a clean checkout, by which point `v0.2.0` had
+  already been tagged and its container image already published, broken. Caught and fixed within the
+  same session before anyone pulled the image — see the tag-move note above. Lesson: a new optional
+  extra needs its install command checked in every place code actually runs (CI, Dockerfile, dev
+  setup instructions), not just declared in `pyproject.toml`.
 - **The first tagged release did not dispatch its own publish workflow** — the tag and the workflow
   file arrived in the same push. Documented in `context/architecture.md`; the publish workflow now also
   has `workflow_dispatch` so this doesn't need a tag delete/re-push next time.
