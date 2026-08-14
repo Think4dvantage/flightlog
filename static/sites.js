@@ -48,10 +48,23 @@ async function loadSites() {
 function initMap() {
   // Explicit, not auto-detected: Leaflet's CSS-background-image detection is unreliable
   // and we vendor the marker images ourselves rather than pulling them from a CDN.
+  //
+  // IconDefault._getIconUrl() unconditionally returns
+  // `(this.options.imagePath || <CSS-sniffed path>) + <name>Url`  — it has no "this is
+  // already absolute" mode. Passing full absolute paths as iconUrl/iconRetinaUrl/shadowUrl
+  // (as this used to) doesn't disable that prefixing, it just means the prefix lands in
+  // front of an already-absolute path: on a retina display this produced
+  // "/static/vendor/leaflet/images//static/vendor/leaflet/images/marker-icon-2x.png" — a
+  // 404, silently broken (the icon and shadow, whose lookups both go through the retina
+  // branch or plain Url fallback; the non-retina iconUrl name is never requested on a
+  // retina display, which is why only *-2x.png and shadow ever appeared in the console).
+  // Setting `imagePath` explicitly and leaving the three Url options as bare filenames
+  // (Leaflet's own default shape) lets `imagePath + name` compose correctly instead.
   L.Icon.Default.mergeOptions({
-    iconUrl: '/static/vendor/leaflet/images/marker-icon.png',
-    iconRetinaUrl: '/static/vendor/leaflet/images/marker-icon-2x.png',
-    shadowUrl: '/static/vendor/leaflet/images/marker-shadow.png',
+    imagePath: '/static/vendor/leaflet/images/',
+    iconUrl: 'marker-icon.png',
+    iconRetinaUrl: 'marker-icon-2x.png',
+    shadowUrl: 'marker-shadow.png',
   });
 
   map = L.map('siteMap').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
