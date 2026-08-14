@@ -2,88 +2,115 @@
 
 ## In Progress
 
-**v0.3's MVP (flight log UI, `specs/002-flight-log-ui/`) is implemented on `main` but not committed,
-tagged, or deployed.** Phases 1–8 (T001–T036 of 49) are done: `/flights` (search/filter/sort/paginate +
-inline add/edit/delete drawer), `/flights/{id}` detail, `/sites` (Leaflet map, click-to-drop /
-drag-to-move pins), `/equipment` (glider/harness CRUD + retire), `/import` (read-only historical import
-findings from a frozen, freshly-regenerated dry-run — not hand-transcribed from this file), and
-`static/refdata.js` as the shared join cache every page uses. 127 backend tests passing (up from 121:
-4 new for `sites.py`'s `coord_source = "manual"` behavior, 2 new for `GET /api/import-report`), `ruff
-check` and `ruff format --check` clean. `pyproject.toml` bumped to `0.3.0` (static assets changed — the
-version is the cache key).
+**v0.3.0 (`4a536ff`) is live at `fl.sdh.lol`** — confirmed by the pilot browsing it directly. This
+session started from two live bug reports plus a "the import findings don't make sense" complaint,
+and ends with a `/sites` redesign and explanatory copy on `/import`, both **implemented on `main` but
+not committed, tagged, or deployed yet.**
 
-**Verified live via `curl` against a local dev boot** (`config.yml` already present in the working tree,
-pointed at `data/flightlog.db`), with the real 600-flight workbook re-imported into that dev DB
-(`--write`, confirmed `Regions written: 0` — further live confirmation the `Därstetten` seed fix from
-the last session is correct): every new page route, every new/changed API endpoint, and the full flight
-create/edit/delete lifecycle were exercised end-to-end, including a 422 validation response shape-check
-against the drawer's field-error rendering.
+**Bug 1 — map pin icon not rendering on click-to-place.** Root cause **not confirmed**: no browser
+tool was connected this session either (see [[env-no-browser-extension]]), and `fl.sdh.lol` sits
+behind Traefik OIDC — every unauthenticated `curl` against it, including static assets, came back
+`401 application/json+problem`, so it couldn't be reproduced directly. Best evidence-backed hypothesis,
+not verified: the OIDC session cookie not covering a freshly-requested image the same way it covers the
+already-loaded page. The old `/sites` code itself (icon paths, CSP, static mount, vendored PNGs) checked
+out clean locally — a marker-icon PUT/GET round-trip and a raw static-file fetch both worked against a
+local dev boot. **First thing to do with real browser access: DevTools → Network → filter
+`marker-icon` → read the actual status code.**
 
-**Not verified: actual browser rendering.** No browser automation tool was connected this session (the
-Claude in Chrome extension wasn't available), so nobody has looked at these pages, clicked the map,
-dragged a pin, or tabbed through the drawer. `specs/002-flight-log-ui/tasks.md`'s T047 (manual live-boot
-verification pass — golden path, empty states, validation errors, keyboard nav, i18n completeness) is
-still open specifically for that reason and should be the first thing done with real browser access.
+**Bug 2 — no way to re-edit a site once pinned.** Confirmed real and fixed by redesign, independent of
+bug 1. The old page only let a row's click arm map-placement for a site with *no* coordinates yet;
+a site that already had a pin could only be moved by finding and dragging its (possibly not-rendering)
+marker — spec.md's own FR-009/FR-010 line ("editing a site's name or elevation does not require
+re-placing its pin") implies a proper edit path that was never built.
 
-**Nothing from this session is committed yet.** `git status` will show all the new/changed files.
+**Fix: `/sites` now has an Edit button per row opening a drawer** (name, launch/landing flags, region,
+elevation, coordinates — all editable together, same drawer pattern as `/flights` and `/equipment`).
+Coordinates have two independent paths, so bug 1 (whatever it turns out to be) can't block editing
+entirely: a "click the map to set the pin" picker, and manual lat/lon text fields (deliberately
+`type="text"`, not `type="number"` — a browser set to a comma-decimal locale silently reports `""` for
+`"46,4"` typed into a number input, which would have quietly unpinned the site on save; the text fields
+accept either separator and parse it themselves). One drawer bug caught and fixed before commit: the
+drawer's own overlay is a fixed, full-viewport layer above the map — left as-is, the first map click
+while picking would have hit the overlay and closed the drawer instead of placing the pin. `armPicker()`
+now hides the overlay for the duration of the pick.
+
+**The "import findings don't make sense" complaint needed no code fix, only explanation.** Every
+mismatch on `/import` was already correctly root-caused in a *previous* session
+(`.ai/context/architecture.md`'s Statistics section, `core/aliases.py`'s comments) — independently
+re-derived and confirmed this session by re-running the exact resolution logic against
+`olddata/Flugbuch.xlsx`:
+- **"Advance Success 2" harness** (3 flights) is deliberately excluded from `CANONICAL_HARNESSES` —
+  retired gear, not a misspelling; the importer never guesses. To bring it back: add it under
+  `/equipment`, then edit those 3 flights to attach it (already-imported flights aren't touched by
+  re-running the importer).
+- **Region mismatches** (Interlaken +3, Grindelwald +1, Fiesch −1 vs. the legacy sheet's own Total
+  column) are the legacy sheet's own internal inconsistency, not an import bug: three launch sites
+  (`Ober Burgfeldstand` 1 flight, `Alp Unterburgfeld` 2 flights, `Lauberhorn` 1 flight) were added to
+  the workbook's yearly formulas after the Total column formula was last updated, so the Total column
+  still misses exactly those 4 flights. `Fiescheralp` (1 flight) was never assigned to any region
+  anywhere in the sheet at all — genuinely unmapped, not a bug; can now be fixed on the live data via
+  the new `/sites` drawer's region field if the pilot wants it under "Fiesch".
+- **Row 387's altitude-gain mismatch** is the sheet's own recorded gain (350m) disagreeing with its own
+  `max_alt − launch_elev` columns (1930 − 1930 = 0) for that one row — a pre-existing data quirk,
+  reported and left alone.
+
+The only change made: short explanatory `<p>`s were added under each `/import` findings section
+(`import.*_note` i18n keys) so the pilot sees this reasoning in-app instead of only in dev docs.
+
+**Version bumped 0.3.0 → 0.3.1.** `pages.py` rewrites every `/static/...` reference to `?v=<version>`
+at render time, and `main.py` serves anything with a `v=` query as cache-`immutable`
+(`max-age=31536000`) — since 0.3.0 is already live and the pilot has already loaded it once, shipping
+these fixes under the same version string would leave a returning browser pinned to the old, buggy
+`sites.js` forever.
+
+**Known, local-only test failure — not caused by this session's changes, does not affect prod:**
+`test_app_version_matches_pyproject` fails in *this* dev venv because
+`flightlog-0.2.1.dist-info` (leftover from an earlier plain `poetry install`, before `--no-root` was
+adopted) sits in the venv's `site-packages` and shadows the `pyproject.toml` fallback via
+`importlib.metadata`. Confirmed absent from the repo tree; the container's `poetry install --no-root`
+never creates it, so a fresh deploy resolves `APP_VERSION` correctly. 126/127 otherwise passing,
+`ruff` clean.
+
+**Nothing from this session is committed yet** — same as last time, but true this time; `git status`
+will show the diff (`sites.html`, `sites.js`, `import.html`, `i18n/en.json`, `pyproject.toml`).
 
 ## Next Step
 
-In order:
-1. **Review and commit this session's work.** New: `static/refdata.js`, `flights.html/js`,
-   `flight-detail.html/js`, `sites.html/js`, `equipment.html/js`, `import.html/js`,
-   `core/import_history.py`, `models/import_report.py`, `api/routers/import_report.py`,
-   `test_import_report.py`, 5 vendored Leaflet marker/layer images. Changed: `shared.css`,
-   `bootstrap.js`, `index.html`, `i18n/en.json`, `pages.py`, `main.py`, `sites.py` (+its tests),
-   `pyproject.toml` (version bump).
-2. **Do the T047 visual pass** once a browser is available — this is the one thing `curl` genuinely
-   can't confirm (rendering, the map's click/drag, keyboard-only nav, i18n completeness).
-3. **Finish the still-open v0.2 prod loose ends** (independent of v0.3, can happen in parallel): the
-   orphan `"Dürstetten"` region row still needs checking (0 sites attached) and deleting on the live
-   prod DB, and the region-seed fix (`7345d28`/`e4ae0b8`) still needs a redeploy. Both were re-confirmed
-   still pending as of this session — nobody has run the `docker exec` commands yet. Consider folding
-   this redeploy into whatever ships v0.3, rather than shipping it separately.
-4. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters — all P2/P3) before tagging
-   `v0.3.0`: ship the MVP boundary now and treat these as a fast-follow, or include them first. The spec
-   treats Phases 3–8 as the complete MVP boundary ("the Excel is never opened again"), so shipping
-   without 9–11 is consistent with the plan of record.
-5. Tag and deploy once the above is settled.
+1. **Review and commit this session's work.**
+2. **Real browser pass on `/sites`** the moment a browser tool is available — the overlay/picker
+   interaction and the narrow-screen case (the drawer is full-width below 640px, so the map sits
+   entirely behind it there and the manual lat/lon fields are the only usable path) were only verified
+   by reading `shared.css`'s z-index rules, never rendered. This is still T047's job, now with more
+   surface area to check than before.
+3. **Get the actual marker-icon DevTools status code** from the pilot next time bug 1 reproduces, to
+   turn the OIDC hypothesis above into a confirmed root cause (or rule it out).
+4. **Redeploy `fl.sdh.lol`** with `0.3.1` once the above is done.
+5. **Two small live-data fixes, now possible through the new drawer, still pilot's call:** assign
+   `Fiescheralp` to the `Fiesch` region (or leave it — the sheet itself never did either), and decide
+   whether to add "Advance Success 2" under `/equipment` and reattach it to its 3 flights.
+6. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters) before or after tagging
+   `v0.3.0`/`0.3.1` proper — unchanged from before, still open.
 
 ## Open Questions
 
-- Whether Phases 9–11 ship with v0.3.0 or as a fast-follow v0.3.1 — see step 4 above.
+- Whether Phases 9–11 ship with `v0.3.0` or as a fast-follow — see step 6 above.
 - The three items already in `features.md`'s backlog from v0.2 (unchanged this session): grant the
   deploy `gh` token `read:packages`, re-run the `python:3.14-slim` build gate once `libigc` lands in
   v0.4, and the `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
-- **v0.3's spec/plan/research/data-model/contracts/tasks live in `specs/002-flight-log-ui/`** — this
-  directory existed only in the working tree at the start of this session (never committed); it was
-  committed early on, before any implementation, so the plan of record is durable regardless of what
-  happens to the implementation.
-- **The `HISTORICAL_IMPORT_SUMMARY` frozen constant in `core/import_history.py` was generated from a
-  fresh dry-run**, not copied from this file or from chat — `data-model.md` and `tasks.md`'s T027 are
-  explicit that hand-transcription is exactly how the `Därstetten`/`Dürstetten` bug happened last
-  session, so the values were pulled via a throwaway pytest test that ran `run_import(..., write=False)`
-  and printed the real `ImportReport` fields, then deleted. A pure dry-run never increments
-  `ImportReport.flights_written` (the importer's own `if not write: continue` skips that line), so the
-  frozen `flights_written=600` is `rows_read - len(flights_skipped_unresolved)` from that dry-run, not
-  the field name it looks like.
-- **One real XSS bug caught and fixed before it shipped**: `sites.js`'s Leaflet marker tooltips were
-  initially bound with `marker.bindTooltip(site.name)` — a bare string. Leaflet's `bindTooltip(string)`
-  sets `innerHTML` internally, and `site.name` is free-text user data (sites can be user-created,
-  `sites.allow_user_sites` in `config.yml`). Fixed to build a DOM node with `textContent` first and bind
-  that instead, per `03-frontend-conventions.md`'s XSS rule. A second near-miss of the same class was
-  caught earlier in `flights.js`'s buddy multi-select, which briefly used an `innerHTML`-based option
-  builder for buddy display names before being rewritten to use `document.createElement` +
-  `textContent` like every other dropdown on the page.
-- **The dev server needs a restart after every backend edit** — it was started once with `uvicorn
-  --host 127.0.0.1 --port 8002` (no `--reload`) against the working tree's existing `config.yml` /
-  `data/flightlog.db`, and every `pages.py`/`sites.py` change required killing and restarting it before
-  the change was live. Two 404s and one silently-stale `coord_source` behavior during this session's own
-  smoke testing were both this, not real bugs — worth remembering before assuming a live-boot check that
-  fails is a code problem.
+- **v0.3's spec/plan/research/data-model/contracts/tasks live in `specs/002-flight-log-ui/`.**
+- **The dev server needs a restart after every backend edit** (no `--reload`); irrelevant this session
+  since only static files and `pyproject.toml` changed, but still true for the next backend change.
+  See [[flightlog-dev-server-workflow]].
+- **One real XSS bug was caught and fixed last session** (Leaflet `bindTooltip(string)` on free-text
+  `site.name` → `innerHTML`); the fix (`textContent` DOM node) is preserved unchanged in this session's
+  `sites.js` rewrite.
+- **`database/db.py`'s `_seed_regions()` and `core/aliases.py`'s `SITE_REGION` must use identical region
+  spelling** — a mismatch silently creates an orphaned duplicate region row on the next write, not an
+  error. This bit the project once already (`Därstetten`/`Dürstetten`, `7345d28`/`e4ae0b8`). Not touched
+  this session, but worth remembering before editing either file.
 
 This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md` and
 `specs/002-flight-log-ui/` have the detail.

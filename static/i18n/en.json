@@ -115,15 +115,39 @@
   },
   "sites": {
     "title": "Sites",
-    "map_hint": "Click an unpinned site's row to place it, or drag an existing pin to move it.",
+    "map_hint": "The map shows every placed site. Use Edit on a row to place or move its pin, assign a region, or change anything else about it.",
     "unpinned": "Not placed",
+    "edit": "Edit",
     "col": {
       "name": "Name",
       "launch": "Launch",
       "landing": "Landing",
       "region": "Region",
       "elevation": "Elevation",
-      "coords": "Coordinates"
+      "coords": "Coordinates",
+      "actions": "Edit"
+    },
+    "drawer": {
+      "edit_title": "Edit site",
+      "name": "Name",
+      "is_launch": "Launch",
+      "is_landing": "Landing",
+      "region": "Region",
+      "no_region": "No region",
+      "elevation": "Elevation (m)",
+      "coords": "Coordinates",
+      "lat_placeholder": "Latitude",
+      "lon_placeholder": "Longitude",
+      "pick_on_map": "Click the map to set the pin",
+      "pick_hint": "Click anywhere on the map above to set this site's coordinates.",
+      "needs_launch_or_landing": "A site must be a launch, a landing, or both.",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this site? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "equipment": {
@@ -163,8 +187,11 @@
     "snapshot_note": "This is a historical snapshot of the v0.2 production import, not a live view — it does not reflect any edits made since.",
     "none_found": "None found.",
     "unresolved_gear_title": "Unresolved gear",
+    "unresolved_gear_note": "The importer never guesses: a gear value only gets attached to a flight if it exactly matches the equipment list (or a known spelling variant) — otherwise the flight is kept but that field is left blank, and reported here. \"Advance Success 2\" is retired gear that was deliberately left off the list rather than auto-created. To bring those 3 flights' harness back: add \"Advance Success 2\" under Equipment, then edit each of those flights to attach it.",
     "region_mismatches_title": "Region count mismatches",
+    "region_mismatches_note": "These compare this app's own per-flight region totals against the legacy sheet's \"Total\" column — and they're expected to disagree, for a confirmed reason, not a guess: three launch sites (Ober Burgfeldstand, Alp Unterburgfeld, Lauberhorn) were added to the workbook's yearly formulas after the Total column was last updated. The Total column still misses all of their flights: 3 for Interlaken (1 + 2 flights from the first two sites), 1 for Grindelwald (from Lauberhorn) — exactly the gaps shown below. A fourth site, Fiescheralp, was never assigned to any region anywhere in the sheet — its one flight has no legacy total to agree or disagree with.",
     "altgain_mismatches_title": "Altitude gain mismatches",
+    "altgain_mismatches_note": "Computed altitude gain is max altitude minus launch elevation. The one row below is where the sheet's own recorded gain doesn't match that arithmetic from its own columns — a discrepancy already present in the source data, left as-is rather than silently corrected in either direction.",
     "buddy_proposals_title": "Buddy name proposals",
     "col": {
       "kind": "Kind",

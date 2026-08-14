@@ -4,11 +4,16 @@
  * CSP script-src 'self' would block one anyway). Tiles come from the public OSM raster server;
  * that's an <img> load, not a script, so CSP's img-src 'self' data: https: already allows it
  * (see specs/002-flight-log-ui/research.md).
+ *
+ * Editing lives in a drawer (name/flags/region/elevation/coordinates), not on the row click —
+ * a site with an existing pin still needs a way back into "place mode", and a manual lat/lon
+ * fallback matters because the map's own marker rendering is one more thing that can fail
+ * (network, browser extension, tile host) independently of whether the coordinates are right.
  */
 
 import { bootstrapPage } from '/static/bootstrap.js';
 import { fetchAuth, errorMessage } from '/static/auth.js';
-import { loadRefData, regionName } from '/static/refdata.js';
+import { loadRefData, getRegions, regionName } from '/static/refdata.js';
 
 const DEFAULT_CENTER = [46.68, 7.85]; // Bernese Oberland — this pilot's home flying area
 const DEFAULT_ZOOM = 10;
@@ -16,9 +21,11 @@ const DEFAULT_ZOOM = 10;
 const el = (id) => document.getElementById(id);
 
 let map;
-let markers = new Map(); // site id -> Leaflet marker
+let markers = new Map(); // site id -> Leaflet marker (confirmed, saved position)
+let pickerMarker = null; // preview marker for a not-yet-saved pick, while the drawer is open
 let sites = [];
-let armedSiteId = null; // site id awaiting a map click to place its first pin
+let editingId = null;
+let pickerArmed = false;
 
 function showAlert(message) {
   el('alert').textContent = message;
@@ -38,19 +45,6 @@ async function loadSites() {
   return list;
 }
 
-async function updateSiteCoords(siteId, lat, lon) {
-  console.log(`[FL:sites] PUT /api/sites/${siteId} lat=${lat} lon=${lon}`);
-  const res = await fetchAuth(`/api/sites/${siteId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ lat, lon }),
-  });
-  if (!res.ok) {
-    showAlert(await errorMessage(res));
-    return null;
-  }
-  return res.json();
-}
-
 function initMap() {
   // Explicit, not auto-detected: Leaflet's CSS-background-image detection is unreliable
   // and we vendor the marker images ourselves rather than pulling them from a CDN.
@@ -66,24 +60,67 @@ function initMap() {
     maxZoom: 19,
   }).addTo(map);
 
-  map.on('click', async (event) => {
-    if (!armedSiteId) return;
-    const site = sites.find((s) => s.id === armedSiteId);
+  map.on('click', (event) => {
+    if (!pickerArmed) return;
     const { lat, lng } = event.latlng;
-    console.log(`[FL:sites] placing pin for ${site.name} at ${lat}, ${lng}`);
-    const updated = await updateSiteCoords(armedSiteId, lat, lng);
-    disarm();
-    if (updated) {
-      Object.assign(site, updated);
-      addOrMoveMarker(site);
-      renderTable();
-    }
+    console.log(`[FL:sites] picked ${lat}, ${lng}`);
+    setPickedCoords(lat, lng);
+    disarmPicker();
   });
 }
 
-function disarm() {
-  armedSiteId = null;
+function armPicker() {
+  pickerArmed = true;
+  el('siteMap').classList.add('armed');
+  el('pickHint').hidden = false;
+  // The drawer overlay is a fixed, full-viewport layer that sits above the map (same
+  // stacking context, higher z-index) and closes the drawer on click — left in place, a
+  // map click while armed would hit the overlay first and discard the edit instead of
+  // picking a point. Hide it only for the duration of picking; the drawer itself (a
+  // separate, higher layer) stays open and interactive throughout.
+  el('drawerOverlay').hidden = true;
+}
+
+function disarmPicker() {
+  pickerArmed = false;
   el('siteMap').classList.remove('armed');
+  el('pickHint').hidden = true;
+  if (!el('siteDrawer').hidden) el('drawerOverlay').hidden = false;
+}
+
+function setPickedCoords(lat, lon) {
+  el('s_lat').value = lat.toFixed(6);
+  el('s_lon').value = lon.toFixed(6);
+  showPickerMarker(lat, lon);
+}
+
+// The confirmed marker (from `markers`) and the picker preview are two different Leaflet
+// markers; showing both at once for the site being edited would draw two overlapping pins.
+// Hide the confirmed one for the duration of the edit — restored in closeDrawer().
+function hideConfirmedMarker() {
+  markers.get(editingId)?.setOpacity(0);
+}
+
+function showPickerMarker(lat, lon) {
+  if (lat == null || lon == null) {
+    if (pickerMarker) {
+      map.removeLayer(pickerMarker);
+      pickerMarker = null;
+    }
+    return;
+  }
+  hideConfirmedMarker();
+  if (pickerMarker) {
+    pickerMarker.setLatLng([lat, lon]);
+  } else {
+    pickerMarker = L.marker([lat, lon], { draggable: true, opacity: 0.75 }).addTo(map);
+    pickerMarker.on('dragend', () => {
+      const { lat: dLat, lng: dLng } = pickerMarker.getLatLng();
+      el('s_lat').value = dLat.toFixed(6);
+      el('s_lon').value = dLng.toFixed(6);
+    });
+  }
+  map.panTo([lat, lon]);
 }
 
 function addOrMoveMarker(site) {
@@ -93,24 +130,22 @@ function addOrMoveMarker(site) {
     marker.setLatLng([site.lat, site.lon]);
     return;
   }
-  marker = L.marker([site.lat, site.lon], { draggable: true });
+  marker = L.marker([site.lat, site.lon]);
   // Leaflet's bindTooltip(string) sets innerHTML internally — site.name is free-text user
   // data, so pass a DOM node built with textContent instead, per 03-frontend-conventions.md.
   const tooltipNode = document.createElement('span');
   tooltipNode.textContent = site.name;
   marker.bindTooltip(tooltipNode);
-  marker.on('dragend', async () => {
-    const { lat, lng } = marker.getLatLng();
-    const updated = await updateSiteCoords(site.id, lat, lng);
-    if (updated) {
-      Object.assign(site, updated);
-      renderTable();
-    } else {
-      marker.setLatLng([site.lat, site.lon]); // revert on failure
-    }
-  });
   marker.addTo(map);
   markers.set(site.id, marker);
+}
+
+function removeMarker(siteId) {
+  const marker = markers.get(siteId);
+  if (marker) {
+    map.removeLayer(marker);
+    markers.delete(siteId);
+  }
 }
 
 function renderTable() {
@@ -119,7 +154,7 @@ function renderTable() {
 
   for (const site of sites) {
     const tr = document.createElement('tr');
-    if (site.id === armedSiteId) tr.classList.add('row-highlight');
+    tr.dataset.id = site.id;
 
     const nameTd = document.createElement('td');
     nameTd.textContent = site.name;
@@ -150,20 +185,228 @@ function renderTable() {
     }
     tr.appendChild(coordTd);
 
+    const actionTd = document.createElement('td');
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'btn-ghost';
+    editBtn.textContent = window.t('sites.edit');
+    editBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openDrawer(site);
+    });
+    actionTd.appendChild(editBtn);
+    tr.appendChild(actionTd);
+
     tr.addEventListener('click', () => {
       if (site.lat != null && site.lon != null) {
         map.panTo([site.lat, site.lon]);
         markers.get(site.id)?.openTooltip();
-        return;
       }
-      armedSiteId = armedSiteId === site.id ? null : site.id;
-      el('siteMap').classList.toggle('armed', Boolean(armedSiteId));
-      console.log(`[FL:sites] ${armedSiteId ? 'armed' : 'disarmed'} pin placement for ${site.name}`);
-      renderTable();
     });
 
     tbody.appendChild(tr);
   }
+}
+
+// ---- drawer ----
+
+function clearFieldErrors() {
+  document.querySelectorAll('#siteForm .field-error').forEach((p) => (p.textContent = ''));
+  el('drawerAlert').classList.remove('visible');
+}
+
+function populateRegionOptions() {
+  const select = el('s_region');
+  const placeholder = select.querySelector('option[value=""]');
+  select.innerHTML = '';
+  select.appendChild(placeholder);
+  for (const region of getRegions()) {
+    const opt = document.createElement('option');
+    opt.value = region.id;
+    opt.textContent = region.name;
+    select.appendChild(opt);
+  }
+}
+
+function openDrawer(site) {
+  editingId = site.id;
+  clearFieldErrors();
+  disarmPicker();
+  el('deleteConfirm').hidden = true;
+  populateRegionOptions();
+
+  el('drawerTitle').textContent = window.t('sites.drawer.edit_title');
+  el('drawerDelete').hidden = false;
+
+  el('s_id').value = site.id;
+  el('s_name').value = site.name;
+  el('s_launch').checked = site.is_launch;
+  el('s_landing').checked = site.is_landing;
+  el('s_region').value = site.region_id || '';
+  el('s_elevation').value = site.elevation_m ?? '';
+  el('s_lat').value = site.lat ?? '';
+  el('s_lon').value = site.lon ?? '';
+
+  // Pan to the existing pin without drawing a second (picker) marker on top of it — the
+  // picker only appears once the coordinates actually change (pick, drag, or manual edit).
+  if (site.lat != null && site.lon != null) map.panTo([site.lat, site.lon]);
+
+  el('drawerOverlay').hidden = false;
+  el('siteDrawer').hidden = false;
+  el('siteDrawer').setAttribute('aria-hidden', 'false');
+  console.log(`[FL:sites] drawer opened (edit ${site.id})`);
+  el('s_name').focus();
+}
+
+function closeDrawer() {
+  disarmPicker();
+  showPickerMarker(null, null);
+  markers.get(editingId)?.setOpacity(1);
+  el('drawerOverlay').hidden = true;
+  el('siteDrawer').hidden = true;
+  el('siteDrawer').setAttribute('aria-hidden', 'true');
+  editingId = null;
+  console.log('[FL:sites] drawer closed');
+}
+
+// Plain text inputs, not type="number": a browser set to a comma-decimal locale (common
+// for a Swiss user) silently reports "" for "46,4" typed into a number input, which would
+// turn into a null coordinate — i.e. quietly unpin the site on save. Comma is accepted here
+// and normalised to a dot before parsing.
+function parseCoord(raw) {
+  const trimmed = raw.trim().replace(',', '.');
+  if (trimmed === '') return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
+function readFormPayload() {
+  return {
+    name: el('s_name').value.trim(),
+    is_launch: el('s_launch').checked,
+    is_landing: el('s_landing').checked,
+    region_id: el('s_region').value || null,
+    elevation_m: el('s_elevation').value === '' ? null : Number(el('s_elevation').value),
+    lat: parseCoord(el('s_lat').value),
+    lon: parseCoord(el('s_lon').value),
+  };
+}
+
+function renderFieldErrors(details) {
+  const errors = details?.errors || [];
+  for (const err of errors) {
+    const field = err.loc?.[err.loc.length - 1];
+    const target = document.querySelector(`#siteForm .field-error[data-field="${field}"]`);
+    if (target) target.textContent = err.msg;
+    console.warn(`[FL:sites] validation error on ${field}: ${err.msg}`);
+  }
+  if (errors.length === 0) {
+    el('drawerAlert').textContent = window.t('common.error_generic');
+    el('drawerAlert').classList.add('visible');
+  }
+}
+
+function upsertSiteInPlace(site) {
+  const idx = sites.findIndex((s) => s.id === site.id);
+  if (idx >= 0) sites[idx] = site;
+  else sites.push(site);
+}
+
+async function submitSite(event) {
+  event.preventDefault();
+  clearFieldErrors();
+  if (!el('s_launch').checked && !el('s_landing').checked) {
+    el('drawerAlert').textContent = window.t('sites.drawer.needs_launch_or_landing');
+    el('drawerAlert').classList.add('visible');
+    return;
+  }
+
+  const saveBtn = el('drawerSave');
+  saveBtn.disabled = true;
+
+  const payload = readFormPayload();
+  const url = `/api/sites/${editingId}`;
+  console.log(`[FL:sites] PUT ${url}`, payload);
+
+  try {
+    const res = await fetchAuth(url, { method: 'PUT', body: JSON.stringify(payload) });
+    if (!res.ok) {
+      let details;
+      try {
+        details = (await res.json())?.error?.details;
+      } catch {
+        details = null;
+      }
+      if (res.status === 422 && details) {
+        renderFieldErrors(details);
+      } else {
+        el('drawerAlert').textContent = await errorMessage(res);
+        el('drawerAlert').classList.add('visible');
+      }
+      console.error(`[FL:sites] save failed (${res.status})`);
+      return;
+    }
+
+    const saved = await res.json();
+    upsertSiteInPlace(saved);
+    addOrMoveMarker(saved);
+    if (saved.lat == null || saved.lon == null) removeMarker(saved.id);
+    renderTable();
+    closeDrawer();
+    console.log(`[FL:sites] site updated: ${saved.id}`);
+  } catch (err) {
+    console.error('[FL:sites] save request failed', err);
+    el('drawerAlert').textContent = window.t('common.error_generic');
+    el('drawerAlert').classList.add('visible');
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteSite() {
+  if (!editingId) return;
+  const id = editingId;
+  console.log(`[FL:sites] deleting site ${id}`);
+  const res = await fetchAuth(`/api/sites/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    el('drawerAlert').textContent = await errorMessage(res);
+    el('drawerAlert').classList.add('visible');
+    console.error(`[FL:sites] delete failed (${res.status})`);
+    return;
+  }
+  sites = sites.filter((s) => s.id !== id);
+  removeMarker(id);
+  renderTable();
+  closeDrawer();
+  console.log(`[FL:sites] site deleted: ${id}`);
+}
+
+function wireEvents() {
+  el('drawerClose').addEventListener('click', closeDrawer);
+  el('drawerOverlay').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !el('siteDrawer').hidden) closeDrawer();
+  });
+
+  el('siteForm').addEventListener('submit', submitSite);
+
+  el('pickOnMap').addEventListener('click', armPicker);
+
+  const onCoordInput = () => {
+    const lat = parseCoord(el('s_lat').value);
+    const lon = parseCoord(el('s_lon').value);
+    if (lat != null && lon != null) showPickerMarker(lat, lon);
+  };
+  el('s_lat').addEventListener('change', onCoordInput);
+  el('s_lon').addEventListener('change', onCoordInput);
+
+  el('drawerDelete').addEventListener('click', () => {
+    el('deleteConfirm').hidden = false;
+  });
+  el('deleteConfirmNo').addEventListener('click', () => {
+    el('deleteConfirm').hidden = true;
+  });
+  el('deleteConfirmYes').addEventListener('click', deleteSite);
 }
 
 async function init() {
@@ -171,6 +414,7 @@ async function init() {
   await loadRefData();
 
   initMap();
+  wireEvents();
   sites = await loadSites();
   for (const site of sites) addOrMoveMarker(site);
   renderTable();

@@ -17,7 +17,7 @@
       </div>
 
       <div id="alert" class="alert alert-error"></div>
-      <p class="muted" data-i18n="sites.map_hint">Click an unpinned site's row to place it, or drag an existing pin to move it.</p>
+      <p class="muted" data-i18n="sites.map_hint">The map shows every placed site. Use Edit on a row to place or move its pin, assign a region, or change anything else about it.</p>
 
       <div id="siteMap" class="site-map"></div>
 
@@ -31,6 +31,7 @@
               <th data-i18n="sites.col.region">Region</th>
               <th data-i18n="sites.col.elevation">Elevation</th>
               <th data-i18n="sites.col.coords">Coordinates</th>
+              <th data-i18n="sites.col.actions">Edit</th>
             </tr>
           </thead>
           <tbody id="sitesBody"></tbody>
@@ -38,6 +39,67 @@
       </div>
     </div>
   </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="siteDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="sites.drawer.edit_title">Edit site</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="siteForm" novalidate>
+      <input type="hidden" id="s_id">
+
+      <div class="field">
+        <label for="s_name" data-i18n="sites.drawer.name">Name</label>
+        <input type="text" id="s_name" required maxlength="120">
+        <p class="field-error" data-field="name"></p>
+      </div>
+
+      <div class="field-row">
+        <label><input type="checkbox" id="s_launch"> <span data-i18n="sites.drawer.is_launch">Launch</span></label>
+        <label><input type="checkbox" id="s_landing"> <span data-i18n="sites.drawer.is_landing">Landing</span></label>
+      </div>
+      <p class="field-error" data-field="is_launch"></p>
+
+      <div class="field">
+        <label for="s_region" data-i18n="sites.drawer.region">Region</label>
+        <select id="s_region"><option value="" data-i18n="sites.drawer.no_region">No region</option></select>
+        <p class="field-error" data-field="region_id"></p>
+      </div>
+
+      <div class="field">
+        <label for="s_elevation" data-i18n="sites.drawer.elevation">Elevation (m)</label>
+        <input type="number" id="s_elevation" step="1">
+        <p class="field-error" data-field="elevation_m"></p>
+      </div>
+
+      <div class="field">
+        <span data-i18n="sites.drawer.coords">Coordinates</span>
+        <div class="field-row">
+          <input type="text" inputmode="decimal" id="s_lat" data-i18n-placeholder="sites.drawer.lat_placeholder" placeholder="Latitude">
+          <input type="text" inputmode="decimal" id="s_lon" data-i18n-placeholder="sites.drawer.lon_placeholder" placeholder="Longitude">
+        </div>
+        <button type="button" id="pickOnMap" class="btn-ghost" data-i18n="sites.drawer.pick_on_map">Click the map to set the pin</button>
+        <p class="muted" id="pickHint" data-i18n="sites.drawer.pick_hint" hidden>Click anywhere on the map above to set this site's coordinates.</p>
+        <p class="field-error" data-field="lat"></p>
+        <p class="field-error" data-field="lon"></p>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="sites.drawer.save">Save</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="sites.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="sites.delete_confirm.prompt">Delete this site? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="sites.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="sites.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
 
   <script src="/static/vendor/leaflet/leaflet.js"></script>
   <script type="module" src="/static/sites.js"></script>
