@@ -20,24 +20,44 @@ deliberately left open (upload mechanics, bulk-review persistence, config shape)
 - **Alternatives considered**: None — this is the dependency already chosen and declared in a prior
   session; this research re-verifies it rather than re-deciding it.
 
-## Open: two architecture.md claims not confirmed by the README — verify against the installed package before implementing
+## Resolved (T005): both open items checked against the installed 1.2.0 source, not just the README
 
-- **`press_alt` / `gnss_alt` per-fix fields.** Architecture.md's altitude-source rule (`prefer press_alt
-  when >50% of fixes carry a non-None baro value, else gnss_alt`) assumes each fix exposes both readings
-  separately. The README only documents a single `GNSSFix.alt` plus a flight-level `alt_source` (`PRESS`
-  or `GNSS`) — it's unclear from the README alone whether `alt_source` is libigc's own resolved choice
-  (in which case architecture.md's per-fix comparison may be redundant with what the library already
-  does) or whether `press_alt`/`gnss_alt` exist on the fix object but are simply undocumented in the
-  README. **Resolve by inspecting the installed package's actual source/docstrings once the `igc` extra
-  is installed during implementation** — this is a Phase 1 (backend prerequisites) task, not a blocker
-  for this plan, since either outcome is a small, contained change to `core/igc.py`.
-- **`FlightParsingConfig` and its tuning parameter names.** Architecture.md names four specific
-  parameters (`min_time_for_thermal_s`, `min_bearing_change_circling_deg`, `min_time_for_glide_s`,
-  `max_time_between_thermals_s`) as `config.yml`-tunable. The README does not document this class at
-  all. **Resolve the same way** — inspect the installed package before finalizing `config.yml.example`'s
-  `igc.parsing:` key names and defaults; `data-model.md`/this plan use architecture.md's names as the
-  working assumption, flagged here so a mismatch is expected to surface early in Phase 1, not discovered
-  mid-feature.
+- **Altitude source: `libigc` already resolves this itself — do not reimplement architecture.md's
+  ">50% non-None" heuristic.** `GNSSFix.press_alt` / `.gnss_alt` do both exist on every fix, parsed
+  directly from each B-record's two fixed-width altitude fields — but they are **floats, never `None`**
+  (a logger with no baro sensor typically writes literal zeros, not a missing field), so a
+  "non-None" count wouldn't do anything useful against real data anyway. `libigc.core.Flight` already
+  runs a proper validity check on *both* streams during construction (`_check_altitudes()`: per-fix
+  rate-of-change limits, absolute min/max bounds, and a minimum-average-change check to catch a sensor
+  stuck reporting a constant value) and sets `press_alt_valid` / `gnss_alt_valid` booleans, then:
+  `alt_source = PRESSURE if press_alt_valid else (GNSS if gnss_alt_valid else <flight invalid>)`. If
+  *neither* is valid, `flight.valid` is set `False` and construction returns early — so architecture.md
+  rule 1's "reject `not flight.valid`" already covers the "no usable altitude at all" case for free.
+  **Decision**: `core/igc.py` reads `flight.alt_source` directly for the persisted `alt_source` column;
+  it does not recompute a source selection from the raw fixes itself. Architecture.md's rule 2 should be
+  corrected to say this at `sync.md` time (Phase 8 / T035) — the current wording describes a heuristic
+  this project would have had to invent redundantly, over one the chosen library already implements more
+  rigorously.
+- **`FlightParsingConfig`'s real shape does not match the four names architecture.md guessed.** The
+  installed 1.2.0 source (`flight_parsing_config.py`) declares many *file-validity* parameters
+  (`min_fixes`, `max_seconds_between_fixes`, `max_alt`, `min_alt`, etc.) that are not this feature's
+  concern to expose, plus exactly **three** thermal-detection parameters — and no separate glide-tuning
+  parameter exists at all:
+  | Architecture.md's guess | Real parameter | Default | Meaning |
+  |---|---|---|---|
+  | `min_bearing_change_circling_deg` | `min_bearing_change_circling` | `6.0` (deg/s) | Minimum bearing-change rate to enter a thermal |
+  | *(not anticipated)* | `min_time_for_bearing_change` | `5.0` (s) | Minimum time between fixes before a bearing-change rate is computed at all — exists specifically to avoid noise from fixes that are too close together in time |
+  | `min_time_for_thermal_s` | `min_time_for_thermal` | `60.0` (s) | Minimum circling duration to count as a thermal, not noise |
+  | `min_time_for_glide_s` | **does not exist** | — | Glides are simply "the gap between two thermals" (`glide.py`'s own docstring); there is no separate minimum-duration knob for them |
+  | `max_time_between_thermals_s` | **does not exist** | — | No such parameter anywhere in the class |
+  **Decision**: `config.yml`'s `igc.parsing:` block exposes exactly these three real parameter names,
+  at their real library defaults, not the four architecture.md guessed. `create_from_file` takes a
+  **config class**, not an instance (`config = config_class()` is called internally) — `core/igc.py`
+  builds a small `FlightParsingConfig` subclass from `config.yml`'s resolved values and passes the
+  subclass, not an instance, as `create_from_file`'s `config_class=` argument.
+- **`create_from_file` takes a filesystem path, not bytes.** Confirms (does not change) the already-
+  planned storage design: an uploaded file's bytes are hashed and written to content-addressed disk
+  storage *before* `core/igc.py` ever calls into `libigc`, never handed to it as an in-memory buffer.
 
 ## Decision: file upload uses FastAPI's `UploadFile`, whole-body-in-memory, not streamed
 
@@ -54,13 +74,24 @@ deliberately left open (upload mechanics, bulk-review persistence, config shape)
 - **Alternatives considered**: Streaming to a temp file first. Rejected as unnecessary complexity for a
   5 MiB ceiling — the whole point of a small `max_igc_bytes` is that in-memory handling stays cheap.
 
-## Decision: CPU-bound analysis runs via `asyncio.to_thread`, never inline in an `async def` handler
+## Decision: CPU-bound analysis stays off the event loop by keeping every route a sync `def`, not by wrapping it in `asyncio.to_thread`
 
-- **Decision**: Every call into `core/igc.py`'s parse/analyze function from an API route goes through
-  `await asyncio.to_thread(analyze, ...)`.
-- **Rationale**: `04-constraints.md`'s Performance section states this exact rule for IGC parsing by
-  name — a large track's analysis takes seconds, and calling it directly from `async def` stalls every
-  other request in the process. Non-negotiable, not a new decision so much as applying an existing one.
+- **Decision**: Every route in `api/routers/igc.py` is a plain sync `def`, matching every other
+  router already in this app (`flights.py`, `sites.py`, etc., are 100% sync `def` — there is no
+  `async def` route handler anywhere in the codebase today). `core/igc.py`'s `analyze()` is called
+  directly, with no `asyncio.to_thread` wrapper.
+- **Rationale**: `04-constraints.md`'s rule ("never call IGC parsing directly from an `async def`
+  handler") is about the specific failure mode of blocking the event loop from inside an `async def`
+  — FastAPI already runs a sync `def` path function in its own worker threadpool automatically (the
+  same mechanism `02-backend-conventions.md` already relies on for `get_db` and the auth dependencies
+  being sync), so the underlying concern is satisfied by construction without introducing this app's
+  first `async def` route and a second offloading mechanism alongside it. `UploadFile.file` (the
+  underlying `SpooledTemporaryFile`) supports a plain sync `.read()`, so nothing about file upload
+  itself requires `async def` either.
+- **Alternatives considered**: An `async def` handler with `await asyncio.to_thread(analyze, ...)`,
+  literally as `04-constraints.md`'s example shows. Rejected as unnecessary complexity that would also
+  make this feature's routes the only asynchronous ones in the app — the constraint the example is
+  guarding against doesn't arise if the handler is never `async def` in the first place.
 
 ## Decision: bulk-upload results persist server-side as pending rows, not just in the HTTP response
 

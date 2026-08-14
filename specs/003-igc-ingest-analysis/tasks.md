@@ -13,6 +13,17 @@ Spec: [`spec.md`](./spec.md) · Plan: [`plan.md`](./plan.md) · Data model: [`da
 Test tasks are included throughout (`06-testing-conventions.md`: backend logic is test-gated; matches
 both prior features' precedent). No frontend test tasks, consistent with `specs/002-flight-log-ui`.
 
+**Backend status: T001–T012, T015–T017, T021–T027, T031–T032 done (26/35) — every route in
+`contracts/endpoints.md`, all four new tables, `core/igc.py`/`igc_storage.py`/`site_backfill.py`, and
+15 new backend tests (142/142 passing project-wide), `ruff check`/`ruff format --check` clean.**
+Verified against real, generated IGC fixtures (not just assertions against fabricated data) — a genuine
+climbing thermal was correctly detected and filtered, altitude-source fallback to GNSS was confirmed
+for a no-baro file, and libigc's own takeoff/landing detection behaved correctly once the fixtures'
+ground speeds were fixed to stay above its `min_gsp_flight` threshold. **Remaining: T013–T014, T018–T020,
+T028–T030 — all frontend** (flight-detail upload control + figures + map + barogram; the bulk-upload
+page; i18n keys throughout) — **and the Final Phase** (T033 live-boot pass, T034 version bump, T035
+`sync.md`).
+
 ## Dependencies
 
 ```
@@ -46,26 +57,32 @@ any order relative to each other.
 - [x] T001 [P] Re-verify `libigc`, Chart.js, and Leaflet are still the latest stable releases (PyPI JSON
       API, `gh api repos/chartjs/Chart.js/releases/latest`, `gh api repos/Leaflet/Leaflet/releases/latest`)
       — confirmed `libigc` 1.2.0 / `v4.5.1` / `v1.9.4` at planning time (`research.md`)
-- [ ] T002 [P] Create `tests/backend/fixtures/` IGC files: a valid multi-thermal flight, a flight with no
+- [x] T002 [P] Create `tests/backend/fixtures/` IGC files: a valid multi-thermal flight, a flight with no
       barometric fixes, a corrupt/truncated file, and a same-day two-flights pair (for bulk-match
-      ambiguity testing) — needed by nearly every test task below
+      ambiguity testing) — needed by nearly every test task below. Generated (not hand-written) and
+      verified against real `libigc` output — a launch, one genuine climbing thermal, and a glide, with
+      realistic ground speeds so libigc's own takeoff/landing detection behaves correctly
 
 ## Phase 2 — Foundation
 
-- [ ] T003 Add `IgcParsingConfig` / `IgcConfig` to `src/flightlog/config.py` and an `igc.parsing:` block
+- [x] T003 Add `IgcParsingConfig` / `IgcConfig` to `src/flightlog/config.py` and an `igc.parsing:` block
       to `config.yml.example`, logged at INFO on startup like every other config section
-- [ ] T004 [P] Add `IgcTrack`, `IgcSegment`, `SiteObservation`, `IgcPendingUpload` ORM models to
+- [x] T004 [P] Add `IgcTrack`, `IgcSegment`, `SiteObservation`, `IgcPendingUpload` ORM models to
       `src/flightlog/database/models.py` per `data-model.md`
-- [ ] T005 Install the `igc` extra locally and resolve `research.md`'s two open items against the real
+- [x] T005 Install the `igc` extra locally and resolve `research.md`'s two open items against the real
       package (per-fix `press_alt`/`gnss_alt` field shape; `FlightParsingConfig`'s actual parameter names
-      and defaults) — finalizes T003's config keys and the altitude-source logic in T007
-- [ ] T006 Create `src/flightlog/core/igc_storage.py` — sha256 + content-addressed write/read under
-      `storage.igc_dir` (`<owner_id>/<YYYY>/<sha256>.igc`), `storage.max_igc_bytes` enforcement
-- [ ] T007 Create `src/flightlog/core/igc.py` — `libigc.Flight.create_from_file` wrapper: reject
+      and defaults) — finalizes T003's config keys and the altitude-source logic in T007. Both resolved:
+      `flight.alt_source` is read directly rather than reimplemented; the real parameter names are
+      `min_bearing_change_circling` / `min_time_for_bearing_change` / `min_time_for_thermal`, not the
+      four originally guessed — see `research.md`
+- [x] T006 Create `src/flightlog/core/igc_storage.py` — sha256 + content-addressed write/read under
+      `storage.igc_dir` (`<owner_id>/<upload_year>/<sha256>.igc`), `storage.max_igc_bytes` enforcement
+- [x] T007 Create `src/flightlog/core/igc.py` — `libigc.Flight.create_from_file` wrapper: reject
       `not flight.valid`; altitude-source selection; thermal filter (climbing circles only, per
       `architecture.md` rule 3); glide ratio; `best_climb_ms` / `peak_climb_ms`; segment extraction;
-      `track_simplified_json` generation; `ANALYZER_VERSION` constant
-- [ ] T008 [P] Create `src/flightlog/models/igc.py` — Pydantic response schemas
+      `track_simplified_json` generation; `ANALYZER_VERSION` constant. Verified against real, generated
+      IGC fixtures, not just unit-level assertions
+- [x] T008 [P] Create `src/flightlog/models/igc.py` — Pydantic response schemas
       (`IgcTrackOut`, `IgcSegmentOut`, `IgcTrackGeoJsonOut`, `BulkUploadOutcomeOut`,
       `IgcPendingUploadOut`, `ReanalyzeResultOut`) per `contracts/endpoints.md`
 
@@ -79,14 +96,17 @@ distance, altitude gain, thermal count, best climb, and glide ratio instead of h
 correctly; re-upload the same file (no-op, no duplicate); upload a different file (replaces cleanly);
 upload a corrupt file (rejected with a specific reason, nothing written).
 
-- [ ] T009 [US1] Create `src/flightlog/api/routers/igc.py` with `POST /api/flights/{id}/igc` — multipart
-      upload, `asyncio.to_thread`-offloaded analysis, create-or-replace semantics (FR-004), same-sha256
-      no-op (FR-003), size/validity rejection with a specific reason (FR-002)
-- [ ] T010 [US1] Add `GET /api/flights/{id}/igc` (summary, 404 if none) and
+- [x] T009 [US1] Create `src/flightlog/api/routers/igc.py` with `POST /api/flights/{id}/igc` — multipart
+      upload, create-or-replace semantics (FR-004), same-sha256 no-op (FR-003), size/validity rejection
+      with a specific reason (FR-002). **Deviation from this task's original wording**: no
+      `asyncio.to_thread` wrapper — every route in this file is a plain sync `def` like every other
+      router in the app, so FastAPI's own threadpool dispatch already keeps `analyze()` off the event
+      loop; see `research.md`'s revised decision
+- [x] T010 [US1] Add `GET /api/flights/{id}/igc` (summary, 404 if none) and
       `DELETE /api/flights/{id}/igc` (detach, FR-012) to `igc.py`
-- [ ] T011 [US1] Register the `igc` router in `src/flightlog/api/main.py`
-- [ ] T012 [US1] [P] `tests/backend/test_igc_upload.py` — upload, replace, dedup no-op, rejection, detach,
-      all against the T002 fixtures
+- [x] T011 [US1] Register the `igc` router in `src/flightlog/api/main.py`
+- [x] T012 [US1] [P] `tests/backend/test_igc_upload.py` — upload, replace, dedup no-op, rejection, detach,
+      cross-owner 404, all against the T002 fixtures. 7/7 passing
 - [ ] T013 [US1] Add an upload/replace/detach control and the six computed figures to
       `static/flight-detail.html` / `static/flight-detail.js`
 - [ ] T014 [US1] [P] Add `igc.*` i18n keys for the upload control and figure labels to
@@ -99,11 +119,12 @@ parts visually distinguished.
 **Independent test criteria**: after a Phase 3 upload, `/flights/{id}` shows a map line matching the
 fixture's route and a barogram whose thermal/glide bands match the fixture's known segments.
 
-- [ ] T015 [US2] Add `GET /api/flights/{id}/igc/segments` to `igc.py`
-- [ ] T016 [US2] Add `GET /api/flights/{id}/igc/track.geojson` to `igc.py`
-      (`LineString` with `[lon, lat, alt_m]` coordinates + `properties.offsets_s`)
-- [ ] T017 [US2] [P] Extend `tests/backend/test_igc_upload.py` (or a new `test_igc_view.py`) for
-      segments/geojson response shape
+- [x] T015 [US2] Add `GET /api/flights/{id}/igc/segments` to `igc.py`
+- [x] T016 [US2] Add `GET /api/flights/{id}/igc/track.geojson` to `igc.py` — a proper GeoJSON `Feature`
+      (`LineString` geometry with `[lon, lat, alt_m]` coordinates + `properties.offsets_s`), not a bare
+      geometry object, since only a `Feature` can carry `properties` per the GeoJSON spec
+- [x] T017 [US2] [P] Segments/geojson response shape covered in `test_igc_upload.py`'s main upload test
+      rather than a separate file — small enough not to warrant one
 - [ ] T018 [US2] Add a Leaflet track map to `flight-detail.html` / `.js`, reusing the vendored copy
       `/sites` already uses
 - [ ] T019 [US2] Add a Chart.js barogram with thermal/glide band highlighting to `flight-detail.html` /
@@ -119,12 +140,13 @@ gets a real `lat`/`lon` and `coord_source="igc_median"`; a manually-pinned site 
 of how many tracks accumulate; detaching a track that was one of the 3 drops the site back below
 threshold and clears the auto-set coordinates.
 
-- [ ] T021 [US4] Create `src/flightlog/core/site_backfill.py` — insert `site_observations` on a
+- [x] T021 [US4] Create `src/flightlog/core/site_backfill.py` — insert `site_observations` on a
       successful upload, recompute the median at the ≥3 threshold, skip entirely when
       `coord_source == "manual"`
-- [ ] T022 [US4] Wire `site_backfill` into T009's upload path and T010's detach path — a replace or
+- [x] T022 [US4] Wire `site_backfill` into T009's upload path and T010's detach path — a replace or
       detach must remove the track's old observations before any recompute (FR-004/FR-012)
-- [ ] T023 [US4] [P] `tests/backend/test_site_backfill.py`
+- [x] T023 [US4] [P] `tests/backend/test_site_backfill.py` — median from 3 tracks, manual pin never
+      overwritten, detach-below-threshold clears the auto-set coordinate. 3/3 passing
 
 ## Phase 6 — Bulk upload with automatic matching and manual resolution [US3]
 
@@ -134,13 +156,17 @@ else is queued for manual resolution, never guessed.
 unambiguous fixture; the unambiguous one auto-attaches, the ambiguous pair both land in
 `igc_pending_uploads`; resolving one attaches it and removes it from the pending list.
 
-- [ ] T024 [US3] Implement the bulk-match algorithm in `core/igc.py` (date + duration scoring,
-      auto-attach only when `|Δ| ≤ 3 min` **and** runner-up `> 10 min` away, per `architecture.md`)
-- [ ] T025 [US3] Add `POST /api/igc/bulk` to `igc.py` — per-file outcome (`auto_attached` /
+- [x] T024 [US3] Implement the bulk-match algorithm — in `api/routers/igc.py` (`_find_bulk_match`)
+      rather than `core/igc.py`: date + duration scoring, auto-attach only when `|Δ| ≤ 3 min` **and**
+      runner-up `> 10 min` away, per `architecture.md`. Reads the date from the already-fully-parsed
+      `AnalysisResult` rather than architecture.md's original lightweight header-only pre-scan — see
+      `research.md`
+- [x] T025 [US3] Add `POST /api/igc/bulk` to `igc.py` — per-file outcome (`auto_attached` /
       `needs_resolution` / `rejected`), writing unresolved files to `igc_pending_uploads`
-- [ ] T026 [US3] Add `GET /api/igc/pending`, `POST /api/igc/pending/{id}/resolve`,
+- [x] T026 [US3] Add `GET /api/igc/pending`, `POST /api/igc/pending/{id}/resolve`,
       `DELETE /api/igc/pending/{id}` to `igc.py`
-- [ ] T027 [US3] [P] `tests/backend/test_igc_bulk.py`
+- [x] T027 [US3] [P] `tests/backend/test_igc_bulk.py` — auto-match, ambiguous same-day pair -> pending,
+      resolve, dismiss, repeat-upload-of-a-still-pending-file recognized not duplicated. 3/3 passing
 - [ ] T028 [US3] Create `static/igc.html` / `static/igc.js` — multi-file upload, per-file outcome list,
       resolve/dismiss actions for pending rows
 - [ ] T029 [US3] Add `GET /igc` route to `src/flightlog/api/routers/pages.py`; nav entry ("Tracks") in
@@ -154,9 +180,10 @@ unambiguous fixture; the unambiguous one auto-attaches, the ambiguous pair both 
 as an admin account, confirm stale tracks are reprocessed and their `analyzer_version` updated; confirm
 403 for a non-admin pilot account.
 
-- [ ] T031 [US5] Add `POST /api/admin/reanalyze` to `igc.py`, gated by the existing `require_admin`
+- [x] T031 [US5] Add `POST /api/admin/reanalyze` to `igc.py`, gated by the existing `require_admin`
       dependency (its first use anywhere in the app)
-- [ ] T032 [US5] [P] `tests/backend/test_igc_reanalyze.py`
+- [x] T032 [US5] [P] `tests/backend/test_igc_reanalyze.py` — 403 for a pilot account, stale-track
+      reprocessing bumps `analyzer_version`. 2/2 passing
 
 ## Final Phase — Polish
 

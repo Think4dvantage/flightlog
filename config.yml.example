@@ -34,6 +34,16 @@ sites:
   dedup_radius_m: 250.0
   allow_user_sites: true
 
+igc:
+  parsing:
+    # Mirrors libigc.FlightParsingConfig's thermal-detection parameters at their library
+    # defaults. Paraglider thermals are slower and sloppier than the sailplane defaults these
+    # were tuned for — expect to iterate against real tracks.
+    min_bearing_change_circling: 6.0    # deg/s to start counting a turn as circling
+    min_time_for_bearing_change: 5.0    # min seconds between fixes before a bearing-change
+                                         # rate is computed at all
+    min_time_for_thermal: 60.0          # min seconds circling before it counts as a thermal
+
 logging:
   level: info
   file: ""

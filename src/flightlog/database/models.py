@@ -16,6 +16,10 @@ flight_categories  — owner-scoped, drives statistics via is_hike_fly / is_trai
 buddies            — owner-scoped contact, optional two-sided link to another pilot account
 flights            — the core record; altitude-derived figures are computed on read, never stored
 flight_buddies     — flight <-> buddy join table
+igc_tracks         — one analyzed GPS track per flight; file on disk, aggregates here
+igc_segments       — thermals/glides/markers within a track, takeoff-relative offsets
+site_observations  — a track's takeoff/landing fix, feeding sites' automatic coordinate backfill
+igc_pending_uploads — a bulk-uploaded file that didn't auto-attach to a flight
 
 Tables arriving in later milestones are listed in .ai/context/architecture.md.
 """
@@ -138,6 +142,10 @@ class User(Base):
         foreign_keys="[Buddy.owner_id]",
     )
     flights = relationship("Flight", back_populates="owner", cascade="all, delete-orphan")
+    igc_tracks = relationship("IgcTrack", back_populates="owner", cascade="all, delete-orphan")
+    igc_pending_uploads = relationship(
+        "IgcPendingUpload", back_populates="owner", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<User {self.email} role={self.role}>"
@@ -328,6 +336,9 @@ class Flight(Base):
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
     owner = relationship("User", back_populates="flights", foreign_keys=[owner_id])
+    igc_track = relationship(
+        "IgcTrack", back_populates="flight", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class FlightBuddy(Base):
@@ -336,3 +347,125 @@ class FlightBuddy(Base):
 
     flight_id = Column(String, ForeignKey("flights.id", ondelete="CASCADE"), nullable=False)
     buddy_id = Column(String, ForeignKey("buddies.id", ondelete="CASCADE"), nullable=False)
+
+
+class IgcTrack(Base):
+    """
+    A flight's analyzed GPS track — at most one per flight; a re-upload replaces this row
+    wholesale rather than accumulating a second one (specs/003-igc-ingest-analysis spec.md
+    FR-004). The uploaded file itself lives on disk, content-addressed
+    (core/igc_storage.py); raw fixes are never stored here — track_simplified_json is a
+    derived, regenerable reduced-resolution point series, not the source of truth.
+    """
+
+    __tablename__ = "igc_tracks"
+    __table_args__ = (
+        UniqueConstraint("flight_id", name="uq_igc_tracks_flight_id"),
+        # Per-owner, not global — same reasoning as flights.import_key.
+        UniqueConstraint("owner_id", "sha256", name="uq_igc_tracks_owner_sha256"),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    flight_id = Column(String, ForeignKey("flights.id", ondelete="CASCADE"), nullable=False)
+    original_filename = Column(String, nullable=False)
+    sha256 = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    duration_s = Column(Integer, nullable=True)
+    distance_km = Column(Float, nullable=True)
+    max_alt_igc_m = Column(Integer, nullable=True)
+    alt_gain_igc_m = Column(Integer, nullable=True)
+    thermal_count = Column(Integer, nullable=True)
+    best_climb_ms = Column(Float, nullable=True)
+    peak_climb_ms = Column(Float, nullable=True)
+    glide_ratio = Column(Float, nullable=True)
+    # libigc's own AltitudeSource value ("PRESS" | "GNSS") — read from flight.alt_source,
+    # never recomputed from the raw fixes; see research.md for why.
+    alt_source = Column(String, nullable=True)
+    track_simplified_json = Column(Text, nullable=True)
+    analyzer_version = Column(String, nullable=False)
+    analyzed_at = Column(UtcDateTime, nullable=False)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+    owner = relationship("User", back_populates="igc_tracks")
+    flight = relationship("Flight", back_populates="igc_track")
+    segments = relationship(
+        "IgcSegment",
+        cascade="all, delete-orphan",
+        order_by="IgcSegment.start_offset_s",
+    )
+    observations = relationship("SiteObservation", cascade="all, delete-orphan")
+
+
+class IgcSegment(Base):
+    """
+    A thermal, glide, or point marker within a track. `start_offset_s` (seconds since
+    takeoff) is the load-bearing field for any future video-timeline consumer — never
+    return a video-relative offset from this service (architecture.md).
+    """
+
+    __tablename__ = "igc_segments"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    track_id = Column(
+        String, ForeignKey("igc_tracks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String, nullable=False)  # thermal|glide|takeoff|landing|max_alt|top_of_climb
+    start_offset_s = Column(Integer, nullable=False)
+    start_at = Column(UtcDateTime, nullable=False)
+    duration_s = Column(Integer, nullable=True)  # null for the four point-marker kinds
+    alt_change_m = Column(Float, nullable=True)  # thermal/glide only
+    vertical_velocity_ms = Column(Float, nullable=True)  # thermal only
+    glide_ratio = Column(Float, nullable=True)  # glide only
+
+
+class SiteObservation(Base):
+    """
+    A single takeoff/landing GPS fix feeding a site's automatic coordinate refinement
+    (core/site_backfill.py) — never geocoded, only ever a median of real track fixes. Not
+    directly pilot-visible as its own view.
+    """
+
+    __tablename__ = "site_observations"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    site_id = Column(String, ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    track_id = Column(String, ForeignKey("igc_tracks.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String, nullable=False)  # takeoff|landing
+    lat = Column(Float, nullable=False)
+    lon = Column(Float, nullable=False)
+    alt_m = Column(Float, nullable=True)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+
+
+class IgcPendingUpload(Base):
+    """
+    A bulk-uploaded file that didn't auto-attach — ambiguous match or rejected. The file is
+    already written to content-addressed storage at upload time, whether or not it resolves
+    right away, so resolving later reads stored bytes rather than requiring re-upload. Kept
+    (not deleted) once resolved, as a record of what happened to this upload.
+    """
+
+    __tablename__ = "igc_pending_uploads"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "sha256", name="uq_igc_pending_uploads_owner_sha256"),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sha256 = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    original_filename = Column(String, nullable=False)
+    status = Column(String, nullable=False)  # needs_resolution|rejected
+    reason = Column(String, nullable=True)
+    candidate_flight_ids_json = Column(Text, nullable=True)
+    resolved_flight_id = Column(String, ForeignKey("flights.id"), nullable=True)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    resolved_at = Column(UtcDateTime, nullable=True)
+
+    owner = relationship("User", back_populates="igc_pending_uploads")

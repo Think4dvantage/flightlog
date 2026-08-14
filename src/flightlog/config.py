@@ -84,6 +84,21 @@ class SitesConfig(BaseModel):
     allow_user_sites: bool = True
 
 
+class IgcParsingConfig(BaseModel):
+    """Mirrors libigc.FlightParsingConfig's thermal-detection parameters — the exact three
+    names and defaults confirmed against the installed 1.2.0 package (specs/003-igc-ingest-
+    analysis/research.md). libigc has no separate glide-tuning parameter; a glide is simply
+    the gap between two thermals, so there is nothing more to expose here."""
+
+    min_bearing_change_circling: float = 6.0
+    min_time_for_bearing_change: float = 5.0
+    min_time_for_thermal: float = 60.0
+
+
+class IgcConfig(BaseModel):
+    parsing: IgcParsingConfig = Field(default_factory=IgcParsingConfig)
+
+
 class LoggingConfig(BaseModel):
     level: Literal["debug", "info", "warning", "error", "critical"] = "info"
     file: str = ""
@@ -100,6 +115,7 @@ class MainConfig(BaseModel):
     auth: AuthConfig = Field(default_factory=AuthConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     sites: SitesConfig = Field(default_factory=SitesConfig)
+    igc: IgcConfig = Field(default_factory=IgcConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     api: APIConfig = Field(default_factory=APIConfig)
 
@@ -153,6 +169,13 @@ def log_effective_config(cfg: MainConfig) -> None:
     logger.info("Config storage.igc_dir=%s", cfg.storage.igc_dir)
     logger.info("Config storage.max_igc_bytes=%d", cfg.storage.max_igc_bytes)
     logger.info("Config sites.dedup_radius_m=%.1f", cfg.sites.dedup_radius_m)
+    logger.info(
+        "Config igc.parsing.min_bearing_change_circling=%.1f "
+        "min_time_for_bearing_change=%.1f min_time_for_thermal=%.1f",
+        cfg.igc.parsing.min_bearing_change_circling,
+        cfg.igc.parsing.min_time_for_bearing_change,
+        cfg.igc.parsing.min_time_for_thermal,
+    )
     logger.info("Config auth.jwt_algorithm=%s", cfg.auth.jwt_algorithm)
     logger.info(
         "Config auth.access_token_expire_minutes=%d refresh_token_expire_days=%d",

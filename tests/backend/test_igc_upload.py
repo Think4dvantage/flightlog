@@ -1,0 +1,164 @@
+"""Single-flight IGC upload: analysis figures, dedup no-op, replace, rejection, detach."""
+
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+FIXTURES = Path(__file__).parent / "fixtures"
+VALID_IGC = (FIXTURES / "valid_flight.igc").read_bytes()
+NO_BARO_IGC = (FIXTURES / "no_baro_flight.igc").read_bytes()
+CORRUPT_IGC = (FIXTURES / "corrupt.igc").read_bytes()
+
+
+@pytest.fixture
+def base_entities(db_session, make_user):
+    """A pilot with a launch site, landing site and category, ready to attach a flight to."""
+    from flightlog.database.models import FlightCategory, Site
+
+    user = make_user()
+    launch = Site(owner_id=user.id, name="Launch", is_launch=True, elevation_m=1500)
+    landing = Site(owner_id=user.id, name="Landing", is_landing=True, elevation_m=1000)
+    category = FlightCategory(owner_id=user.id, name="Thermikflug", slug="thermikflug")
+    db_session.add_all([launch, landing, category])
+    db_session.commit()
+    return user, launch, landing, category
+
+
+@pytest.fixture
+def flight(db_session, base_entities):
+    from flightlog.database.models import Flight
+
+    user, launch, landing, category = base_entities
+    f = Flight(
+        owner_id=user.id,
+        flight_date=date(2024, 8, 15),
+        launch_site_id=launch.id,
+        landing_site_id=landing.id,
+        category_id=category.id,
+    )
+    db_session.add(f)
+    db_session.commit()
+    return f
+
+
+async def test_upload_attaches_track_and_computes_figures(
+    client, make_token, base_entities, flight
+):
+    user = base_entities[0]
+    headers = make_token(user=user)
+
+    resp = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["flight_id"] == flight.id
+    assert body["duration_s"] == 602
+    assert body["thermal_count"] == 1
+    assert body["best_climb_ms"] > 0
+    assert body["glide_ratio"] > 0
+    assert body["alt_source"] == "PRESS"
+
+    fetched = await client.get(f"/api/flights/{flight.id}/igc", headers=headers)
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == body["id"]
+
+    segments = await client.get(f"/api/flights/{flight.id}/igc/segments", headers=headers)
+    assert segments.status_code == 200
+    kinds = {s["kind"] for s in segments.json()}
+    assert {"takeoff", "landing", "thermal", "glide", "max_alt", "top_of_climb"} <= kinds
+
+    geojson = await client.get(f"/api/flights/{flight.id}/igc/track.geojson", headers=headers)
+    assert geojson.status_code == 200
+    gj = geojson.json()
+    assert gj["type"] == "Feature"
+    assert gj["geometry"]["type"] == "LineString"
+    assert len(gj["geometry"]["coordinates"]) == len(gj["properties"]["offsets_s"])
+    assert len(gj["geometry"]["coordinates"]) > 0
+
+
+async def test_reupload_identical_file_is_a_noop(client, make_token, base_entities, flight):
+    headers = make_token(user=base_entities[0])
+    first = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    second = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert second.status_code == 200
+    assert second.json()["id"] == first.json()["id"]
+
+
+async def test_upload_different_file_replaces_track(client, make_token, base_entities, flight):
+    headers = make_token(user=base_entities[0])
+    first = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    second = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("no_baro_flight.igc", NO_BARO_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert second.status_code == 200
+    assert second.json()["id"] != first.json()["id"]
+    assert second.json()["alt_source"] == "GNSS"
+
+
+async def test_upload_corrupt_file_is_rejected(client, make_token, base_entities, flight):
+    headers = make_token(user=base_entities[0])
+    resp = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("corrupt.igc", CORRUPT_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["error"]["code"] == "VALIDATION_FAILED"
+
+    missing = await client.get(f"/api/flights/{flight.id}/igc", headers=headers)
+    assert missing.status_code == 404
+
+
+async def test_get_igc_without_a_track_is_404(client, make_token, base_entities, flight):
+    headers = make_token(user=base_entities[0])
+    resp = await client.get(f"/api/flights/{flight.id}/igc", headers=headers)
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "ENTITY_NOT_FOUND"
+
+
+async def test_detach_removes_track(client, make_token, base_entities, flight):
+    headers = make_token(user=base_entities[0])
+    await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    deleted = await client.delete(f"/api/flights/{flight.id}/igc", headers=headers)
+    assert deleted.status_code == 204
+
+    missing = await client.get(f"/api/flights/{flight.id}/igc", headers=headers)
+    assert missing.status_code == 404
+
+
+async def test_another_users_flight_is_404_not_403(
+    client, make_token, base_entities, flight, make_user
+):
+    other = make_user(email="other@example.com")
+    headers = make_token(user=other)
+    resp = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert resp.status_code == 404
