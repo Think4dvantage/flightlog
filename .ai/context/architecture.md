@@ -390,13 +390,12 @@ unsafe. One volume also makes backup a single `tar` of that volume.
 `python:3.14-slim` built and pushed **multi-arch (amd64 + arm64) in 5m29s** on the v0.1.0 tag, and CI
 passes on both 3.13 and 3.14. The plan's fallback to 3.13 was not needed.
 
-**Updated for v0.5**: `libigc` is now actually installed (CI's test job and the Dockerfile both run
-`poetry install --extras igc`, not just declare the extra) — checked against PyPI's file metadata before
-enabling it, not assumed: `libigc` ships a universal `py3-none-any` wheel and its transitive
-`simplekml` dependency is a pure-Python sdist, so neither should reintroduce the QEMU/arm64
-compilation risk this section originally flagged. **Not yet proven**: the actual multi-arch image build
-only runs on a tag push (`docker-publish.yml`), which hasn't happened for a version carrying this extra
-yet — the package-metadata check de-risks this, it doesn't replace watching the next real build.
+**Updated for v0.5, now proven, not just de-risked**: `libigc` is actually installed (CI's test job and
+the Dockerfile both run `poetry install --extras igc`, not just declare the extra). The `v0.5.0` tag's
+multi-arch (amd64 + arm64) build — the first to carry this extra — completed in 5m1s, confirming the
+PyPI file-metadata check made before enabling it (`libigc` ships a universal `py3-none-any` wheel, its
+transitive `simplekml` dependency is a pure-Python sdist): neither reintroduced the QEMU/arm64
+compilation risk this section originally flagged.
 
 `requires-python = ">=3.13,<4.0"`: 3.13 is what local development runs, 3.14 is what the image ships,
 and the CI matrix covers both so a runtime upgrade is proven rather than assumed.

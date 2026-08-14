@@ -195,11 +195,6 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Photo thumbnails resolved from `media_links` without hosting the images
 - Grant the deploy `gh` token `read:packages` so published image tags can be verified from this repo
   rather than inferred from the workflow config
-- `libigc` is now actually installed (v0.5 — CI and the Dockerfile both run `poetry install --extras
-  igc`), and both it and its transitive `simplekml` dependency were confirmed pure-Python via PyPI file
-  metadata before enabling that, de-risking the QEMU/arm64 concern this item used to flag. **Still
-  open**: the actual multi-arch image build has not run yet for a version carrying this extra (only
-  happens on a tag push) — watch the first one rather than assume the metadata check settles it
 - `config.py`'s `log_effective_config()` doesn't log `auth.bootstrap_admin_email` or whether
   `auth.bootstrap_admin_password` is set (the way it already does `auth.jwt_secret set=%s`). Surfaced
   while diagnosing a post-v0.2.0-deploy login failure — the fastest signal was `db.py`'s own

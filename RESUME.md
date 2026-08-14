@@ -2,10 +2,16 @@
 
 ## In Progress
 
-**v0.5 — IGC ingest + analysis is fully implemented on `main` (backend + frontend), tested, committed
-and pushed, but not tagged or deployed.** `v0.4.0` (the `/sites` drawer + Leaflet icon-path fix) shipped
-and was confirmed live at `fl.sdh.lol` earlier this session — that part of the work is done and closed.
-Everything below is new.
+**v0.5.0 is implemented, tested, tagged, and pushed — the multi-arch image is built, but `fl.sdh.lol`
+running it has not been confirmed yet.** `v0.4.0` (the `/sites` drawer + Leaflet icon-path fix) shipped
+and was confirmed live earlier this session. For `v0.5.0`: the tag triggered
+`docker-publish.yml`, and the build — the first ever to carry the `libigc` extra — completed
+successfully in 5m1s (amd64 + arm64), confirming the pure-Python-wheel risk assessment
+(`architecture.md`'s Runtime section, `features.md`'s former backlog item, now resolved and removed).
+**Not yet confirmed: whether the running container at `fl.sdh.lol` actually picked up this image** —
+same as every previous tag this session, nothing in this repo triggers that pull; it's happened
+automatically within minutes each time so far (Watchtower or similar, never confirmed which), worth a
+quick check next session rather than assumed.
 
 **What shipped in this pass**: per-flight IGC upload/replace/detach with eight computed figures
 (duration, distance, max altitude, altitude gain, thermal count, best/peak climb, glide ratio); a
@@ -52,31 +58,24 @@ T047 was left open for, now repeated for a third feature in a row for the same r
 
 ## Next Step
 
-1. **Get a real browser connected and do the T033-equivalent visual pass** on `/flights/{id}`'s new
+1. **Confirm `fl.sdh.lol` actually picked up the `v0.5.0` image** — the tag is pushed and the multi-arch
+   build succeeded; whether the running container updated is unconfirmed (see In Progress above).
+2. **Get a real browser connected and do the T033-equivalent visual pass** on `/flights/{id}`'s new
    track section and the new `/igc` bulk page — the single biggest open risk right now, since three
    features in a row have shipped without ever being actually seen rendered.
-2. **Tag and deploy `v0.5.0`** once the browser pass is done (or the pilot decides to deploy first and
-   verify live, matching how `v0.3`/`v0.4.0` actually happened this project). `docker-publish.yml`
-   triggers on any `v*` tag push; something outside this repo (Watchtower or similar, never confirmed)
-   pulls the new image onto `fl.sdh.lol` automatically within minutes of that.
-3. **Watch the first multi-arch build that actually carries the `igc` extra.** `libigc` and its
-   transitive `simplekml` dependency were confirmed pure-Python via PyPI metadata before enabling
-   `--extras igc` in CI and the Dockerfile (de-risking the QEMU/arm64 concern `features.md`'s backlog
-   flagged), but the real multi-arch image build only runs on a tag push — that hasn't happened yet for
-   a version carrying this extra. The metadata check is evidence, not proof.
-4. **Try some real IGC files.** Every test and live-boot check so far used hand-generated fixtures
+3. **Try some real IGC files.** Every test and live-boot check so far used hand-generated fixtures
    (`tests/backend/fixtures/*.igc`) — realistic enough to exercise the full pipeline (a genuine detected
    thermal, a glide, correct GNSS fallback for a no-baro file), but nobody has run this against an actual
    flight recorder's output yet. Config tuning (`igc.parsing:` in `config.yml`) is very likely to need
    iteration once real tracks are tried — the shipped defaults are `libigc`'s own sailplane-tuned ones,
    and `architecture.md` already flags paraglider thermals as slower and sloppier than that.
-5. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters, from `specs/002-flight-log-ui`)
+4. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters, from `specs/002-flight-log-ui`)
    — still open, not tied to any particular tag.
-6. **v0.6 — secondary sheets + XContest is next** on the roadmap after this ships, per `features.md`.
+5. **v0.6 — secondary sheets + XContest is next** on the roadmap after this ships, per `features.md`.
 
 ## Open Questions
 
-- Whether Phases 9–11 ship before or alongside `v0.6` — see step 5 above.
+- Whether Phases 9–11 ship before or alongside `v0.6` — see step 4 above.
 - `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
   `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
