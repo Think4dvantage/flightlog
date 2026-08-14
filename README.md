@@ -33,9 +33,9 @@ Shipped in v0.2:
   with a region-count reconciliation and an altitude-figure cross-check against the spreadsheet's own
   derived columns, and buddy-name proposals from flight comments (never auto-created)
 
-Shipped: the flight log UI (v0.3 — the point at which the spreadsheet is retired). Coming, in order:
-IGC ingest with thermal and glide analysis (v0.5), the secondary sheets and XContest import (v0.6),
-statistics (v0.7), the public API (v0.8).
+Shipped: the flight log UI (v0.3 — the point at which the spreadsheet is retired). Implemented, not yet
+deployed: IGC ingest with thermal and glide analysis, a track map, and a barogram (v0.5). Coming, in
+order: the secondary sheets and XContest import (v0.6), statistics (v0.7), the public API (v0.8).
 
 ## Getting started
 

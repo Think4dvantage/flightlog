@@ -8,6 +8,7 @@
     "sites": "Sites",
     "equipment": "Equipment",
     "import": "Import findings",
+    "tracks": "Tracks",
     "stats": "Statistics",
     "login": "Log in",
     "logout": "Log out"
@@ -111,7 +112,34 @@
     "technique_reverse": "Reverse",
     "buddies": "Buddies",
     "notes": "Notes",
-    "not_recorded": "Not recorded"
+    "not_recorded": "Not recorded",
+    "track_title": "Track",
+    "track_empty": "No track uploaded yet.",
+    "track_upload_label": "IGC file",
+    "track_upload": "Upload",
+    "track_no_file": "Choose an IGC file first.",
+    "track_duration": "Duration",
+    "track_distance": "Distance",
+    "track_max_alt": "Max altitude",
+    "track_alt_gain": "Altitude gain",
+    "track_thermals": "Thermals",
+    "track_best_climb": "Best climb",
+    "track_peak_climb": "Peak climb",
+    "track_glide_ratio": "Glide ratio",
+    "track_alt_source": "Altitude source",
+    "track_alt_source_press": "Barometric",
+    "track_alt_source_gnss": "GPS",
+    "track_chart_legend": "Orange marks climbing (thermal), blue marks gliding.",
+    "track_chart_x": "Time since takeoff (s)",
+    "track_chart_y": "Altitude (m)",
+    "track_replace_label": "Replace with a different file",
+    "track_replace": "Replace",
+    "track_detach": "Detach",
+    "track_detach_confirm": {
+      "prompt": "Detach this track? This cannot be undone.",
+      "yes": "Detach",
+      "no": "Cancel"
+    }
   },
   "sites": {
     "title": "Sites",
@@ -205,6 +233,33 @@
       "sheet_altgain": "Legacy sheet",
       "delta": "Delta",
       "name": "Name mentioned in notes"
+    }
+  },
+  "igc": {
+    "title": "Tracks",
+    "hint": "Upload one or many IGC files at once. A file that clearly matches exactly one flight attaches automatically; anything ambiguous is queued below for you to resolve by hand.",
+    "upload_label": "IGC files",
+    "upload": "Upload",
+    "no_files": "Choose at least one IGC file first.",
+    "outcomes_title": "Last upload results",
+    "outcomes_empty": "Nothing uploaded yet this visit.",
+    "pending_title": "Needs your review",
+    "pending_hint": "Files that couldn't be attached automatically. Pick the right flight, or dismiss a file you don't want to keep.",
+    "pending_empty": "Nothing waiting for review.",
+    "resolve": "Attach",
+    "dismiss": "Dismiss",
+    "col": {
+      "file": "File",
+      "outcome": "Outcome",
+      "detail": "Detail",
+      "status": "Status",
+      "candidates": "Candidate flight",
+      "actions": "Actions"
+    },
+    "outcome": {
+      "auto_attached": "Attached",
+      "needs_resolution": "Needs review",
+      "rejected": "Rejected"
     }
   }
 }

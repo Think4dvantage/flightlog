@@ -141,3 +141,31 @@ async def test_pending_can_be_dismissed(client, make_token, base_entities):
 
     pending_after = (await client.get("/api/igc/pending", headers=headers)).json()
     assert pending_after == []
+
+
+async def test_reuploading_a_dismissed_file_is_reconsidered_not_blocked(
+    client, make_token, base_entities
+):
+    """A dismissed pending row must not permanently block that file — its
+    UniqueConstraint("owner_id", "sha256") slot has to be reusable."""
+    headers = make_token(user=base_entities[0])
+    first = await client.post(
+        "/api/igc/bulk",
+        files=[("files", ("sameday_b.igc", SAMEDAY_B, "application/octet-stream"))],
+        headers=headers,
+    )
+    pending_id = first.json()[0]["pending_id"]
+    dismissed = await client.delete(f"/api/igc/pending/{pending_id}", headers=headers)
+    assert dismissed.status_code == 204
+
+    second = await client.post(
+        "/api/igc/bulk",
+        files=[("files", ("sameday_b.igc", SAMEDAY_B, "application/octet-stream"))],
+        headers=headers,
+    )
+    assert second.status_code == 200
+    assert second.json()[0]["outcome"] == "needs_resolution"
+    assert second.json()[0]["reason"] != "Already uploaded and still awaiting resolution"
+
+    pending_after = (await client.get("/api/igc/pending", headers=headers)).json()
+    assert len(pending_after) == 1

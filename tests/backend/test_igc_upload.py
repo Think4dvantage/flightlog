@@ -151,6 +151,26 @@ async def test_detach_removes_track(client, make_token, base_entities, flight):
     assert missing.status_code == 404
 
 
+async def test_upload_writes_back_takeoff_and_landing_time_detach_clears_them(
+    client, make_token, base_entities, flight, db_session
+):
+    headers = make_token(user=base_entities[0])
+    await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    db_session.refresh(flight)
+    assert flight.takeoff_time is not None
+    assert flight.landing_time is not None
+    assert flight.landing_time > flight.takeoff_time
+
+    await client.delete(f"/api/flights/{flight.id}/igc", headers=headers)
+    db_session.refresh(flight)
+    assert flight.takeoff_time is None
+    assert flight.landing_time is None
+
+
 async def test_another_users_flight_is_404_not_403(
     client, make_token, base_entities, flight, make_user
 ):

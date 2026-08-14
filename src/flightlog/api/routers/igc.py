@@ -145,6 +145,11 @@ def _attach_track(
         db.delete(existing)
         db.flush()
 
+    # architecture.md's "writeback shrinks the problem" — later bulk-match runs can use these
+    # to match on time overlap, not just date+duration.
+    flight.takeoff_time = analysis.takeoff_fix.at
+    flight.landing_time = analysis.landing_fix.at
+
     track = IgcTrack(
         owner_id=current_user.id,
         flight_id=flight.id,
@@ -237,6 +242,8 @@ def delete_igc(
     flight = _get_own_flight(flight_id, current_user, db)
     track = _get_track_for_flight(flight, db)
     site_ids = site_backfill.clear_observations(db, track.id)
+    flight.takeoff_time = None
+    flight.landing_time = None
     db.delete(track)
     db.flush()
     for site_id in site_ids:
@@ -345,7 +352,10 @@ def bulk_upload_igc(
                 IgcPendingUpload.sha256 == sha256,
             )
         ).scalar_one_or_none()
-        if existing_pending is not None:
+        # Only an *unresolved* pending row blocks reprocessing — a dismissed or already-
+        # resolved one must not, or a dismissed file could never be reconsidered (its
+        # UniqueConstraint("owner_id", "sha256") slot is reused below instead of violated).
+        if existing_pending is not None and existing_pending.resolved_at is None:
             results.append(
                 BulkUploadOutcomeOut(
                     filename=filename,
@@ -376,16 +386,32 @@ def bulk_upload_igc(
             continue
 
         candidates = match["candidates"]
-        pending = IgcPendingUpload(
-            owner_id=current_user.id,
-            sha256=sha256,
-            file_path=file_path,
-            original_filename=filename,
-            status="needs_resolution" if candidates else "rejected",
-            reason=None if candidates else f"No flight logged on {analysis.takeoff_fix.at.date()}",
-            candidate_flight_ids_json=json.dumps(candidates) if candidates else None,
-        )
-        db.add(pending)
+        status = "needs_resolution" if candidates else "rejected"
+        reason = None if candidates else f"No flight logged on {analysis.takeoff_fix.at.date()}"
+        candidate_json = json.dumps(candidates) if candidates else None
+
+        if existing_pending is not None:
+            # A previously dismissed/resolved row for this exact file — reuse it rather than
+            # insert a second row and violate UniqueConstraint("owner_id", "sha256").
+            pending = existing_pending
+            pending.file_path = file_path
+            pending.original_filename = filename
+            pending.status = status
+            pending.reason = reason
+            pending.candidate_flight_ids_json = candidate_json
+            pending.resolved_flight_id = None
+            pending.resolved_at = None
+        else:
+            pending = IgcPendingUpload(
+                owner_id=current_user.id,
+                sha256=sha256,
+                file_path=file_path,
+                original_filename=filename,
+                status=status,
+                reason=reason,
+                candidate_flight_ids_json=candidate_json,
+            )
+            db.add(pending)
         db.commit()
         results.append(
             BulkUploadOutcomeOut(

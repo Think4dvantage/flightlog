@@ -111,10 +111,36 @@ originally planned (v0.4 IGC → v0.5, and so on through v0.10 Enrichment; v1.0 
 
 ### v0.5 — IGC ingest + analysis
 
-Per-flight upload, content-addressed store, sha256 + fingerprint deduplication, `core/igc.py` with the
-documented algorithm and config-driven tuning, `igc_tracks` + `igc_segments`, bulk import with duration
-disambiguation, takeoff-time writeback, site coordinate backfill, `GET /track.geojson`, Leaflet track +
-Chart.js barogram with thermal/glide bands, `POST /api/admin/reanalyze`.
+**Implemented on `main`, not yet deployed.** Per-flight upload/replace/detach with eight computed
+figures (duration, distance, max altitude, altitude gain, thermal count, best/peak climb, glide ratio),
+bulk upload with date+duration auto-matching and a persisted `igc_pending_uploads` review queue
+(resolve/dismiss), automatic site-coordinate backfill from track data that never overwrites a manual
+pin, `flights.takeoff_time`/`landing_time` writeback, admin-gated re-analysis, a Leaflet track map, and
+a Chart.js barogram with thermal/glide phases shown via per-segment line coloring (no annotation
+plugin — none is vendored). Four new tables (`igc_tracks`, `igc_segments`, `site_observations`,
+`igc_pending_uploads`); `igc_pending_uploads` is a plan-level addition beyond what this roadmap entry
+originally named. 17 new backend tests (144 total passing project-wide), `ruff check`/`ruff format
+--check` clean. `pyproject.toml` bumped to `0.5.0`.
+
+Two of `core/igc.py`'s design assumptions were corrected against the real installed `libigc` 1.2.0
+package rather than shipped as guessed: altitude-source selection reads the library's own
+`flight.alt_source` instead of reimplementing a heuristic that wouldn't have matched real data anyway,
+and `FlightParsingConfig`'s three real tunable parameter names replace four differently-named,
+differently-shaped ones originally assumed. See the IGC analysis section above for the full detail and
+`specs/003-igc-ingest-analysis/research.md` for how each was resolved.
+
+**Verified live via `curl` against a local dev boot** for every endpoint, including the full bulk-upload
+→ ambiguous → resolve/dismiss cycle and a real fixture's figures cross-checked by hand — not just unit
+assertions. Two real bugs were caught only because of that live pass: `auth.js`'s `fetchAuth()` forced
+`Content-Type: application/json` onto every request with a body, silently breaking `FormData` multipart
+uploads (fixed, now skips that header for `FormData`); and dismissing a pending upload left its
+`UniqueConstraint(owner_id, sha256)` slot occupied, silently blocking any later re-upload of that exact
+file (fixed, covered by a regression test).
+
+**Not yet done: actual browser rendering.** No browser automation tool was connected this session either
+(same gap `v0.3`/`v0.4.0` already noted) — the map, the barogram's per-segment coloring, the file-input
+controls, and keyboard navigation are all unconfirmed. First thing to do the moment a browser is
+available, same as `specs/002-flight-log-ui`'s still-open T047.
 
 **Deferred:** XC scoring, AGL/DEM, 3D.
 
@@ -169,9 +195,11 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Photo thumbnails resolved from `media_links` without hosting the images
 - Grant the deploy `gh` token `read:packages` so published image tags can be verified from this repo
   rather than inferred from the workflow config
-- Re-run the `python:3.14-slim` multi-arch build gate once `libigc` (a v0.5 optional dependency,
-  requires Python ≥3.12 with no declared upper bound) is actually installed — v0.1's green build did
-  not include it
+- `libigc` is now actually installed (v0.5 — CI and the Dockerfile both run `poetry install --extras
+  igc`), and both it and its transitive `simplekml` dependency were confirmed pure-Python via PyPI file
+  metadata before enabling that, de-risking the QEMU/arm64 concern this item used to flag. **Still
+  open**: the actual multi-arch image build has not run yet for a version carrying this extra (only
+  happens on a tag push) — watch the first one rather than assume the metadata check settles it
 - `config.py`'s `log_effective_config()` doesn't log `auth.bootstrap_admin_email` or whether
   `auth.bootstrap_admin_password` is set (the way it already does `auth.jwt_secret set=%s`). Surfaced
   while diagnosing a post-v0.2.0-deploy login failure — the fastest signal was `db.py`'s own

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight detail — Flightlog</title>
   <link rel="stylesheet" href="/static/shared.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
 </head>
 <body>
   <div id="appNav"></div>
@@ -63,8 +64,82 @@
         <p id="d_notes" class="muted"></p>
       </div>
     </div>
+
+    <div class="card" id="trackCard" hidden>
+      <div class="page-head">
+        <h2 data-i18n="flight_detail.track_title">Track</h2>
+      </div>
+
+      <div id="trackAlert" class="alert alert-error"></div>
+
+      <div id="trackEmpty">
+        <p class="muted" data-i18n="flight_detail.track_empty">No track uploaded yet.</p>
+        <div class="field">
+          <label for="trackFile" data-i18n="flight_detail.track_upload_label">IGC file</label>
+          <input type="file" id="trackFile" accept=".igc">
+        </div>
+        <button type="button" id="trackUploadBtn" data-i18n="flight_detail.track_upload">Upload</button>
+      </div>
+
+      <div id="trackPresent" hidden>
+        <dl class="detail-grid">
+          <dt data-i18n="flight_detail.track_duration">Duration</dt>
+          <dd id="t_duration"></dd>
+
+          <dt data-i18n="flight_detail.track_distance">Distance</dt>
+          <dd id="t_distance"></dd>
+
+          <dt data-i18n="flight_detail.track_max_alt">Max altitude</dt>
+          <dd id="t_maxalt"></dd>
+
+          <dt data-i18n="flight_detail.track_alt_gain">Altitude gain</dt>
+          <dd id="t_altgain"></dd>
+
+          <dt data-i18n="flight_detail.track_thermals">Thermals</dt>
+          <dd id="t_thermals"></dd>
+
+          <dt data-i18n="flight_detail.track_best_climb">Best climb</dt>
+          <dd id="t_bestclimb"></dd>
+
+          <dt data-i18n="flight_detail.track_peak_climb">Peak climb</dt>
+          <dd id="t_peakclimb"></dd>
+
+          <dt data-i18n="flight_detail.track_glide_ratio">Glide ratio</dt>
+          <dd id="t_glideratio"></dd>
+
+          <dt data-i18n="flight_detail.track_alt_source">Altitude source</dt>
+          <dd id="t_altsource"></dd>
+        </dl>
+
+        <div id="trackMap" class="track-map"></div>
+
+        <p class="muted" data-i18n="flight_detail.track_chart_legend">
+          Orange marks climbing (thermal), blue marks gliding.
+        </p>
+        <div class="barogram-container"><canvas id="barogram"></canvas></div>
+
+        <div class="field">
+          <label for="trackReplaceFile" data-i18n="flight_detail.track_replace_label">
+            Replace with a different file
+          </label>
+          <input type="file" id="trackReplaceFile" accept=".igc">
+        </div>
+        <div class="drawer-actions">
+          <button type="button" id="trackReplaceBtn" data-i18n="flight_detail.track_replace">Replace</button>
+          <button type="button" id="trackDetachBtn" class="btn-ghost" data-i18n="flight_detail.track_detach">Detach</button>
+        </div>
+
+        <div id="trackDetachConfirm" class="delete-confirm" hidden>
+          <p data-i18n="flight_detail.track_detach_confirm.prompt">Detach this track? This cannot be undone.</p>
+          <button type="button" id="trackDetachYes" class="btn-danger" data-i18n="flight_detail.track_detach_confirm.yes">Detach</button>
+          <button type="button" id="trackDetachNo" class="btn-ghost" data-i18n="flight_detail.track_detach_confirm.no">Cancel</button>
+        </div>
+      </div>
+    </div>
   </main>
 
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script src="/static/vendor/chartjs/chart.umd.js"></script>
   <script type="module" src="/static/flight-detail.js"></script>
 </body>
 </html>

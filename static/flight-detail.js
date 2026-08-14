@@ -94,6 +94,216 @@ function render(flight) {
   el('detailBody').hidden = false;
 }
 
+// ---- track (IGC) ----
+
+const SEGMENT_KINDS_TO_SHADE = new Set(['thermal', 'glide']);
+
+let trackMap;
+let trackPolyline;
+let barogramChart;
+
+function trackColors() {
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    thermal: styles.getPropertyValue('--warm').trim() || '#f6ad55',
+    glide: styles.getPropertyValue('--accent-strong').trim() || '#63b3ed',
+    neutral: styles.getPropertyValue('--text-dim').trim() || '#94a3b8',
+  };
+}
+
+function fmtTrackDuration(seconds) {
+  if (seconds == null) return notRecorded();
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}min` : `${m} min`;
+}
+
+function fmtRate(value) {
+  return value == null ? notRecorded() : `${value.toFixed(1)} m/s`;
+}
+
+function showTrackAlert(message) {
+  const box = el('trackAlert');
+  box.textContent = message;
+  box.classList.add('visible');
+}
+
+function clearTrackAlert() {
+  el('trackAlert').classList.remove('visible');
+}
+
+async function loadTrack(flightId) {
+  const res = await fetchAuth(`/api/flights/${flightId}/igc`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    console.error(`[FL:flight-detail] failed to load track (${res.status})`);
+    return null;
+  }
+  return res.json();
+}
+
+function renderTrackFigures(track) {
+  el('t_duration').textContent = fmtTrackDuration(track.duration_s);
+  el('t_distance').textContent = fmtNumber(track.distance_km, 'km');
+  el('t_maxalt').textContent = fmtNumber(track.max_alt_igc_m, 'm');
+  el('t_altgain').textContent = fmtNumber(track.alt_gain_igc_m, 'm');
+  el('t_thermals').textContent = track.thermal_count ?? notRecorded();
+  el('t_bestclimb').textContent = fmtRate(track.best_climb_ms);
+  el('t_peakclimb').textContent = fmtRate(track.peak_climb_ms);
+  el('t_glideratio').textContent = track.glide_ratio != null ? track.glide_ratio.toFixed(1) : notRecorded();
+  el('t_altsource').textContent =
+    track.alt_source === 'PRESS'
+      ? window.t('flight_detail.track_alt_source_press')
+      : track.alt_source === 'GNSS'
+        ? window.t('flight_detail.track_alt_source_gnss')
+        : notRecorded();
+}
+
+async function renderTrackMap(flightId) {
+  const res = await fetchAuth(`/api/flights/${flightId}/igc/track.geojson`);
+  if (!res.ok) {
+    console.error(`[FL:flight-detail] failed to load track.geojson (${res.status})`);
+    return null;
+  }
+  const geojson = await res.json();
+
+  if (!trackMap) {
+    trackMap = L.map('trackMap');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(trackMap);
+  }
+  if (trackPolyline) trackMap.removeLayer(trackPolyline);
+
+  const latlngs = geojson.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+  trackPolyline = L.polyline(latlngs, { color: trackColors().glide, weight: 3 }).addTo(trackMap);
+  trackMap.fitBounds(trackPolyline.getBounds(), { padding: [20, 20] });
+
+  return geojson;
+}
+
+async function renderBarogram(flightId, geojson) {
+  const res = await fetchAuth(`/api/flights/${flightId}/igc/segments`);
+  const segments = res.ok ? await res.json() : [];
+  if (!res.ok) console.error(`[FL:flight-detail] failed to load segments (${res.status})`);
+
+  const shaded = segments.filter((s) => SEGMENT_KINDS_TO_SHADE.has(s.kind));
+  const colors = trackColors();
+
+  const offsets = geojson.properties.offsets_s;
+  const altitudes = geojson.geometry.coordinates.map((c) => c[2]);
+  const pointColors = offsets.map((offset) => {
+    const seg = shaded.find(
+      (s) => offset >= s.start_offset_s && offset <= s.start_offset_s + (s.duration_s || 0),
+    );
+    return seg ? colors[seg.kind] : colors.neutral;
+  });
+
+  if (barogramChart) barogramChart.destroy();
+  barogramChart = new Chart(el('barogram').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: offsets,
+      datasets: [
+        {
+          data: altitudes,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0,
+          fill: false,
+          segment: {
+            borderColor: (ctx) => pointColors[ctx.p0DataIndex] || colors.neutral,
+          },
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: window.t('flight_detail.track_chart_x') } },
+        y: { title: { display: true, text: window.t('flight_detail.track_chart_y') } },
+      },
+    },
+  });
+  console.log(`[FL:flight-detail] barogram rendered: ${offsets.length} points, ${shaded.length} shaded segments`);
+}
+
+async function renderTrack(flightId, track) {
+  el('trackCard').hidden = false;
+  clearTrackAlert();
+
+  if (!track) {
+    el('trackEmpty').hidden = false;
+    el('trackPresent').hidden = true;
+    return;
+  }
+
+  el('trackEmpty').hidden = true;
+  el('trackPresent').hidden = false;
+  renderTrackFigures(track);
+  const geojson = await renderTrackMap(flightId);
+  if (geojson) await renderBarogram(flightId, geojson);
+}
+
+async function uploadTrack(flightId, file) {
+  clearTrackAlert();
+  const body = new FormData();
+  body.append('file', file);
+  console.log(`[FL:flight-detail] POST /api/flights/${flightId}/igc (${file.name}, ${file.size}B)`);
+  const res = await fetchAuth(`/api/flights/${flightId}/igc`, { method: 'POST', body });
+  if (!res.ok) {
+    showTrackAlert(await errorMessage(res));
+    console.error(`[FL:flight-detail] track upload failed (${res.status})`);
+    return;
+  }
+  const track = await res.json();
+  await renderTrack(flightId, track);
+  console.log(`[FL:flight-detail] track uploaded: ${track.id}`);
+}
+
+async function detachTrack(flightId) {
+  const res = await fetchAuth(`/api/flights/${flightId}/igc`, { method: 'DELETE' });
+  if (!res.ok) {
+    showTrackAlert(await errorMessage(res));
+    console.error(`[FL:flight-detail] track detach failed (${res.status})`);
+    return;
+  }
+  el('trackDetachConfirm').hidden = true;
+  await renderTrack(flightId, null);
+  console.log(`[FL:flight-detail] track detached for flight ${flightId}`);
+}
+
+function wireTrackEvents(flightId) {
+  el('trackUploadBtn').addEventListener('click', () => {
+    const file = el('trackFile').files[0];
+    if (!file) {
+      showTrackAlert(window.t('flight_detail.track_no_file'));
+      return;
+    }
+    uploadTrack(flightId, file);
+  });
+
+  el('trackReplaceBtn').addEventListener('click', () => {
+    const file = el('trackReplaceFile').files[0];
+    if (!file) {
+      showTrackAlert(window.t('flight_detail.track_no_file'));
+      return;
+    }
+    uploadTrack(flightId, file);
+  });
+
+  el('trackDetachBtn').addEventListener('click', () => {
+    el('trackDetachConfirm').hidden = false;
+  });
+  el('trackDetachNo').addEventListener('click', () => {
+    el('trackDetachConfirm').hidden = true;
+  });
+  el('trackDetachYes').addEventListener('click', () => detachTrack(flightId));
+}
+
 async function init() {
   await bootstrapPage({ page: 'flights', requireAuth: true });
   await loadRefData();
@@ -101,7 +311,12 @@ async function init() {
   const id = flightIdFromUrl();
   console.log(`[FL:flight-detail] loading flight ${id}`);
   const flight = await loadFlight(id);
-  if (flight) render(flight);
+  if (!flight) return;
+  render(flight);
+
+  wireTrackEvents(id);
+  const track = await loadTrack(id);
+  await renderTrack(id, track);
 }
 
 init();

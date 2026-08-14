@@ -69,7 +69,10 @@ export async function fetchAuth(url, options = {}, _retried = false) {
 
   const token = getAccessToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (options.body && !headers.has('Content-Type')) {
+  // FormData (multipart file uploads) must never get an explicit Content-Type — the browser
+  // sets one itself with the boundary it actually used to encode the body. Setting our own
+  // (or defaulting to JSON) breaks every multipart request silently.
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 

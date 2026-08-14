@@ -99,3 +99,8 @@ def equipment_page(request: Request) -> Response:
 @router.get("/import")
 def import_page(request: Request) -> Response:
     return _page(request, "import.html")
+
+
+@router.get("/igc")
+def igc_bulk_page(request: Request) -> Response:
+    return _page(request, "igc.html")

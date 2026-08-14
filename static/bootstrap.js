@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { page: 'sites', href: '/sites', key: 'nav.sites' },
   { page: 'equipment', href: '/equipment', key: 'nav.equipment' },
   { page: 'import', href: '/import', key: 'nav.import' },
+  { page: 'igc', href: '/igc', key: 'nav.tracks' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },
 ];
 

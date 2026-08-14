@@ -14,11 +14,10 @@ plan and research behind it.
 | Table | Status | Key columns |
 |---|---|---|
 | `users` | **shipped v0.1** | `id`, `email` (unique), `display_name`, `hashed_password`, `role`, `is_active`, `locale`, `timezone`, `units`, `seeded_at`, `last_login_at`, `created_at`, `updated_at` |
-| `api_keys` | v0.7 | `id`, `owner_id`, `name`, `key_prefix` (unique), `key_hash`, `scopes`, `last_used_at`, `revoked_at` |
+| `api_keys` | v0.8 | `id`, `owner_id`, `name`, `key_prefix` (unique), `key_hash`, `scopes`, `last_used_at`, `revoked_at` |
 | `regions` | **shipped v0.2** | `id`, `name`, `sort_order` — global reference data, not user-scoped |
 | `sites` | **shipped v0.2** | `id`, `owner_id` (nullable), `name`, `is_launch`, `is_landing`, `lat`, `lon`, `elevation_m`, `elevation_igc_m`, `region_id`, `coord_source`, `coord_accuracy_m` |
 | `user_site_prefs` | **shipped v0.2** | `(user_id, site_id)` PK, `alias`, `elevation_m`, `is_favourite`, `is_hidden` |
-| `site_observations` | v0.4 | `id`, `site_id`, `lat`, `lon`, `alt_m`, `track_id`, `kind` |
 | `gliders` | **shipped v0.2** | `id`, `owner_id`, `brand`, `model`, `size`, `nickname`, `en_class`, `is_own`, `retired_at` |
 | `harnesses` | **shipped v0.2** | `id`, `owner_id`, `brand`, `model`, `size`, `harness_type`, `reserve_next_repack`, `retired_at` |
 | `flight_categories` | **shipped v0.2** | `id`, `owner_id`, `name`, `slug`, `is_hike_fly`, `is_training`, `sort_order`, `archived_at` |
@@ -27,13 +26,15 @@ plan and research behind it.
 | `flight_buddies` | **shipped v0.2** | `(flight_id, buddy_id)` |
 | `media_links` | v0.3 | `id`, `flight_id`, `owner_id`, `url`, `kind`, `provider` |
 | `tracker_links` | v0.3 | `id`, `flight_id`, `owner_id`, `provider`, `url`, `external_id` |
-| `flight_links` | v0.7 | `id`, `flight_id`, `kind`, `external_id`, `url`, `label` — VidFactory pushes here |
-| `igc_tracks` | v0.4 | one per flight; file on disk, aggregates here |
-| `igc_segments` | v0.4 | thermals / glides / markers with takeoff-relative offsets |
-| `hikes` | v0.5 | `Fitnessprogramm` sheet; nullable `flight_id` |
-| `groundhandling` | v0.5 | `date`, `place`, `duration_min`, `comment` |
-| `tandem_flights` | v0.5 | flights as a passenger — deliberately NOT in `flights` |
-| `goals` | v0.5 | `Ziele` sheet |
+| `flight_links` | v0.8 | `id`, `flight_id`, `kind`, `external_id`, `url`, `label` — VidFactory pushes here |
+| `igc_tracks` | **shipped v0.5** | one per flight (`UniqueConstraint(flight_id)`); file on disk, aggregates here — see IGC analysis section below |
+| `igc_segments` | **shipped v0.5** | thermals / glides / markers with takeoff-relative offsets |
+| `site_observations` | **shipped v0.5** | `id`, `site_id`, `track_id`, `kind` (takeoff\|landing), `lat`, `lon`, `alt_m` — feeds `core/site_backfill.py`'s median coordinate recompute |
+| `igc_pending_uploads` | **shipped v0.5** | a plan-level addition beyond the original `architecture.md` table list (`specs/003-igc-ingest-analysis/data-model.md`) — a bulk-uploaded file that didn't auto-attach; persists the review queue past a closed tab |
+| `hikes` | v0.6 | `Fitnessprogramm` sheet; nullable `flight_id` |
+| `groundhandling` | v0.6 | `date`, `place`, `duration_min`, `comment` |
+| `tandem_flights` | v0.6 | flights as a passenger — deliberately NOT in `flights` |
+| `goals` | v0.6 | `Ziele` sheet |
 
 ### Tables that do NOT exist — do not code against them
 
@@ -177,44 +178,73 @@ a buddy never touches the linked account.
 
 ## IGC analysis
 
-Library: **`libigc`**. Wrapper lives in `core/igc.py`.
+**Shipped v0.5.** Library: **`libigc`** 1.2.0 (pure-Python, `py3-none-any` wheel). Wrapper lives in
+`core/igc.py`. Every route is a plain sync `def` (`api/routers/igc.py`) — FastAPI's own threadpool
+dispatch keeps this CPU-bound work off the event loop, same as every other route in the app; there is
+no `async def` handler anywhere and no `asyncio.to_thread` call for this.
 
 1. `libigc.Flight.create_from_file(path)`; reject `not flight.valid` with the joined `flight.notes`.
-2. **Altitude source**: prefer barometric — use `press_alt` when >50% of fixes carry a non-`None` baro
-   value, else `gnss_alt`. Persist `alt_source`.
-   ⚠ Test `is not None`, **not** truthiness. VidFactory's `[f.press_alt for f in flight.fixes if
-   f.press_alt]` silently discards every 0 m fix.
+   `create_from_file` takes a **path**, not bytes — an upload is written to content-addressed storage
+   before this is ever called.
+2. **Altitude source**: read `flight.alt_source` directly — do **not** recompute a source selection from
+   the raw fixes. `libigc` already validates both the `press_alt` and `gnss_alt` streams per-fix (rate-
+   of-change limits, absolute bounds, a stuck-sensor check) and resolves `PRESS`/`GNSS` itself; if
+   neither stream is valid, `flight.valid` is already `False` and rule 1 rejects it. An earlier draft of
+   this section proposed a ">50% non-`None` fixes" heuristic — abandoned once the real library was
+   inspected: `press_alt`/`gnss_alt` are always floats, never `None`, so that heuristic would never have
+   fired against real data anyway (`specs/003-igc-ingest-analysis/research.md`).
 3. **Thermals**: keep only climbing circles — `[t for t in flight.thermals if t.alt_change() > 0]`.
    ⚠ libigc flags *any* circling as a thermal, including descending spirals and wingovers, both of which
-   are routine in paragliding. Without this filter `best_climb` and `avg_climb` are poisoned. This is
-   pinned by a regression test in `test_igc_analysis.py`.
+   are routine in paragliding. Without this filter `best_climb` and `avg_climb` are poisoned. Verified
+   against a generated fixture with one genuine climbing thermal (`tests/backend/fixtures/valid_flight.igc`).
 4. **Tuning is config, not constants.** `libigc.FlightParsingConfig` overrides live under `igc.parsing:`
-   in `config.yml` (`min_time_for_thermal_s`, `min_bearing_change_circling_deg`, `min_time_for_glide_s`,
-   `max_time_between_thermals_s`) and every resolved value is logged at startup. Paraglider thermals are
-   slower and sloppier than the sailplane defaults; these will need iteration against real tracks.
+   in `config.yml` and every resolved value is logged at startup — but the real parameter names, checked
+   against the installed 1.2.0 source, are **`min_bearing_change_circling`**,
+   **`min_time_for_bearing_change`**, and **`min_time_for_thermal`** — not the four differently-named,
+   `_s`/`_deg`-suffixed ones an earlier draft of this section guessed. There is no separate glide-tuning
+   parameter: a glide is simply the gap between two thermals. `core/igc.py` builds a small
+   `FlightParsingConfig` **subclass** from the resolved config values and passes the subclass (not an
+   instance) to `create_from_file`'s `config_class=` argument — that's the shape the library expects.
+   Paraglider thermals are slower and sloppier than the sailplane defaults; these will need iteration
+   against real tracks.
 5. **Glide ratio** = Σ(track_length of descending glides) / Σ(−alt_change of descending glides). This is
    an **over-ground** ratio including air-mass lift, not the wing's still-air L/D. The aggregate form is
    deliberate: one shallow segment cannot inflate it.
 6. **`best_climb_ms` is the best thermal *average*, not the instantaneous peak** — peaks are GPS noise.
-   `peak_climb_ms` from a 10 s rolling window is a separate, clearly named field.
-7. `analyzer_version` is persisted per track. A re-analysis sweep keys on it.
+   `peak_climb_ms` from a 10 s rolling window (`core/igc.py`'s `_peak_climb_ms`, a two-pointer sliding
+   window) is a separate, clearly named field.
+7. `analyzer_version` is persisted per track. `POST /api/admin/reanalyze` sweeps every track whose stored
+   value doesn't match the running build's `igc.ANALYZER_VERSION` constant — admin-only
+   (`require_admin`; this is its first use anywhere in the app), no request body, always a full filtered
+   pass, never a partial/targeted one (`specs/003-igc-ingest-analysis/research.md`).
 
 ### IGC storage
 
 Content-addressed on disk, never a BLOB:
 
 ```
-<storage.igc_dir>/<owner_id>/<YYYY>/<sha256>.igc
-<storage.igc_dir>/<owner_id>/<YYYY>/<sha256>.track.json   # derived, regenerable
+<storage.igc_dir>/<owner_id>/<upload_year>/<sha256>.igc
 ```
 
-Content addressing gives deduplication and idempotent re-upload for free, and collapses the known
-device-vs-XContest duplicate problem without a staging folder. The DB keeps `original_filename` for
-display.
+Sharded by the **upload** year, not the flight's own year — `create_from_file` needs a real file on
+disk before it can be parsed to learn which year a track actually flew in, so sharding by upload time
+avoids that ordering problem. `igc_tracks.track_simplified_json` (not a separate `.track.json` file)
+holds the derived, regenerable reduced-resolution point series — `[offset_s, lat, lon, alt_m]` per
+point, capped at 500 points — and backs both the map view and the barogram from one field, without a
+raw-file re-parse on ordinary viewing.
+
+Content addressing gives deduplication and idempotent re-upload for free within *this* app
+(`UniqueConstraint(owner_id, sha256)` on both `igc_tracks` and `igc_pending_uploads`). It does **not**
+by itself solve the device-vs-XContest cross-source duplicate problem an earlier draft of this section
+claimed — two different loggers recording the same real flight produce different bytes and therefore
+different hashes; nothing in v0.5 attempts fingerprint-level near-duplicate detection across sources.
+The DB keeps `original_filename` for display.
 
 ### `igc_segments` — the VidFactory contract
 
-`kind ∈ thermal | glide | takeoff | landing | max_alt | top_of_climb`.
+`kind ∈ thermal | glide | takeoff | landing | max_alt | top_of_climb`. `top_of_climb` is the exit fix of
+whichever kept thermal has the best `vertical_velocity()` — the peak of the pilot's best climb, not a
+per-thermal marker.
 
 **`start_offset_s` (seconds since takeoff) is the load-bearing field.** VidFactory maps it onto a video
 timeline with one addition, knowing its own `video_start_utc`. Absolute `start_at` is stored too, so a
@@ -229,13 +259,26 @@ Storing segments is what makes the highlight query an indexed `ORDER BY` instead
 The Excel records no time of day and **117 days carry more than one flight**, so date alone is not
 enough.
 
-- **Primary path**: upload from the flight's own edit form — unambiguous by construction.
-- **Bulk path**: read only the header for the date (`^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})`, bail on the
-  first `B` record, ISO-8859-1). When a date has N files and M free flights, score each file's duration
-  against each flight's logged minutes and auto-attach only when `|Δ| ≤ 3 min` **and** the runner-up is
-  `> 10 min` away. Everything else is reported for manual assignment, never guessed.
-- **Writeback shrinks the problem**: every attach writes `flights.takeoff_time` / `landing_time` from
-  the track, so later imports can match on time overlap.
+- **Primary path**: upload from the flight's own edit form (`POST /api/flights/{id}/igc`) — unambiguous
+  by construction. A second upload for a flight that already has a track replaces it wholesale (new
+  segments and site observations, old ones deleted first), never accumulates a second row.
+- **Bulk path** (`POST /api/igc/bulk`): every file is **fully parsed** up front, not just its header —
+  a deliberate deviation from this section's original "read only the header for speed" plan
+  (`specs/003-igc-ingest-analysis/research.md`): the file needs a full parse regardless once it's
+  going to be attached or held pending, so a separate lightweight pre-scan would just be a second
+  parsing path for no real saving. Only untracked flights are match candidates. Score each candidate's
+  logged `duration_min` against the track's measured duration and auto-attach only when `|Δ| ≤ 3 min`
+  **and** the runner-up is `> 10 min` away (or there is no runner-up at all). Everything else — ambiguous
+  or with zero candidates — is written to `igc_pending_uploads` (file already stored, never re-uploaded
+  to resolve) rather than reported-and-discarded, so the review queue survives a closed tab. Dismissing a
+  pending row must not permanently occupy its `UniqueConstraint(owner_id, sha256)` slot — a dismissed
+  row is *reused* on a later re-upload of the same file, not left blocking it (a real bug caught and
+  fixed via a live-boot pass, not by unit tests alone — see `specs/003-igc-ingest-analysis/tasks.md` T028).
+- **Writeback shrinks the problem**: every attach (`_attach_track` in `api/routers/igc.py`) writes
+  `flights.takeoff_time` / `landing_time` from the track's takeoff/landing fixes, and a detach clears
+  them back to `NULL` — so later imports can match on time overlap. This is the exact gap a first pass
+  at this section left unimplemented; caught and closed during the `sync.md` documentation pass rather
+  than left as a silent TODO.
 
 ---
 
@@ -288,17 +331,18 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **v0.2:** `/`, `/login`, `/register`. **v0.3 (implemented, not deployed):** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`, `/import`. All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`, `/import`. **shipped v0.5:** `/igc`. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
-| `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3 (not deployed)** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client) |
+| `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
 | `/api/categories` | `categories.py` | **shipped v0.2** — CRUD + `PUT /reorder` + `POST /{id}/archive` |
 | `/api/buddies` | `buddies.py` | **shipped v0.2** — CRUD + `POST /{id}/link` (always 202) + `/link/accept` + `/link/decline` |
 | `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m` |
-| `/api/import-report` | `import_report.py` | **v0.3 (implemented, not deployed)** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer |
+| `/api/import-report` | `import_report.py` | **shipped v0.3** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer |
 | — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
-| `/api/stats` | `stats.py` | v0.6 |
-| `/api/integration/v1` | `integration.py` | v0.7 — frozen contract, versioned separately from the UI's models |
+| `/api/flights/{id}/igc`, `/api/igc/*`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route |
+| `/api/stats` | `stats.py` | v0.7 |
+| `/api/integration/v1` | `integration.py` | v0.8 — frozen contract, versioned separately from the UI's models |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**
 
@@ -346,10 +390,13 @@ unsafe. One volume also makes backup a single `tar` of that volume.
 `python:3.14-slim` built and pushed **multi-arch (amd64 + arm64) in 5m29s** on the v0.1.0 tag, and CI
 passes on both 3.13 and 3.14. The plan's fallback to 3.13 was not needed.
 
-⚠ **This does not settle the question for v0.4.** `libigc` is an optional extra and is not installed
-yet; it declares `>=3.12` with no upper bound and pulls scientific dependencies. Re-run the build gate
-when IGC analysis lands — that is when a wheel gap would appear, and the arm64 leg under QEMU is where
-it would hurt.
+**Updated for v0.5**: `libigc` is now actually installed (CI's test job and the Dockerfile both run
+`poetry install --extras igc`, not just declare the extra) — checked against PyPI's file metadata before
+enabling it, not assumed: `libigc` ships a universal `py3-none-any` wheel and its transitive
+`simplekml` dependency is a pure-Python sdist, so neither should reintroduce the QEMU/arm64
+compilation risk this section originally flagged. **Not yet proven**: the actual multi-arch image build
+only runs on a tag push (`docker-publish.yml`), which hasn't happened for a version carrying this extra
+yet — the package-metadata check de-risks this, it doesn't replace watching the next real build.
 
 `requires-python = ">=3.13,<4.0"`: 3.13 is what local development runs, 3.14 is what the image ships,
 and the CI matrix covers both so a runtime upgrade is proven rather than assumed.
