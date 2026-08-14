@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info:
+  title: Flightlog — historical import report (v0.3 addition)
+  version: "0.3.0"
+paths:
+  /api/import-report:
+    get:
+      summary: Read-only summary of the v0.2 historical Excel import's findings
+      description: >
+        Always returns the same frozen, historical data (see specs/002-flight-log-ui/data-model.md).
+        Never re-runs the importer, never writes anything. Requires an authenticated pilot; not scoped
+        by owner_id since there is exactly one pilot account in the system today (matches v0.2's stated
+        assumption) and this describes a system-level historical event, not a per-owner resource.
+      tags: [import-report]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The historical import summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoricalImportReportOut"
+        "401":
+          description: Missing or invalid token — the standard typed error envelope.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UnresolvedGearOut:
+      type: object
+      required: [kind, value, flight_count]
+      properties:
+        kind: { type: string, enum: [harness, glider] }
+        value: { type: string }
+        flight_count: { type: integer }
+    RegionMismatchOut:
+      type: object
+      required: [region, computed, sheet]
+      properties:
+        region: { type: string }
+        computed: { type: integer }
+        sheet: { type: integer }
+    AltgainMismatchOut:
+      type: object
+      required: [row, computed_alt_gain_m, sheet_altgain, delta]
+      properties:
+        row: { type: integer }
+        computed_alt_gain_m: { type: integer }
+        sheet_altgain: { type: integer }
+        delta: { type: integer }
+    BuddyProposalOut:
+      type: object
+      required: [name, flight_count]
+      properties:
+        name: { type: string }
+        flight_count: { type: integer }
+    HistoricalImportReportOut:
+      type: object
+      required:
+        [imported_at, flights_written, unresolved_gear, region_mismatches, altgain_mismatches,
+         buddy_proposals]
+      properties:
+        imported_at: { type: string, format: date }
+        flights_written: { type: integer }
+        unresolved_gear:
+          type: array
+          items: { $ref: "#/components/schemas/UnresolvedGearOut" }
+        region_mismatches:
+          type: array
+          items: { $ref: "#/components/schemas/RegionMismatchOut" }
+        altgain_mismatches:
+          type: array
+          items: { $ref: "#/components/schemas/AltgainMismatchOut" }
+        buddy_proposals:
+          type: array
+          items: { $ref: "#/components/schemas/BuddyProposalOut" }
