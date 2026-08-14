@@ -14,6 +14,7 @@
       <h1 id="heading" data-i18n="app.name">Flightlog</h1>
       <p class="muted" id="subtitle" data-i18n="app.tagline">Paragliding flight log</p>
       <p id="hint" class="muted"></p>
+      <p id="goToFlights" hidden><a href="/flights" data-i18n="home.go_to_flights">Go to your flights</a></p>
     </div>
   </main>
 
@@ -32,6 +33,7 @@
         document.getElementById('heading').textContent =
           `${window.t('home.welcome')}, ${user.display_name}`;
         hint.textContent = window.t('home.empty_hint');
+        document.getElementById('goToFlights').hidden = false;
         console.log(`[FL:home] signed in as ${user.email}`);
       }
     } else {

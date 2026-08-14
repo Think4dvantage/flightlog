@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flights — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="flights.title">Flights</h1>
+        <button type="button" id="addFlightBtn" data-i18n="flights.add">Add flight</button>
+      </div>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <div class="filter-row">
+        <input type="search" id="searchInput" data-i18n-placeholder="flights.search_placeholder"
+               placeholder="Search…">
+        <select id="filterYear"><option value="" data-i18n="flights.filter.all_years">All years</option></select>
+        <select id="filterCategory"><option value="" data-i18n="flights.filter.all_categories">All categories</option></select>
+        <select id="filterGlider"><option value="" data-i18n="flights.filter.all_gliders">All gliders</option></select>
+        <select id="filterSite"><option value="" data-i18n="flights.filter.all_sites">All launch sites</option></select>
+        <select id="filterRegion"><option value="" data-i18n="flights.filter.all_regions">All regions</option></select>
+      </div>
+
+      <div id="resultCount" class="muted"></div>
+
+      <div class="table-scroll">
+        <table id="flightsTable">
+          <thead>
+            <tr>
+              <th data-sort="flight_date" data-i18n="flights.col.date">Date</th>
+              <th data-sort="launch" data-i18n="flights.col.launch">Launch</th>
+              <th data-sort="landing" data-i18n="flights.col.landing">Landing</th>
+              <th data-sort="category" data-i18n="flights.col.category">Category</th>
+              <th data-sort="glider" data-i18n="flights.col.glider">Glider</th>
+              <th data-sort="duration_min" data-i18n="flights.col.duration">Duration</th>
+              <th data-sort="distance_km" data-i18n="flights.col.distance">Distance</th>
+              <th data-i18n="flights.col.actions">Edit</th>
+            </tr>
+          </thead>
+          <tbody id="flightsBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" hidden>
+        <p data-i18n="flights.empty">No flights match the current search and filters.</p>
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="flightDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="flights.drawer.add_title">Add flight</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="flightForm" novalidate>
+
+      <input type="hidden" id="f_id">
+
+      <div class="field">
+        <label for="f_date" data-i18n="flights.drawer.date">Date</label>
+        <input type="date" id="f_date" required>
+        <p class="field-error" data-field="flight_date"></p>
+      </div>
+
+      <div class="field">
+        <label for="f_launch" data-i18n="flights.drawer.launch">Launch site</label>
+        <select id="f_launch" required></select>
+        <p class="field-error" data-field="launch_site_id"></p>
+      </div>
+
+      <div class="field">
+        <label for="f_landing" data-i18n="flights.drawer.landing">Landing site</label>
+        <select id="f_landing"><option value="" data-i18n="flights.drawer.not_recorded">Not recorded</option></select>
+        <p class="field-error" data-field="landing_site_id"></p>
+      </div>
+
+      <div class="field">
+        <label for="f_category" data-i18n="flights.drawer.category">Category</label>
+        <select id="f_category" required></select>
+        <p class="field-error" data-field="category_id"></p>
+      </div>
+
+      <div class="field">
+        <label for="f_glider" data-i18n="flights.drawer.glider">Glider</label>
+        <select id="f_glider"><option value="" data-i18n="flights.drawer.not_recorded">Not recorded</option></select>
+        <p class="field-error" data-field="glider_id"></p>
+      </div>
+
+      <div class="field">
+        <label for="f_harness" data-i18n="flights.drawer.harness">Harness</label>
+        <select id="f_harness"><option value="" data-i18n="flights.drawer.not_recorded">Not recorded</option></select>
+        <p class="field-error" data-field="harness_id"></p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="f_duration" data-i18n="flights.drawer.duration">Duration (min)</label>
+          <input type="number" id="f_duration" min="0" step="1">
+          <p class="field-error" data-field="duration_min"></p>
+        </div>
+        <div class="field">
+          <label for="f_distance" data-i18n="flights.drawer.distance">Distance (km)</label>
+          <input type="number" id="f_distance" min="0" step="0.1">
+          <p class="field-error" data-field="distance_km"></p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="f_maxalt" data-i18n="flights.drawer.max_alt">Max altitude (m)</label>
+          <input type="number" id="f_maxalt" step="1">
+          <p class="field-error" data-field="max_alt_m"></p>
+        </div>
+        <div class="field">
+          <label for="f_technique" data-i18n="flights.drawer.technique">Launch technique</label>
+          <select id="f_technique">
+            <option value="" data-i18n="flights.drawer.not_recorded">Not recorded</option>
+            <option value="forward" data-i18n="flights.drawer.technique_forward">Forward</option>
+            <option value="reverse" data-i18n="flights.drawer.technique_reverse">Reverse</option>
+          </select>
+          <p class="field-error" data-field="launch_technique"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f_buddies" data-i18n="flights.drawer.buddies">Buddies</label>
+        <select id="f_buddies" multiple size="4"></select>
+      </div>
+
+      <div class="field">
+        <label for="f_notes" data-i18n="flights.drawer.notes">Notes</label>
+        <textarea id="f_notes" rows="3" maxlength="3300"></textarea>
+        <p class="field-error" data-field="notes"></p>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="flights.drawer.save">Save</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="flights.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="flights.delete_confirm.prompt">Delete this flight? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="flights.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="flights.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
+
+  <script type="module" src="/static/flights.js"></script>
+</body>
+</html>

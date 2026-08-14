@@ -7,6 +7,7 @@
     "flights": "Flights",
     "sites": "Sites",
     "equipment": "Equipment",
+    "import": "Import findings",
     "stats": "Statistics",
     "login": "Log in",
     "logout": "Log out"
@@ -33,10 +34,150 @@
   "home": {
     "welcome": "Welcome back",
     "signed_out": "Log in to see your flights.",
-    "empty_hint": "The flight log lands in v0.2. Nothing to show yet."
+    "empty_hint": "Your flight log is ready.",
+    "go_to_flights": "Go to your flights"
   },
   "common": {
     "loading": "Loading…",
     "error_generic": "Something went wrong. Please try again."
+  },
+  "flights": {
+    "title": "Flights",
+    "add": "Add flight",
+    "edit": "Edit",
+    "search_placeholder": "Search site, category, glider, notes…",
+    "result_count": "{count} flights",
+    "page_of": "Page {page} of {total}",
+    "empty": "No flights match the current search and filters.",
+    "filter": {
+      "all_years": "All years",
+      "all_categories": "All categories",
+      "all_gliders": "All gliders",
+      "all_sites": "All launch sites",
+      "all_regions": "All regions"
+    },
+    "col": {
+      "date": "Date",
+      "launch": "Launch",
+      "landing": "Landing",
+      "category": "Category",
+      "glider": "Glider",
+      "duration": "Duration",
+      "distance": "Distance",
+      "actions": "Edit"
+    },
+    "drawer": {
+      "add_title": "Add flight",
+      "edit_title": "Edit flight",
+      "date": "Date",
+      "launch": "Launch site",
+      "landing": "Landing site",
+      "category": "Category",
+      "glider": "Glider",
+      "harness": "Harness",
+      "duration": "Duration (min)",
+      "distance": "Distance (km)",
+      "max_alt": "Max altitude (m)",
+      "technique": "Launch technique",
+      "technique_forward": "Forward",
+      "technique_reverse": "Reverse",
+      "buddies": "Buddies",
+      "notes": "Notes",
+      "not_recorded": "Not recorded",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this flight? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
+    }
+  },
+  "flight_detail": {
+    "back": "← Back to flights",
+    "launch": "Launch site",
+    "landing": "Landing site",
+    "category": "Category",
+    "glider": "Glider",
+    "harness": "Harness",
+    "duration": "Duration",
+    "distance": "Distance",
+    "max_alt": "Max altitude",
+    "alt_gain": "Altitude gain",
+    "site_drop": "Site drop",
+    "total_descent": "Total descent",
+    "technique": "Launch technique",
+    "technique_forward": "Forward",
+    "technique_reverse": "Reverse",
+    "buddies": "Buddies",
+    "notes": "Notes",
+    "not_recorded": "Not recorded"
+  },
+  "sites": {
+    "title": "Sites",
+    "map_hint": "Click an unpinned site's row to place it, or drag an existing pin to move it.",
+    "unpinned": "Not placed",
+    "col": {
+      "name": "Name",
+      "launch": "Launch",
+      "landing": "Landing",
+      "region": "Region",
+      "elevation": "Elevation",
+      "coords": "Coordinates"
+    }
+  },
+  "equipment": {
+    "gliders_title": "Gliders",
+    "harnesses_title": "Harnesses",
+    "add_glider": "Add glider",
+    "add_harness": "Add harness",
+    "edit": "Edit",
+    "status_active": "Active",
+    "status_retired": "Retired",
+    "col": {
+      "brand_model": "Model",
+      "size": "Size",
+      "en_class": "EN class",
+      "harness_type": "Type",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_glider_title": "Add glider",
+      "edit_glider_title": "Edit glider",
+      "add_harness_title": "Add harness",
+      "edit_harness_title": "Edit harness",
+      "brand": "Brand",
+      "model": "Model",
+      "size": "Size",
+      "nickname": "Nickname",
+      "en_class": "EN class",
+      "harness_type": "Type",
+      "save": "Save",
+      "retire": "Retire"
+    }
+  },
+  "import": {
+    "title": "Historical import findings",
+    "imported_at": "From the production import on {date}.",
+    "snapshot_note": "This is a historical snapshot of the v0.2 production import, not a live view — it does not reflect any edits made since.",
+    "none_found": "None found.",
+    "unresolved_gear_title": "Unresolved gear",
+    "region_mismatches_title": "Region count mismatches",
+    "altgain_mismatches_title": "Altitude gain mismatches",
+    "buddy_proposals_title": "Buddy name proposals",
+    "col": {
+      "kind": "Kind",
+      "value": "Value",
+      "flight_count": "Flights",
+      "region": "Region",
+      "computed": "This app",
+      "sheet": "Legacy sheet",
+      "row": "Row",
+      "computed_alt_gain": "This app",
+      "sheet_altgain": "Legacy sheet",
+      "delta": "Delta",
+      "name": "Name mentioned in notes"
+    }
   }
 }

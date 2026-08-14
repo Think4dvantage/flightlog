@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight detail — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <p><a href="/flights" data-i18n="flight_detail.back">← Back to flights</a></p>
+
+    <div class="card">
+      <div id="alert" class="alert alert-error"></div>
+
+      <div id="detailBody" hidden>
+        <h1 id="d_date"></h1>
+
+        <dl class="detail-grid">
+          <dt data-i18n="flight_detail.launch">Launch site</dt>
+          <dd id="d_launch"></dd>
+
+          <dt data-i18n="flight_detail.landing">Landing site</dt>
+          <dd id="d_landing"></dd>
+
+          <dt data-i18n="flight_detail.category">Category</dt>
+          <dd id="d_category"></dd>
+
+          <dt data-i18n="flight_detail.glider">Glider</dt>
+          <dd id="d_glider"></dd>
+
+          <dt data-i18n="flight_detail.harness">Harness</dt>
+          <dd id="d_harness"></dd>
+
+          <dt data-i18n="flight_detail.duration">Duration</dt>
+          <dd id="d_duration"></dd>
+
+          <dt data-i18n="flight_detail.distance">Distance</dt>
+          <dd id="d_distance"></dd>
+
+          <dt data-i18n="flight_detail.max_alt">Max altitude</dt>
+          <dd id="d_maxalt"></dd>
+
+          <dt data-i18n="flight_detail.alt_gain">Altitude gain</dt>
+          <dd id="d_altgain"></dd>
+
+          <dt data-i18n="flight_detail.site_drop">Site drop</dt>
+          <dd id="d_sitedrop"></dd>
+
+          <dt data-i18n="flight_detail.total_descent">Total descent</dt>
+          <dd id="d_totaldescent"></dd>
+
+          <dt data-i18n="flight_detail.technique">Launch technique</dt>
+          <dd id="d_technique"></dd>
+
+          <dt data-i18n="flight_detail.buddies">Buddies</dt>
+          <dd id="d_buddies"></dd>
+        </dl>
+
+        <h2 data-i18n="flight_detail.notes">Notes</h2>
+        <p id="d_notes" class="muted"></p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/static/flight-detail.js"></script>
+</body>
+</html>

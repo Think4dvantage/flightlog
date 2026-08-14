@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import findings — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <h1 data-i18n="import.title">Historical import findings</h1>
+      <p class="muted" id="importedAt"></p>
+      <div class="alert alert-error" id="alert"></div>
+      <p class="alert alert-error visible" data-i18n="import.snapshot_note">
+        This is a historical snapshot of the v0.2 production import, not a live view — it does not
+        reflect any edits made since.
+      </p>
+
+      <h2 data-i18n="import.unresolved_gear_title">Unresolved gear</h2>
+      <table id="gearTable">
+        <thead>
+          <tr>
+            <th data-i18n="import.col.kind">Kind</th>
+            <th data-i18n="import.col.value">Value</th>
+            <th data-i18n="import.col.flight_count">Flights</th>
+          </tr>
+        </thead>
+        <tbody id="gearBody"></tbody>
+      </table>
+      <p class="muted" id="gearEmpty" hidden data-i18n="import.none_found">None found.</p>
+
+      <h2 data-i18n="import.region_mismatches_title">Region count mismatches</h2>
+      <table id="regionTable">
+        <thead>
+          <tr>
+            <th data-i18n="import.col.region">Region</th>
+            <th data-i18n="import.col.computed">This app</th>
+            <th data-i18n="import.col.sheet">Legacy sheet</th>
+          </tr>
+        </thead>
+        <tbody id="regionBody"></tbody>
+      </table>
+      <p class="muted" id="regionEmpty" hidden data-i18n="import.none_found">None found.</p>
+
+      <h2 data-i18n="import.altgain_mismatches_title">Altitude gain mismatches</h2>
+      <table id="altgainTable">
+        <thead>
+          <tr>
+            <th data-i18n="import.col.row">Row</th>
+            <th data-i18n="import.col.computed_alt_gain">This app</th>
+            <th data-i18n="import.col.sheet_altgain">Legacy sheet</th>
+            <th data-i18n="import.col.delta">Delta</th>
+          </tr>
+        </thead>
+        <tbody id="altgainBody"></tbody>
+      </table>
+      <p class="muted" id="altgainEmpty" hidden data-i18n="import.none_found">None found.</p>
+
+      <h2 data-i18n="import.buddy_proposals_title">Buddy name proposals</h2>
+      <table id="buddyTable">
+        <thead>
+          <tr>
+            <th data-i18n="import.col.name">Name mentioned in notes</th>
+            <th data-i18n="import.col.flight_count">Flights</th>
+          </tr>
+        </thead>
+        <tbody id="buddyBody"></tbody>
+      </table>
+      <p class="muted" id="buddyEmpty" hidden data-i18n="import.none_found">None found.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/static/import.js"></script>
+</body>
+</html>

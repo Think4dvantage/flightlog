@@ -111,6 +111,53 @@ async def test_owner_id_in_body_is_ignored(client, make_token, make_user):
         assert resp.json()["owner_id"] != victim.id
 
 
+async def test_coord_source_becomes_manual_on_create_with_lat_lon(client, make_token):
+    headers = make_token()
+    resp = await client.post(
+        "/api/sites",
+        json={"name": "Pinned", "is_launch": True, "lat": 46.68, "lon": 7.85},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["coord_source"] == "manual"
+
+
+async def test_coord_source_stays_untouched_on_create_without_lat_lon(client, make_token):
+    headers = make_token()
+    resp = await client.post(
+        "/api/sites", json={"name": "Unpinned", "is_launch": True}, headers=headers
+    )
+    assert resp.status_code == 201
+    assert resp.json()["coord_source"] is None
+
+
+async def test_coord_source_becomes_manual_on_update_with_lat_lon(client, make_token):
+    headers = make_token()
+    created = await client.post(
+        "/api/sites", json={"name": "Later Pin", "is_launch": True}, headers=headers
+    )
+    site_id = created.json()["id"]
+    assert created.json()["coord_source"] is None
+
+    updated = await client.put(
+        f"/api/sites/{site_id}", json={"lat": 46.5, "lon": 7.9}, headers=headers
+    )
+    assert updated.status_code == 200
+    assert updated.json()["coord_source"] == "manual"
+
+
+async def test_coord_source_stays_untouched_on_update_without_lat_lon(client, make_token):
+    headers = make_token()
+    created = await client.post(
+        "/api/sites", json={"name": "Untouched", "is_launch": True}, headers=headers
+    )
+    site_id = created.json()["id"]
+
+    updated = await client.put(f"/api/sites/{site_id}", json={"elevation_m": 1200}, headers=headers)
+    assert updated.status_code == 200
+    assert updated.json()["coord_source"] is None
+
+
 async def test_site_prefs_upsert(client, make_token):
     headers = make_token()
     created = await client.post(

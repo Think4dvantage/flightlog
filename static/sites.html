@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sites — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="sites.title">Sites</h1>
+      </div>
+
+      <div id="alert" class="alert alert-error"></div>
+      <p class="muted" data-i18n="sites.map_hint">Click an unpinned site's row to place it, or drag an existing pin to move it.</p>
+
+      <div id="siteMap" class="site-map"></div>
+
+      <div class="table-scroll">
+        <table id="sitesTable">
+          <thead>
+            <tr>
+              <th data-i18n="sites.col.name">Name</th>
+              <th data-i18n="sites.col.launch">Launch</th>
+              <th data-i18n="sites.col.landing">Landing</th>
+              <th data-i18n="sites.col.region">Region</th>
+              <th data-i18n="sites.col.elevation">Elevation</th>
+              <th data-i18n="sites.col.coords">Coordinates</th>
+            </tr>
+          </thead>
+          <tbody id="sitesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="/static/sites.js"></script>
+</body>
+</html>

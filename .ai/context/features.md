@@ -1,11 +1,15 @@
 # Feature History & Backlog
 
-## Current Version: v0.2 (shipped, tagged `v0.2.0`)
+## Current Version: v0.2 deployed (`v0.2.0`); v0.3 MVP implemented, not yet deployed
 
 v0.1 is tagged `v0.1.0`. v0.2 is tagged `v0.2.0` (commit `15dcb0a`) and its 600 flights are confirmed
 imported into the live production database — see `RESUME.md` for the region-seeding bug found and fixed
-during that write, and the pending prod cleanup + redeploy. The roadmap below is the plan of record for
-what remains; each milestone states its scope boundary and what is deliberately deferred.
+during that write, and the pending prod cleanup + redeploy (still open as of this note).
+
+**v0.3's MVP boundary (Phases 1–8, `specs/002-flight-log-ui/tasks.md` T001–T036) is implemented on
+`main`, not yet tagged or deployed.** See that milestone's entry below for what shipped and what's
+still open before it can ship. The roadmap below is the plan of record for what remains; each milestone
+states its scope boundary and what is deliberately deferred.
 
 ---
 
@@ -67,11 +71,31 @@ proven for this dependency set. Not yet proven for `libigc` (arrives v0.4); re-r
 
 ## Roadmap
 
-### v0.3 — Flight log UI · **← MVP BOUNDARY**
+### v0.3 — Flight log UI · **← MVP BOUNDARY** (MVP implemented on `main`, not yet deployed)
 
-`/flights` with search / year / category / glider / site / region filters, sortable columns, pagination
-and an inline add-edit drawer. `/flights/{id}` detail. `/sites` with map and pin drop. `/equipment`.
-`/contacts`. `/import` review page. CSV export.
+Spec, plan, research, data model and the 49-task breakdown live in `specs/002-flight-log-ui/`.
+
+**MVP done (Phases 1–8, T001–T036):** `/flights` with free-text search plus year / category / glider /
+launch-site / region filters, sortable columns, client-side pagination, URL-synced filter state, and an
+inline add/edit/delete drawer with per-field validation rendered from the `VALIDATION_FAILED` envelope.
+`/flights/{id}` detail, fresh-load safe. `/sites` with a self-hosted-Leaflet map — click an unpinned
+site's row to arm placement, click the map to drop the pin, drag an existing pin to move it; both paths
+set `coord_source = "manual"` server-side (`sites.py`, new behavior, no schema change). `/equipment` —
+create/edit/retire for gliders and harnesses; retired gear stays visible (styled distinct) but is
+excluded from the flights drawer's default dropdowns. `/import` — a read-only page rendering
+`core/import_history.py`'s `HISTORICAL_IMPORT_SUMMARY`, a frozen constant generated from a fresh dry-run
+of `run_import()` against `olddata/Flugbuch.xlsx` (not hand-transcribed from `RESUME.md`) behind the new
+`GET /api/import-report`. `static/refdata.js` is the shared fetch-once join cache every list/detail page
+uses to resolve ids to display names. 127 backend tests passing (6 new: 4 for `coord_source`, 2 for the
+import report), `ruff check`/`ruff format --check` clean. Verified live via `curl` against a local dev
+boot with the real 600-flight workbook re-imported — every route, every new/changed endpoint, and the
+full flight CRUD lifecycle exercised end-to-end.
+
+**Not yet done:** visual browser verification (T047 — no browser automation tool was connected this
+session, so rendering, the map's click/drag interactions, and keyboard navigation (NFR-002) are
+unconfirmed), Phases 9–11 (`/contacts`, CSV export, remember-last-filters — all P2/P3, droppable from
+the first shippable cut), a version tag, and deployment. `pyproject.toml` was bumped to `0.3.0` (static
+assets changed — the version is the cache key) but nothing has been tagged or shipped yet.
 
 **At v0.3 the `Flugbuch` sheet is fully replaced and the Excel is never opened again.** That is the MVP
 definition — everything after it is upside, not table stakes.

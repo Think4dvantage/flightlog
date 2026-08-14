@@ -74,3 +74,28 @@ def login_page(request: Request) -> Response:
 @router.get("/register")
 def register_page(request: Request) -> Response:
     return _page(request, "register.html")
+
+
+@router.get("/flights")
+def flights_page(request: Request) -> Response:
+    return _page(request, "flights.html")
+
+
+@router.get("/flights/{flight_id}")
+def flight_detail_page(request: Request, flight_id: str) -> Response:
+    return _page(request, "flight-detail.html")
+
+
+@router.get("/sites")
+def sites_page(request: Request) -> Response:
+    return _page(request, "sites.html")
+
+
+@router.get("/equipment")
+def equipment_page(request: Request) -> Response:
+    return _page(request, "equipment.html")
+
+
+@router.get("/import")
+def import_page(request: Request) -> Response:
+    return _page(request, "import.html")

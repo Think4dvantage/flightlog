@@ -68,6 +68,8 @@ def create_site(
     db: Session = Depends(get_db),
 ) -> Site:
     site = Site(owner_id=current_user.id, **body.model_dump())
+    if body.lat is not None or body.lon is not None:
+        site.coord_source = "manual"
     db.add(site)
     db.commit()
     db.refresh(site)
@@ -92,8 +94,11 @@ def update_site(
     db: Session = Depends(get_db),
 ) -> Site:
     site = _get_own_site(site_id, current_user, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(site, field, value)
+    if "lat" in changes or "lon" in changes:
+        site.coord_source = "manual"
     db.commit()
     db.refresh(site)
     logger.info("Site updated: %s by %s", site.id, current_user.id)

@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { page: 'flights', href: '/flights', key: 'nav.flights' },
   { page: 'sites', href: '/sites', key: 'nav.sites' },
   { page: 'equipment', href: '/equipment', key: 'nav.equipment' },
+  { page: 'import', href: '/import', key: 'nav.import' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },
 ];
 

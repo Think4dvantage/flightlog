@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Equipment — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div id="alert" class="alert alert-error"></div>
+
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="equipment.gliders_title">Gliders</h1>
+        <button type="button" id="addGliderBtn" data-i18n="equipment.add_glider">Add glider</button>
+      </div>
+      <div class="table-scroll">
+        <table id="glidersTable">
+          <thead>
+            <tr>
+              <th data-i18n="equipment.col.brand_model">Glider</th>
+              <th data-i18n="equipment.col.size">Size</th>
+              <th data-i18n="equipment.col.en_class">EN class</th>
+              <th data-i18n="equipment.col.status">Status</th>
+              <th data-i18n="equipment.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="glidersBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1.25rem;">
+      <div class="page-head">
+        <h1 data-i18n="equipment.harnesses_title">Harnesses</h1>
+        <button type="button" id="addHarnessBtn" data-i18n="equipment.add_harness">Add harness</button>
+      </div>
+      <div class="table-scroll">
+        <table id="harnessesTable">
+          <thead>
+            <tr>
+              <th data-i18n="equipment.col.brand_model">Harness</th>
+              <th data-i18n="equipment.col.size">Size</th>
+              <th data-i18n="equipment.col.harness_type">Type</th>
+              <th data-i18n="equipment.col.status">Status</th>
+              <th data-i18n="equipment.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="harnessesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="itemDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle"></h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="itemForm" novalidate>
+      <input type="hidden" id="i_id">
+      <input type="hidden" id="i_kind">
+
+      <div class="field">
+        <label for="i_brand" data-i18n="equipment.drawer.brand">Brand</label>
+        <input type="text" id="i_brand" required maxlength="80">
+        <p class="field-error" data-field="brand"></p>
+      </div>
+
+      <div class="field">
+        <label for="i_model" data-i18n="equipment.drawer.model">Model</label>
+        <input type="text" id="i_model" required maxlength="80">
+        <p class="field-error" data-field="model"></p>
+      </div>
+
+      <div class="field">
+        <label for="i_size" data-i18n="equipment.drawer.size">Size</label>
+        <input type="text" id="i_size">
+        <p class="field-error" data-field="size"></p>
+      </div>
+
+      <div id="gliderFields">
+        <div class="field">
+          <label for="i_nickname" data-i18n="equipment.drawer.nickname">Nickname</label>
+          <input type="text" id="i_nickname">
+          <p class="field-error" data-field="nickname"></p>
+        </div>
+        <div class="field">
+          <label for="i_enclass" data-i18n="equipment.drawer.en_class">EN class</label>
+          <input type="text" id="i_enclass" maxlength="10">
+          <p class="field-error" data-field="en_class"></p>
+        </div>
+      </div>
+
+      <div id="harnessFields">
+        <div class="field">
+          <label for="i_type" data-i18n="equipment.drawer.harness_type">Type</label>
+          <input type="text" id="i_type">
+          <p class="field-error" data-field="harness_type"></p>
+        </div>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="equipment.drawer.save">Save</button>
+        <button type="button" id="drawerRetire" class="btn-ghost" data-i18n="equipment.drawer.retire" hidden>Retire</button>
+      </div>
+    </form>
+  </aside>
+
+  <script type="module" src="/static/equipment.js"></script>
+</body>
+</html>

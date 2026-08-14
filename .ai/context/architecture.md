@@ -288,13 +288,14 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.1** — `/`, `/login`, `/register`, `include_in_schema=False` |
+| — | `pages.py` | **v0.2:** `/`, `/login`, `/register`. **v0.3 (implemented, not deployed):** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`, `/import`. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
-| `/api/sites` | `sites.py` | **shipped v0.2** — CRUD + `PUT /{id}/prefs` |
+| `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3 (not deployed)** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client) |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
 | `/api/categories` | `categories.py` | **shipped v0.2** — CRUD + `PUT /reorder` + `POST /{id}/archive` |
 | `/api/buddies` | `buddies.py` | **shipped v0.2** — CRUD + `POST /{id}/link` (always 202) + `/link/accept` + `/link/decline` |
 | `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m` |
+| `/api/import-report` | `import_report.py` | **v0.3 (implemented, not deployed)** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer |
 | — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
 | `/api/stats` | `stats.py` | v0.6 |
 | `/api/integration/v1` | `integration.py` | v0.7 — frozen contract, versioned separately from the UI's models |
