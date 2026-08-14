@@ -58,7 +58,7 @@ Leaflet 1.9.4 + Chart.js 4.5.1, Docker on `python:3.14-slim` + compose + dev ove
 Actions workflows, `conftest.py` with the StaticPool and ASGITransport traps documented.
 
 **Deploy note:** multi-arch (amd64+arm64) image built and pushed in 5m29s — `python:3.14-slim` is
-proven for this dependency set. Not yet proven for `libigc` (arrives v0.4); re-run the build gate then.
+proven for this dependency set. Not yet proven for `libigc` (arrives v0.5); re-run the build gate then.
 
 **Verified in production shape**, not just under test: booted with a real `config.yml`, exercised
 `/health`, login, `/me`, the 401/404/422 error envelopes and static cache headers over live HTTP.
@@ -102,7 +102,14 @@ definition — everything after it is upside, not table stakes.
 
 **Deferred:** everything IGC, all statistics, all sharing.
 
-### v0.4 — IGC ingest + analysis
+**v0.4.0 shipped as a `/sites`-and-`/import` bugfix release**, not a new epic — an edit drawer for
+sites (name/flags/region/elevation/coordinates together, replacing the old click-to-place-only flow), a
+fix for a Leaflet marker-icon path doubling bug, and in-app explanations for the `/import` findings
+that were already correctly root-caused in code comments but never surfaced to the pilot. It consumed
+the version number this roadmap had reserved for IGC, so the epics below are numbered one higher than
+originally planned (v0.4 IGC → v0.5, and so on through v0.10 Enrichment; v1.0 Polish is unchanged).
+
+### v0.5 — IGC ingest + analysis
 
 Per-flight upload, content-addressed store, sha256 + fingerprint deduplication, `core/igc.py` with the
 documented algorithm and config-driven tuning, `igc_tracks` + `igc_segments`, bulk import with duration
@@ -111,14 +118,14 @@ Chart.js barogram with thermal/glide bands, `POST /api/admin/reanalyze`.
 
 **Deferred:** XC scoring, AGL/DEM, 3D.
 
-### v0.5 — Secondary sheets + XContest
+### v0.6 — Secondary sheets + XContest
 
 `hikes`, `groundhandling`, `tandem_flights`, `goals` imported in one pass. XContest "My Flights" JSON
 import filling `xc_official_score` / `_type` / `_url` alongside the hand-entered FAI distance.
 
 **`Flugbuch.xlsx` is retired here.**
 
-### v0.6 — Statistics
+### v0.7 — Statistics
 
 The full catalogue: totals, averages (including excluding-training), per-year / per-month / year×month,
 duration buckets and histograms, distance and altitude distributions, personal bests each linking to
@@ -126,7 +133,7 @@ their flight, per-site / per-region / per-glider / per-harness / per-category / 
 launch-technique split, Hike&Fly totals, IGC rollups (cumulative thermal climb — the headline number the
 Excel cannot produce), streaks and YTD pace, cumulative progression series. `/stats` and `/goals` pages.
 
-### v0.7 — Public API + VidFactory integration
+### v0.8 — Public API + VidFactory integration
 
 API keys with scopes, `/api/integration/v1`, `flight_links` push-back. VidFactory switches to the API
 and drops its own flight tables.
@@ -134,14 +141,14 @@ and drops its own flight tables.
 **No data migration** — this service already holds the authoritative 600 flights. VidFactory's copy is
 discarded, not reconciled.
 
-### v0.8 — Sharing & public readiness
+### v0.9 — Sharing & public readiness
 
 Per-flight visibility (private / unlisted / public), public flight page, public pilot profile, rate
 limiting on the public surface, buddy invite/accept flow, `allow_self_registration` genuinely flippable.
 
 **`olddata/Flugbuch.xlsx` must be removed from git history before this ships.**
 
-### v0.9 — Enrichment
+### v0.10 — Enrichment
 
 Lenticularis cross-link ("what were the conditions at this site on this date"), DEM for AGL, weather
 snapshot per flight.
@@ -162,7 +169,7 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Photo thumbnails resolved from `media_links` without hosting the images
 - Grant the deploy `gh` token `read:packages` so published image tags can be verified from this repo
   rather than inferred from the workflow config
-- Re-run the `python:3.14-slim` multi-arch build gate once `libigc` (a v0.4 optional dependency,
+- Re-run the `python:3.14-slim` multi-arch build gate once `libigc` (a v0.5 optional dependency,
   requires Python ≥3.12 with no declared upper bound) is actually installed — v0.1's green build did
   not include it
 - `config.py`'s `log_effective_config()` doesn't log `auth.bootstrap_admin_email` or whether
@@ -194,7 +201,7 @@ The stated long-term ambition is to grow this into an XContest competitor. Nothi
 is written down so near-term decisions do not quietly foreclose it.
 
 Already aligned: the API-first design, owner-scoped multiuser from day one, `sites.owner_id` reserved
-for a shared catalogue, `igc_segments` persisted rather than recomputed, and the v0.8 visibility flags.
+for a shared catalogue, `igc_segments` persisted rather than recomputed, and the v0.9 visibility flags.
 
 Would need revisiting: **XC scoring must become computed, not imported** — a competitor has to be the
 scoring authority. The plan keeps this cheap by isolating everything XC behind `core/xcontest.py` and a

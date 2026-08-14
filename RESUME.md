@@ -70,8 +70,14 @@ attributes in server-rendered HTML — the Leaflet marker-icon paths (bug 1) are
 `sites.js`, never touched by that rewriting; `sites.js` itself is what's versioned, and that's enough,
 since the fix lives in `sites.js`'s own content. The jump straight to `0.4.0` (skipping a plain `0.3.2`
 release) was the pilot's explicit call, made when asking to deploy the icon fix — `.ai/context/
-features.md`'s backlog had pencilled in "v0.4" for the libigc/IGC-track feature, unrelated to this fix;
-that association is now stale, `0.4.0` is this bugfix release.
+features.md`'s backlog had pencilled in "v0.4" for the libigc/IGC-track feature, unrelated to this fix.
+**Renumbered this session, roadmap docs only** (`features.md`'s Roadmap section, `README.md`'s summary
+line): IGC ingest v0.4→v0.5, secondary sheets v0.5→v0.6, statistics v0.6→v0.7, public API v0.7→v0.8,
+sharing v0.8→v0.9, enrichment v0.9→v0.10; v1.0 Polish unchanged. Deliberately **not** touched: the
+already-shipped `specs/001-core-data-import/`, `specs/002-flight-log-ui/`, `architecture.md`'s data
+dictionary, and `models.py`'s inline comments — those describe decisions made when the old numbers were
+accurate and are a historical record, not live planning (pilot's explicit call). So `git grep v0.4` will
+still find plenty of hits in those files — that's expected, not a leftover to clean up.
 
 **Deploy mechanics, confirmed this session:** `.github/workflows/docker-publish.yml` triggers on any
 `v*` tag push — builds and pushes a multi-arch image to `ghcr.io/think4dvantage/flightlog` (no deploy
@@ -103,15 +109,17 @@ never creates it, so a fresh deploy resolves `APP_VERSION` correctly. 126/127 ot
 3. **Two small live-data fixes, now possible through the drawer, still pilot's call:** assign
    `Fiescheralp` to the `Fiesch` region (or leave it — the sheet itself never did either), and decide
    whether to add "Advance Success 2" under `/equipment` and reattach it to its 3 flights.
-4. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters) before or after tagging
-   a `v0.4.0` — unchanged from before, still open.
+4. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters) — still open, no longer
+   tied to a specific tag; slot into whatever release makes sense whenever they're picked up.
+5. **v0.5 — IGC ingest + analysis is next**, per `features.md`'s roadmap (renumbered this session — see
+   below). Not started yet.
 
 ## Open Questions
 
-- Whether Phases 9–11 ship before or after `v0.4.0` — see step 4 above.
+- When Phases 9–11 ship — see step 4 above.
 - The three items already in `features.md`'s backlog from v0.2 (unchanged this session): grant the
   deploy `gh` token `read:packages`, re-run the `python:3.14-slim` build gate once `libigc` lands in
-  v0.4, and the `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
+  v0.5, and the `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
