@@ -63,12 +63,23 @@ re-derived and confirmed this session by re-running the exact resolution logic a
   `max_alt − launch_elev` columns (1930 − 1930 = 0) for that one row — a pre-existing data quirk,
   reported and left alone.
 
-**Version chain: 0.3.0 → 0.3.1 → 0.3.2**, each bump because static assets changed again after the
-previous one was already live with `pages.py`'s `?v=<version>` cache-busting → `main.py`'s
+**Version chain: 0.3.0 → 0.3.1 → 0.3.2 → 0.4.0**, each bump because static assets changed again after
+the previous one was already live with `pages.py`'s `?v=<version>` cache-busting → `main.py`'s
 `Cache-Control: immutable` for versioned assets. Note this mechanism only covers `src=`/`href=`
 attributes in server-rendered HTML — the Leaflet marker-icon paths (bug 1) are plain strings *inside*
 `sites.js`, never touched by that rewriting; `sites.js` itself is what's versioned, and that's enough,
-since the fix lives in `sites.js`'s own content.
+since the fix lives in `sites.js`'s own content. The jump straight to `0.4.0` (skipping a plain `0.3.2`
+release) was the pilot's explicit call, made when asking to deploy the icon fix — `.ai/context/
+features.md`'s backlog had pencilled in "v0.4" for the libigc/IGC-track feature, unrelated to this fix;
+that association is now stale, `0.4.0` is this bugfix release.
+
+**Deploy mechanics, confirmed this session:** `.github/workflows/docker-publish.yml` triggers on any
+`v*` tag push — builds and pushes a multi-arch image to `ghcr.io/think4dvantage/flightlog` (no deploy
+step beyond that in this repo). `0.3.1` was live at `fl.sdh.lol` within the same session it was tagged,
+so *something* outside this repo pulls the new image onto the host automatically (Watchtower or
+similar) — never confirmed which, no access to that layer from here. If a tag push ever doesn't show up
+live within a few minutes, that external pull mechanism, not the GitHub Actions build, is where to
+look first.
 
 **Known, local-only test failure — not caused by this session's changes, does not affect prod:**
 `test_app_version_matches_pyproject` fails in *this* dev venv because
@@ -80,7 +91,9 @@ never creates it, so a fresh deploy resolves `APP_VERSION` correctly. 126/127 ot
 
 ## Next Step
 
-1. **Redeploy `fl.sdh.lol` with `0.3.2`** — the only remaining step for bug 1.
+1. **Confirm `fl.sdh.lol` picked up `0.4.0`** — tag pushed, GHCR build triggered; the external
+   pull/redeploy mechanism (see Deploy mechanics above) is unconfirmed and worth watching once instead
+   of assumed.
 2. **Real browser pass on `/sites`** the moment the Claude in Chrome extension connects (it didn't
    connect this session — see [[env-no-browser-extension]]; still worth a retry each session, since the
    pilot has been actively troubleshooting their own login for it). Specifically check the drawer/picker
