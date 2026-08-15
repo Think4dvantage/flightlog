@@ -2,90 +2,95 @@
 
 ## In Progress
 
-**v0.5.0 is shipped, live, and confirmed working end-to-end by the pilot on real hardware.**
-Implemented, tested, tagged, pushed; the multi-arch image (first ever carrying the `libigc` extra)
-built successfully in 5m1s; and `fl.sdh.lol` picked it up — confirmed not by checking the deploy
-mechanism directly (still never identified, same as every prior tag this session) but by the pilot
-actually using the feature live: uploaded multiple real IGC tracks from the same day, the bulk-match
-algorithm correctly refused to guess between them and routed them to manual resolution, resolved them
-by hand to the right flights, and confirmed the track map and barogram render well — "better than
-expected." **This closes out the browser-rendering gap that had been open across three features in a
-row** (`specs/002-flight-log-ui`'s T047, `v0.4.0`'s icon fix, and this feature's T033) — first
-real-device, real-browser, real-data confirmation of any of this session's frontend work.
+**v0.5.0 remains shipped and confirmed live** (unchanged since the last update — see git history for
+that session's detail if needed). **New this pass: the full spec → research → data-model → contracts →
+plan → tasks cycle for all four remaining roadmap milestones (`v0.6` through `v0.9`) is now written,
+committed, and pushed — none of it implemented yet.** This was done autonomously overnight at the
+pilot's explicit request ("prepare 0.6 until 0.9 so that we are ready to implement all of it"); per
+`00-ai-usage.md`'s Planning Mode rule, planning stopped at the plan — no code was written for any of the
+four.
 
-**What shipped in this pass**: per-flight IGC upload/replace/detach with eight computed figures
-(duration, distance, max altitude, altitude gain, thermal count, best/peak climb, glide ratio); a
-Leaflet track map and a Chart.js barogram with thermal/glide phases shown via per-segment line coloring
-(no annotation plugin — none is vendored, so the line itself is colored per phase using Chart.js 4's
-`segment.borderColor` callback); bulk upload with date+duration auto-matching and a persisted
-`igc_pending_uploads` review queue (resolve/dismiss survives a closed tab); automatic site-coordinate
-backfill from track data that never overwrites a manual pin; `flights.takeoff_time`/`landing_time`
-writeback on attach, cleared on detach; and admin-gated re-analysis (`POST /api/admin/reanalyze`, the
-app's first use of `require_admin` anywhere). Four new tables: `igc_tracks`, `igc_segments`,
-`site_observations`, `igc_pending_uploads` (the last a plan-level addition, not in the original spec).
-17 new backend tests, 144/144 passing project-wide, `ruff check`/`ruff format --check` clean.
-`pyproject.toml` bumped `0.4.0` → `0.5.0`.
+**`specs/004-secondary-sheets-xcontest/` (v0.6)**: hikes/ground-handling/tandem-flights/goals import
+plus XContest score attachment. Grounded in a first-ever direct read of the four secondary sheets
+(`Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele` — named but never actually read in `v0.2`'s own
+planning). The XContest "My Flights" export JSON schema is still genuinely unknown — investigated the
+pilot-supplied `Iv/FlyHigh` repo, which turned out to implement the opposite direction (flight *upload*/
+scoring-submission, not the *list-retrieval* this feature needs) — flagged as an explicit Phase 1
+research item (obtain one real sample export), not guessed.
 
-**Two of `core/igc.py`'s design assumptions were wrong and got corrected against the real installed
-`libigc` 1.2.0 package, not shipped as guessed** (`specs/003-igc-ingest-analysis/research.md` has the
-full detail): altitude-source selection reads the library's own `flight.alt_source` directly rather
-than reimplementing a ">50% non-`None`" heuristic that wouldn't have matched real data anyway (its
-`press_alt`/`gnss_alt` fields are always floats, never `None`); and `FlightParsingConfig`'s three real
-tunable parameter names (`min_bearing_change_circling`, `min_time_for_bearing_change`,
-`min_time_for_thermal`) replaced four differently-named, differently-shaped ones the original design
-had guessed before the package was actually inspected.
+**`specs/005-statistics/` (v0.7)**: the full stats catalogue, no new tables (matches
+`architecture.md`'s existing non-speculative-caching stance). Grounded in a full read of the real
+`Übersicht` sheet (previously only its region-count/reverse-launch-share blocks had been read) — pins
+down the exact personal-best figures and duration-bucket boundaries already in real use. Found a third
+confirmed workbook disagreement while researching: the sheet's own "Buddys" tally uses a different name
+set and different counts than the frozen comment-scan buddy proposals from `v0.2`'s import — resolved by
+scoping the per-buddy stat to only ever read live `flight_buddies` rows, never reconciling the two
+historical sources.
 
-**Verified live via `curl` against a local dev boot for every endpoint** — not just `pytest` — including
-a real fixture's figures cross-checked by hand, and the full bulk-upload → ambiguous → resolve/dismiss
-cycle end to end. Two real bugs were caught only because of that live pass, both fixed:
-- `auth.js`'s `fetchAuth()` forced `Content-Type: application/json` onto every request with a body,
-  including `FormData` — silently breaking multipart file uploads. This is the app's first file-upload
-  feature, so nothing had exercised this path before. Fixed: skips that header when the body is
-  `FormData`, letting the browser set its own boundary-bearing content type.
-- Dismissing a pending upload didn't clear its `UniqueConstraint(owner_id, sha256)` slot, so re-
-  uploading that exact file afterward was silently swallowed (matched the stale row, reported
-  "already awaiting resolution" even though it wasn't anymore, and the pending list wouldn't show it).
-  Fixed: a dismissed/resolved row is reused on re-upload instead of blocking it. Covered by a new
-  regression test.
-- Also closed while writing up the `sync.md` documentation pass, not found live: `flights.takeoff_time`/
-  `landing_time` writeback was speced (`architecture.md`'s "writeback shrinks the problem") but never
-  actually wired into `_attach_track`/`delete_igc`. Added, with its own test.
+**`specs/006-public-api-vidfactory/` (v0.8)**: scoped API keys, the frozen `/api/integration/v1` surface,
+`flight_links` push-back. Caught a real doc/reality gap: `01-project-overview.md` and
+`02-backend-conventions.md` both describe `get_api_principal`/`require_scope`/`ApiPrincipal` as though
+already implemented — confirmed against the real `dependencies.py` that none of it exists yet. Also
+resolved a genuine inconsistency between the two docs (one says API keys can be "unexpired," the other's
+schema has no expiry column) by adding a nullable `expires_at`.
 
-**Claude in Chrome still never connected this session** — see [[env-no-browser-extension]]. The pilot's
-own live confirmation above stands in for it this time; still worth retrying the extension next
-session so verification doesn't depend on the pilot happening to test manually every time.
+**`specs/007-sharing-public-readiness/` (v0.9)**: per-flight visibility, public profile, rate limiting,
+plus the real remaining self-registration gap. Caught two more stale roadmap items: buddy invite/accept
+has been shipped since `v0.2`, and `allow_self_registration` is already a working flag — neither is part
+of this feature as originally worded. What's actually still open, found via `auth.py`'s own dead
+comment: a self-registered account today gets zero flight categories and can't log a flight at all,
+since generic starter-category seeding was explicitly deferred to this exact point. **The git-history
+scrub of `olddata/Flugbuch.xlsx` is named as a hard prerequisite for this milestone but deliberately has
+no task in `tasks.md`** — a history rewrite is destructive and effectively irreversible, and stays a
+separately pilot-confirmed action, never bundled into routine implementation.
+
+**Three small roadmap corrections made to `features.md` along the way** (not code changes): v0.6's entry
+now explicitly owns the `/goals` page (v0.7's original wording had listed it too, from before that
+overlap was noticed); v0.9's entry had two already-shipped items removed from its description.
 
 ## Next Step
 
-1. **Config tuning may need iteration.** The shipped `igc.parsing:` defaults are `libigc`'s own
-   sailplane-tuned values; `architecture.md` already flags paraglider thermals as slower and sloppier
-   than that. Worth asking the pilot whether the thermal/glide figures on their real uploads looked
-   right, now that real tracks have actually been through it — no report of a problem yet, but nobody's
-   explicitly checked the numbers against what the pilot remembers of those flights either.
-2. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters, from
-   `specs/002-flight-log-ui`) — still open, not tied to any particular tag.
-3. **v0.6 — secondary sheets + XContest is next** on the roadmap after this ships, per `features.md`.
+1. **Implement in roadmap order — v0.6 first.** Each spec's own `tasks.md` is the authoritative,
+   dependency-ordered breakdown; start with Phase 1 of `specs/004-secondary-sheets-xcontest/tasks.md`.
+2. **v0.6's Phase 1, T001 needs a real XContest "My Flights" export sample from the pilot** before its
+   parser can be written with confidence — this is a genuine blocker for that one sub-feature (not for
+   the hikes/ground-handling/tandem-flights/goals import, which has no such dependency).
+3. **Config tuning on the shipped `v0.5` IGC parsing may need iteration** — the defaults are `libigc`'s
+   own sailplane-tuned values; still unconfirmed whether the pilot's real thermal/glide figures from
+   their live uploads look right against what they remember of those flights.
+4. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
+   — still open, not tied to any particular tag; can slot in alongside any of `v0.6`–`v0.9` whenever
+   convenient.
 
 ## Open Questions
 
-- Whether Phases 9–11 ship before or alongside `v0.6` — see step 2 above.
+- Which of `v0.6`–`v0.9` to actually implement first isn't fully forced — `tasks.md`'s own dependency
+  diagrams show `v0.7`/`v0.8`/`v0.9` don't strictly need `v0.6` to exist first at the code level, only at
+  the roadmap-ordering level. Worth a deliberate call rather than assuming strict roadmap order if the
+  pilot has a reason to prioritize differently (e.g. the API/VidFactory integration if that's blocking
+  someone else's work).
+- When Phases 9–11 ship — see step 4 above.
 - `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
   `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
-- **v0.5's spec/plan/research/data-model/contracts/tasks live in `specs/003-igc-ingest-analysis/`** —
-  `tasks.md` is 35/35 checked off, including T033 (the browser pass, closed by the pilot's live
-  confirmation above).
-- **The dev server needs a restart after every backend edit** (no `--reload`) — hit this repeatedly
-  this session (the new `/igc` page 404'd until the server was restarted after adding its route to
-  `pages.py`). See [[flightlog-dev-server-workflow]].
-- **This is the app's first file-upload feature and first multipart endpoint anywhere** — the
-  `fetchAuth()` bug above is exactly the kind of gap that only shows up the first time a new HTTP
-  pattern gets used for real; worth remembering if the next feature introduces another new pattern.
-- **`igc_pending_uploads` rows are never hard-deleted** — dismiss and resolve both just set
-  `resolved_at`; the row (and its stored file) stays as a record of what happened to that upload,
-  mirroring how `flights.import_key` rows from the historical import are never deleted either.
+- **Every milestone from `v0.6` through `v0.9` now has a complete spec/research/data-model/contracts/
+  plan/tasks set** in `specs/004-secondary-sheets-xcontest/`, `specs/005-statistics/`,
+  `specs/006-public-api-vidfactory/`, `specs/007-sharing-public-readiness/` — read the relevant
+  `research.md` before touching any of these; each one records real findings (actual sheet structures,
+  actual repo-code inspection, actual PyPI version checks) that would otherwise need re-deriving.
+- **A running theme across all four plans, worth remembering for the next one too**: this session
+  repeatedly found that a design doc or an old spec's prose had drifted from reality (stale roadmap
+  version numbers, `01-project-overview.md`/`02-backend-conventions.md` describing code that doesn't
+  exist, `Übersicht`'s untouched blocks, XContest's real API turning out to be a different repo's
+  different direction). Verify against the real source — code, real files, real PyPI/GitHub metadata —
+  before designing on top of any existing doc's claims, including this file's own claims once enough
+  time has passed.
+- **`v0.5`'s own spec/tasks still live in `specs/003-igc-ingest-analysis/`**, 35/35 checked off — no
+  longer the active work, kept for reference.
+- **The dev server needs a restart after every backend edit** (no `--reload`). See
+  [[flightlog-dev-server-workflow]].
 
-This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md` and
-`specs/003-igc-ingest-analysis/` have the detail.
+This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
+feature's own `specs/` folder have the detail.
