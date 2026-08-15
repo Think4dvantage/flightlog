@@ -1,15 +1,12 @@
 # Feature History & Backlog
 
-## Current Version: v0.2 deployed (`v0.2.0`); v0.3 MVP implemented, not yet deployed
+## Current Version: v0.6.0 tagged and deployed; v0.7 (statistics) is next
 
-v0.1 is tagged `v0.1.0`. v0.2 is tagged `v0.2.0` (commit `15dcb0a`) and its 600 flights are confirmed
-imported into the live production database — see `RESUME.md` for the region-seeding bug found and fixed
-during that write, and the pending prod cleanup + redeploy (still open as of this note).
-
-**v0.3's MVP boundary (Phases 1–8, `specs/002-flight-log-ui/tasks.md` T001–T036) is implemented on
-`main`, not yet tagged or deployed.** See that milestone's entry below for what shipped and what's
-still open before it can ship. The roadmap below is the plan of record for what remains; each milestone
-states its scope boundary and what is deliberately deferred.
+v0.1 through v0.6 are all tagged (`v0.1.0`–`v0.6.0`) and each triggered `docker-publish.yml`. v0.6 shipped
+the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the XContest
+score import originally scoped alongside it has moved to the Backlog below rather than staying an open
+phase of that milestone — see its entry there. **v0.7 (statistics) is next up** — fully planned
+(`specs/005-statistics/`), not yet implemented. See `RESUME.md` for the moment-to-moment state.
 
 ---
 
@@ -144,20 +141,22 @@ available, same as `specs/002-flight-log-ui`'s still-open T047.
 
 **Deferred:** XC scoring, AGL/DEM, 3D.
 
-### v0.6 — Secondary sheets + XContest
+### v0.6 — Secondary sheets + goals (tag `v0.6.0`)
 
-`hikes`, `groundhandling_sessions`, `tandem_flights`, `goals` imported in one pass. XContest "My Flights"
-JSON import filling `xc_official_score` / `_type` / `_url` alongside the hand-entered FAI distance.
+`hikes`, `groundhandling_sessions`, `tandem_flights`, `goals` imported in one pass from the workbook's
+four remaining sheets.
 
-**Partially shipped.** Hikes/ground-handling/tandem-flights import (read-only list views) and goals
-(full CRUD, imported from `Ziele`) are implemented, tested, and live in `data/flightlog.db` — 85 hikes
-(35 correctly linked to a `Hike&Fly` flight), 9 ground-handling sessions, 17 tandem flights, 11 goals,
-confirmed against the real workbook and verified in a real connected browser (Claude in Chrome, its
-first successful connection all session). **XContest score import (`xc_official_score`/`_type`/`_url`)
-remains unimplemented** — no real "My Flights" export sample was available at implementation time; the
-exact schema is still an open research question (`specs/004-secondary-sheets-xcontest/research.md`).
-`pyproject.toml` bumped to `0.6.0`, reflecting the shipped subset — a fast-follow `0.6.x` (or the next
-milestone bump) will add XContest once a sample export exists.
+**Shipped and tagged.** Hikes/ground-handling/tandem-flights import (read-only list views) and goals
+(full CRUD, imported from `Ziele`) are implemented, tested, tagged `v0.6.0`, and live in
+`data/flightlog.db` — 85 hikes (35 correctly linked to a `Hike&Fly` flight), 9 ground-handling sessions,
+17 tandem flights, 11 goals, confirmed against the real workbook and verified in a real connected browser
+(Claude in Chrome, its first successful connection all session).
+
+**XContest score import (`xc_official_score`/`_type`/`_url`), originally scoped alongside this
+milestone, has moved to the Backlog below** (2026-08-15) rather than staying an open phase of this
+milestone — v0.6 ships complete without it, and no real "My Flights" export sample was available to
+build the parser against. See the Backlog entry to resume; the design record is
+`specs/004-secondary-sheets-xcontest/` (Phase 5, T018–T024).
 
 Scopes the `/goals` page here, not in v0.7 — a pilot who just had their goals imported should be able to
 see and manage them immediately, not wait for the statistics milestone. **v0.7's roadmap entry below
@@ -169,7 +168,7 @@ rewritten.
 `flights` is now reproduced elsewhere in the app; the workbook's exact XContest scores are the one
 remaining reason it might still be opened.
 
-### v0.7 — Statistics
+### v0.7 — Statistics · **← NEXT UP**
 
 The full catalogue: totals, averages (including excluding-training), per-year / per-month / year×month,
 duration buckets and histograms, distance and altitude distributions, personal bests each linking to
@@ -218,6 +217,16 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 
 ## Backlog (unordered)
 
+- **XContest "My Flights" score import** (moved here from v0.6, 2026-08-15) — attach an
+  independently-verified `xc_official_score`/`_type`/`_url` to matched flights, per
+  `specs/004-secondary-sheets-xcontest/` (Phase 5, T018–T024) and its `research.md`/`spec.md`/
+  `data-model.md`/`contracts/endpoints.md`, all already written. Blocked on obtaining one real XContest
+  "My Flights" export sample (the export requires a logged-in session to inspect, and the one
+  third-party integration investigated, `Iv/FlyHigh`, submits a flight for scoring rather than reading
+  back an already-scored list) — resolve the schema against that sample before writing the parser, same
+  pattern as v0.5's two real `libigc` unknowns. Once unblocked: implement `core/xcontest_import.py`
+  (date-based match, unambiguous → attach else → pending, reusing `igc_pending_uploads`'s exact pattern),
+  add the three `flights` columns, and pick up `pyproject.toml`'s next open version slot.
 - Bulk edit on the flights table (reassign category / glider across a selection)
 - Duplicate-flight detection on manual entry (same date + site + duration)
 - Gear service reminders — reserve repack due, annual check due

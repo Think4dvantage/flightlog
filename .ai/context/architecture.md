@@ -188,19 +188,21 @@ no write path exists beyond the importer itself. `goals` is the exception: fully
 when it became a real flight; that presence (not the date alone) is the signal to attempt a link, and
 even then only when exactly one same-date flight with `flight_categories.is_hike_fly = True` exists.
 Zero or multiple candidates → the hike imports with `flight_id = NULL`, never a guessed match — the same
-principle already applied to the IGC bulk-match and XContest score matching. Against the real workbook:
-85 hikes, 35 linked.
+principle already applied to the IGC bulk-match and the (backlogged) XContest score matching design.
+Against the real workbook: 85 hikes, 35 linked.
 
 **`Ziele`'s reported column width (~505) is misleading — real data lives in the first 8 columns only**,
 the rest being leftover Excel formatting artifacts, `None` on every real row. The importer reads by
 fixed position (0–7), never iterates the sheet's full reported width.
 
-**XContest "My Flights" score import was originally scoped alongside this milestone and remains
-unimplemented** — its exact export JSON schema was never confirmed (the site requires a login session to
-inspect, and the one third-party integration investigated, `Iv/FlyHigh`, turned out to implement the
-opposite direction — submitting a flight for scoring, not reading back an already-scored list). Resolve
-by obtaining one real sample export before writing that parser; `flights.xc_official_score`/`_type`/
-`_url` (already named in `specs/001-core-data-import/data-model.md`) remain unpopulated until then.
+**v0.6 is fully shipped.** XContest "My Flights" score import was originally scoped alongside this
+milestone but has moved to `features.md`'s Backlog (2026-08-15), not left as an open phase here — its
+exact export JSON schema was never confirmed (the site requires a login session to inspect, and the one
+third-party integration investigated, `Iv/FlyHigh`, turned out to implement the opposite direction —
+submitting a flight for scoring, not reading back an already-scored list). Resolve by obtaining one real
+sample export before writing that parser; `flights.xc_official_score`/`_type`/`_url` (already named in
+`specs/001-core-data-import/data-model.md`) remain unpopulated until then. `specs/004-secondary-sheets-
+xcontest/` (Phase 5, T018–T024) is the design record to resume from.
 
 ---
 
@@ -371,8 +373,8 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/flights/{id}/igc`, `/api/igc/*`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route |
 | `/api/hikes`, `/api/groundhandling`, `/api/tandem-flights` | `hikes.py`, `groundhandling.py`, `tandem_flights.py` | **shipped v0.6** — `GET` list + `GET /{id}` only, import-and-view (no `POST`/`PUT`/`DELETE`); rows are created only by `core/secondary_import.py` |
 | `/api/goals` | `goals.py` | **shipped v0.6** — full CRUD + `POST /{id}/mark-done`; the one imported type in this milestone that stays editable — `import_key` is never accepted from the request body |
-| — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) remains unimplemented — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |
-| `/api/stats` | `stats.py` | v0.7 |
+| — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) has moved to `features.md`'s Backlog — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |
+| `/api/stats` | `stats.py` | v0.7 — **next up** |
 | `/api/integration/v1` | `integration.py` | v0.8 — frozen contract, versioned separately from the UI's models |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**

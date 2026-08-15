@@ -8,9 +8,8 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.2 shipped** (not yet tagged) — core data model, owner-scoped CRUD, and the Excel import that
-moved all 600 flights out of the spreadsheet. v0.3 (flight log UI, the MVP boundary) is next. See
-`.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
+Status: **v0.6.0 tagged and deployed**. v0.7 (statistics) is next. See `.ai/context/features.md` for the
+roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
 
@@ -33,9 +32,10 @@ Shipped in v0.2:
   with a region-count reconciliation and an altitude-figure cross-check against the spreadsheet's own
   derived columns, and buddy-name proposals from flight comments (never auto-created)
 
-Shipped: the flight log UI (v0.3 — the point at which the spreadsheet is retired). Implemented, not yet
-deployed: IGC ingest with thermal and glide analysis, a track map, and a barogram (v0.5). Coming, in
-order: the secondary sheets and XContest import (v0.6), statistics (v0.7), the public API (v0.8).
+Shipped: the flight log UI (v0.3 — the point at which the spreadsheet is retired), IGC ingest with
+thermal and glide analysis, a track map, and a barogram (v0.5), and the secondary-sheet imports plus
+goals (v0.6, tag `v0.6.0`). XContest score import, originally scoped alongside v0.6, has moved to the
+backlog pending a real export sample. Coming, in order: statistics (v0.7), the public API (v0.8).
 
 ## Getting started
 

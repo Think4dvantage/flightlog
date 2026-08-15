@@ -10,9 +10,10 @@ Spec: [`spec.md`](./spec.md) · Plan: [`plan.md`](./plan.md) · Data model: [`da
 - MVP scope: Phase 3 (US1 — the three read-only imports + their list views) is the smallest
   independently-shippable slice; it alone retires most of the spreadsheet's remaining unique data.
 
-**Phase 5 (XContest import, T018–T024) is deferred** — no real "My Flights" export sample was available
-at implementation kickoff (2026-08-15). Phases 1–4 and the Final Phase's non-XContest items ship in this
-pass; Phase 5 resumes once a sample export exists (`spec.md`'s implementation-kickoff Clarifications).
+**Phase 5 (XContest import, T018–T024) has moved to `features.md`'s Backlog** (2026-08-15) — no real "My
+Flights" export sample was available at implementation kickoff, and v0.6 otherwise ships complete without
+it. This milestone is done; v0.7 (statistics) is next. Phase 5 stays here as the design record to resume
+from once a sample export exists (`spec.md`'s Clarifications).
 
 Test tasks included throughout, matching every prior feature's precedent.
 
@@ -36,9 +37,10 @@ and to Phase 3.
 
 ## Phase 1 — Setup
 
-- [~] T001 **Deferred** — obtain one real XContest "My Flights" export sample from the pilot's own
-      account and record its actual JSON structure in `research.md`. Not done at kickoff; Phase 5
-      (T018–T024) is deferred until this happens, per this pass's implementation-kickoff decision
+- [~] T001 **Moved to backlog** — obtain one real XContest "My Flights" export sample from the pilot's
+      own account and record its actual JSON structure in `research.md`. Not done at kickoff; Phase 5
+      (T018–T024) moved to `features.md`'s Backlog (2026-08-15) rather than staying an open phase of this
+      milestone — see that entry to resume
 - [x] T002 [P] Confirm the real workbook's four secondary sheets still match `research.md`'s recorded
       structure — re-read via `openpyxl`, unchanged since planning
 
@@ -96,7 +98,7 @@ status filter correctly separates open from done.
 - [x] T016 [US2] Add `GET /goals` route to `pages.py`; nav entry in `bootstrap.js`
 - [x] T017 [US2] [P] Add `goals.*` i18n keys to `en.json`
 
-## Phase 5 — XContest import [US3]
+## Phase 5 — XContest import [US3] (moved to `features.md`'s Backlog, 2026-08-15)
 
 **Goal**: a pilot can import their XContest "My Flights" export and see an independently-verified score
 on matched flights.
@@ -124,7 +126,7 @@ ambiguous or unmatched entry is reported, never guessed; re-importing the same e
 - [x] T025 Live-boot verification: ran the secondary-sheet import against the real workbook via the CLI
       entry point against the actual dev database (603 real flights), confirmed exact real row counts
       (85/9/17/11), spot-checked linked hikes against their flights directly. **XContest score import
-      remains deferred** — no real export sample yet (see Phase 5)
+      moved to `features.md`'s Backlog** — no real export sample yet (see Phase 5)
 - [x] T026 Confirmed via spot-check and a live browser click-through: a hike with source
       `Airtime`/`Landeplatz` links to its flight (clicked "View flight" on a real linked hike, landed on
       the correct Hike&Fly flight with matching date/launch site) and a pure hike shows no link

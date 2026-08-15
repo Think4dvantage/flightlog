@@ -34,10 +34,11 @@ that the mark-done and subsequent delete had both already succeeded server-side 
 this was a transient extension/tab glitch, not an application bug. The tab was closed cleanly rather than
 force-retried, per the browser-automation guidance against looping on a failing tool.
 
-**XContest score import (v0.6's Phase 5) remains deferred** — confirmed with the pilot at implementation
-kickoff that no real "My Flights" export sample was available; `flights.xc_official_score`/`_type`/
-`_url` stay unpopulated until one exists. This is the one piece keeping `Flugbuch.xlsx` from being fully
-retired.
+**XContest score import (v0.6's Phase 5) has moved to `features.md`'s Backlog** — confirmed with the
+pilot at implementation kickoff that no real "My Flights" export sample was available, and confirmed
+again that v0.6 ships complete without it rather than staying open pending a sample.
+`flights.xc_official_score`/`_type`/`_url` stay unpopulated until a sample surfaces. This is the one
+piece keeping `Flugbuch.xlsx` from being fully retired.
 
 **Three roadmap corrections were made to `features.md` overnight, during planning** (not code changes):
 v0.6 now explicitly owns the `/goals` page (v0.7's original wording had listed it too); v0.9's entry had
@@ -46,26 +47,31 @@ description, replaced with the real remaining gap (self-registration seeding).
 
 ## Next Step
 
-1. **Tag and deploy `v0.6.0`** (or wait for a real XContest sample first and ship both together as a
-   slightly later tag — pilot's call; nothing about the shipped subset depends on XContest existing).
-2. **Get a real XContest "My Flights" export sample** to unblock v0.6's Phase 5 — the only remaining
-   piece of this milestone. `specs/004-secondary-sheets-xcontest/research.md` has the exact resolution
-   plan once a sample exists.
-3. **v0.7 (statistics) is fully planned and ready to implement next** (`specs/005-statistics/`), once
-   v0.6 is settled — or `v0.8`/`v0.9` if there's a reason to prioritize differently; nothing forces
-   strict roadmap order at the code level (see each plan's own dependency diagram).
-4. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — the shipped `igc.parsing:`
+**v0.7 (statistics) is confirmed as the next milestone to implement** — fully planned already
+(`specs/005-statistics/`: spec, research, data-model, contracts, plan, tasks all written). Start there:
+read `specs/005-statistics/tasks.md` and pick up at T001, following this repo's own
+`.ai/prompts/implement.md` workflow.
+
+1. **Implement v0.7 (statistics)** — `/api/stats` plus `/stats` and (per v0.6's note above) NOT `/goals`,
+   which already shipped. See `specs/005-statistics/plan.md` for the full scope: totals, per-year/month
+   breakdowns, personal bests, IGC thermal-climb rollups, streaks, cumulative progression.
+2. **XContest score import is now a backlog item, not a blocking dependency of anything** — see
+   `features.md`'s Backlog entry (moved there 2026-08-15). Pick it up only if/when a real "My Flights"
+   export sample turns up; it does not gate v0.7/v0.8/v0.9.
+3. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — the shipped `igc.parsing:`
    defaults are `libigc`'s own sailplane-tuned values; still unconfirmed whether the pilot's real
    thermal/glide figures looked right against what they remember of those flights.
-5. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
+4. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
    — still open, not tied to any particular tag.
 
 ## Open Questions
 
-- Whether to tag `v0.6.0` now or wait for XContest — see step 1 above.
-- Which of `v0.7`/`v0.8`/`v0.9` to implement next once v0.6 is settled — see step 3 above.
-- `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
-  `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
+- None blocking v0.7 — it's ready to implement as planned.
+- Whether `v0.8`/`v0.9` follow v0.7 in strict order, or get reprioritized — no code-level dependency
+  forces the order (see each plan's own dependency diagram).
+- `features.md`'s backlog, unchanged this session except for the new XContest entry: grant the deploy
+  `gh` token `read:packages`, the `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style
+  logging gap.
 
 ## Context
 

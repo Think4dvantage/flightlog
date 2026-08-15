@@ -10,6 +10,13 @@ ships, the Excel file has no remaining unique data.
 
 ## Clarifications
 
+### Session 2026-08-15 (post-implementation)
+- Q: Phase 5 (XContest score import) was left deferred in this spec pending a real export sample. Should
+  it stay as an open phase of this milestone, or move elsewhere? → A: Move it to `features.md`'s Backlog
+  — v0.6 is otherwise complete and ships without it; v0.7 (statistics) is next. This spec's Phase 5
+  (T018–T024) and this document's XContest-related user story/requirements are historical design record
+  for whenever a real sample surfaces, not active, scheduled work.
+
 ### Session 2026-08-15 (implementation kickoff)
 - Q: No real XContest "My Flights" export sample is available right now — proceed with implementation
   anyway? → A: Yes — build and ship Phases 1–4 (hikes/ground-handling/tandem-flights import + goals
