@@ -104,3 +104,18 @@ def import_page(request: Request) -> Response:
 @router.get("/igc")
 def igc_bulk_page(request: Request) -> Response:
     return _page(request, "igc.html")
+
+
+@router.get("/hikes")
+def hikes_page(request: Request) -> Response:
+    return _page(request, "hikes.html")
+
+
+@router.get("/groundhandling")
+def groundhandling_page(request: Request) -> Response:
+    return _page(request, "groundhandling.html")
+
+
+@router.get("/tandem-flights")
+def tandem_flights_page(request: Request) -> Response:
+    return _page(request, "tandem-flights.html")

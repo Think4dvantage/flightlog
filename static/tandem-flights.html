@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tandem flights — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="tandem_flights.title">Tandem flights</h1>
+      </div>
+
+      <div id="alert" class="alert alert-error"></div>
+      <div id="resultCount" class="muted"></div>
+
+      <div class="table-scroll">
+        <table id="tandemTable">
+          <thead>
+            <tr>
+              <th data-i18n="tandem_flights.col.date">Date</th>
+              <th data-i18n="tandem_flights.col.launch">Launch</th>
+              <th data-i18n="tandem_flights.col.landing">Landing</th>
+              <th data-i18n="tandem_flights.col.operator">Pilot / operator</th>
+              <th data-i18n="tandem_flights.col.cost">Cost</th>
+              <th data-i18n="tandem_flights.col.comment">Comment</th>
+            </tr>
+          </thead>
+          <tbody id="tandemBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" hidden>
+        <p data-i18n="tandem_flights.empty">No tandem flights recorded.</p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/static/tandem-flights.js"></script>
+</body>
+</html>

@@ -39,13 +39,16 @@ from flightlog.api.routers import buddies as buddies_router
 from flightlog.api.routers import categories as categories_router
 from flightlog.api.routers import flights as flights_router
 from flightlog.api.routers import gliders as gliders_router
+from flightlog.api.routers import groundhandling as groundhandling_router
 from flightlog.api.routers import harnesses as harnesses_router
 from flightlog.api.routers import health as health_router
+from flightlog.api.routers import hikes as hikes_router
 from flightlog.api.routers import igc as igc_router
 from flightlog.api.routers import import_report as import_report_router
 from flightlog.api.routers import pages as pages_router
 from flightlog.api.routers import regions as regions_router
 from flightlog.api.routers import sites as sites_router
+from flightlog.api.routers import tandem_flights as tandem_flights_router
 from flightlog.config import load_config, log_effective_config
 from flightlog.database.db import init_db, seed_bootstrap_admin
 
@@ -231,6 +234,9 @@ def create_app() -> FastAPI:
     app.include_router(flights_router.router)
     app.include_router(import_report_router.router)
     app.include_router(igc_router.router)
+    app.include_router(hikes_router.router)
+    app.include_router(groundhandling_router.router)
+    app.include_router(tandem_flights_router.router)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(pages_router.router)

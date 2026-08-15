@@ -7,6 +7,9 @@
     "flights": "Flights",
     "sites": "Sites",
     "equipment": "Equipment",
+    "hikes": "Hikes",
+    "groundhandling": "Groundhandling",
+    "tandem_flights": "Tandem flights",
     "import": "Import findings",
     "tracks": "Tracks",
     "stats": "Statistics",
@@ -207,6 +210,45 @@
       "harness_type": "Type",
       "save": "Save",
       "retire": "Retire"
+    }
+  },
+  "hikes": {
+    "title": "Hikes",
+    "empty": "No hikes recorded.",
+    "result_count": "{count} hikes",
+    "view_flight": "View flight",
+    "col": {
+      "date": "Date",
+      "route": "Route",
+      "ascent": "Ascent",
+      "descent": "Descent",
+      "distance": "Distance",
+      "duration": "Duration",
+      "flight": "Became a flight"
+    }
+  },
+  "groundhandling": {
+    "title": "Groundhandling",
+    "empty": "No groundhandling sessions recorded.",
+    "result_count": "{count} sessions",
+    "col": {
+      "date": "Date",
+      "place": "Place",
+      "duration": "Duration",
+      "comment": "Comment"
+    }
+  },
+  "tandem_flights": {
+    "title": "Tandem flights",
+    "empty": "No tandem flights recorded.",
+    "result_count": "{count} tandem flights",
+    "col": {
+      "date": "Date",
+      "launch": "Launch",
+      "landing": "Landing",
+      "operator": "Pilot / operator",
+      "cost": "Cost",
+      "comment": "Comment"
     }
   },
   "import": {

@@ -20,6 +20,10 @@ igc_tracks         — one analyzed GPS track per flight; file on disk, aggregat
 igc_segments       — thermals/glides/markers within a track, takeoff-relative offsets
 site_observations  — a track's takeoff/landing fix, feeding sites' automatic coordinate backfill
 igc_pending_uploads — a bulk-uploaded file that didn't auto-attach to a flight
+hikes              — Fitnessprogramm sheet; optionally linked to a Hike&Fly flight
+groundhandling_sessions — Groundhandling sheet; standalone, never linked to a flight
+tandem_flights     — Tandemflüge sheet; the pilot as passenger, deliberately not in flights
+goals              — Ziele sheet; the one imported type that stays editable afterward
 
 Tables arriving in later milestones are listed in .ai/context/architecture.md.
 """
@@ -146,6 +150,14 @@ class User(Base):
     igc_pending_uploads = relationship(
         "IgcPendingUpload", back_populates="owner", cascade="all, delete-orphan"
     )
+    hikes = relationship("Hike", back_populates="owner", cascade="all, delete-orphan")
+    groundhandling_sessions = relationship(
+        "GroundhandlingSession", back_populates="owner", cascade="all, delete-orphan"
+    )
+    tandem_flights = relationship(
+        "TandemFlight", back_populates="owner", cascade="all, delete-orphan"
+    )
+    goals = relationship("Goal", back_populates="owner", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<User {self.email} role={self.role}>"
@@ -469,3 +481,117 @@ class IgcPendingUpload(Base):
     resolved_at = Column(UtcDateTime, nullable=True)
 
     owner = relationship("User", back_populates="igc_pending_uploads")
+
+
+class Hike(Base):
+    """
+    Fitnessprogramm sheet — a hike, optionally linked to a Hike&Fly-category flight when the
+    source row carried an Airtime/Landeplatz value (the real signal that this hike became a
+    flight) and the date match against is_hike_fly flights was unambiguous. A pure hike is
+    never linked, and that's a complete, valid state on its own — not a to-do.
+    """
+
+    __tablename__ = "hikes"
+    __table_args__ = (UniqueConstraint("owner_id", "import_key", name="uq_hikes_owner_import_key"),)
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_key = Column(String, nullable=True)  # "fitnessprogramm:<row>"; NULL if entered directly
+    hike_date = Column(Date, nullable=False)
+    start_place = Column(String, nullable=False)
+    destination_place = Column(String, nullable=False)
+    ascent_m = Column(Integer, nullable=True)
+    descent_m = Column(Integer, nullable=True)
+    distance_km = Column(Float, nullable=True)
+    duration_min = Column(Integer, nullable=True)
+    route_description = Column(Text, nullable=True)
+    flight_id = Column(String, ForeignKey("flights.id"), nullable=True)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+    owner = relationship("User", back_populates="hikes")
+
+
+class GroundhandlingSession(Base):
+    """Groundhandling sheet. Standalone — never linked to a flight."""
+
+    __tablename__ = "groundhandling_sessions"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id", "import_key", name="uq_groundhandling_sessions_owner_import_key"
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_key = Column(String, nullable=True)  # "groundhandling:<row>"
+    session_date = Column(Date, nullable=False)
+    place = Column(String, nullable=False)
+    duration_min = Column(Integer, nullable=True)
+    comment = Column(Text, nullable=True)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+    owner = relationship("User", back_populates="groundhandling_sessions")
+
+
+class TandemFlight(Base):
+    """
+    Tandemflüge sheet — the pilot flew as a passenger, never the wing. Deliberately not a row
+    in `flights` (architecture.md). `tandem_operator` stays free text, never a Buddy FK — real
+    source values include company names (e.g. "AlpineAir"), not just personal contacts.
+    """
+
+    __tablename__ = "tandem_flights"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "import_key", name="uq_tandem_flights_owner_import_key"),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_key = Column(String, nullable=True)  # "tandemfluege:<row>"
+    flight_date = Column(Date, nullable=False)
+    launch_place = Column(String, nullable=False)
+    landing_place = Column(String, nullable=False)
+    tandem_operator = Column(String, nullable=True)
+    comment = Column(Text, nullable=True)
+    cost = Column(Float, nullable=True)  # 0 is a real, meaningful value — a free tandem
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+    owner = relationship("User", back_populates="tandem_flights")
+
+
+class Goal(Base):
+    """
+    Ziele sheet — the one imported type that stays editable afterward, unlike hikes/
+    groundhandling/tandem_flights (import-and-view only). difficulty/category/status are
+    plain strings, not enums — the observed value sets aren't guaranteed closed.
+    """
+
+    __tablename__ = "goals"
+    __table_args__ = (UniqueConstraint("owner_id", "import_key", name="uq_goals_owner_import_key"),)
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_key = Column(String, nullable=True)  # "ziele:<row>"; NULL for a goal created directly
+    title = Column(String, nullable=False)
+    wind_direction = Column(String, nullable=True)
+    difficulty = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    links = Column(Text, nullable=True)
+    target_season = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="open")
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+    owner = relationship("User", back_populates="goals")
