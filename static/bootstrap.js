@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { page: 'hikes', href: '/hikes', key: 'nav.hikes' },
   { page: 'groundhandling', href: '/groundhandling', key: 'nav.groundhandling' },
   { page: 'tandem-flights', href: '/tandem-flights', key: 'nav.tandem_flights' },
+  { page: 'goals', href: '/goals', key: 'nav.goals' },
   { page: 'import', href: '/import', key: 'nav.import' },
   { page: 'igc', href: '/igc', key: 'nav.tracks' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },

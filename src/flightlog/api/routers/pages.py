@@ -119,3 +119,8 @@ def groundhandling_page(request: Request) -> Response:
 @router.get("/tandem-flights")
 def tandem_flights_page(request: Request) -> Response:
     return _page(request, "tandem-flights.html")
+
+
+@router.get("/goals")
+def goals_page(request: Request) -> Response:
+    return _page(request, "goals.html")

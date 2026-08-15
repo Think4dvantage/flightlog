@@ -1,6 +1,6 @@
 """
-One-shot import of the legacy workbook's three remaining read-only sheets: `Fitnessprogramm`
-(hikes), `Groundhandling`, and `Tandemflüge` (tandem flights taken as a passenger).
+One-shot import of the legacy workbook's four remaining sheets: `Fitnessprogramm` (hikes),
+`Groundhandling`, `Tandemflüge` (tandem flights taken as a passenger), and `Ziele` (goals).
 
     python -m flightlog.core.secondary_import              # dry-run (default)
     python -m flightlog.core.secondary_import --write       # commits
@@ -10,9 +10,10 @@ Idempotent exactly like `core/importer.py`: each row gets an `import_key` of `"<
 looked up by `(owner_id, import_key)` before writing anything — a second run against the same
 file changes nothing.
 
-`Ziele` (goals) is deliberately not imported here — it stays editable after import (unlike these
-three), so it goes through the normal `POST /api/goals` creation path via a dedicated one-time
-seed instead of this read-only importer. See `core/goal_import.py`.
+Hikes/ground-handling/tandem-flights are import-and-view only (no API write path exists for
+them). Goals are the one type that stays editable afterward — this importer's `import_key`
+guard only ever creates the initial rows; every subsequent read/write on a goal goes through
+the normal `/api/goals` CRUD router, never back through this module.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from sqlalchemy.orm import Session
 from flightlog.database.models import (
     Flight,
     FlightCategory,
+    Goal,
     GroundhandlingSession,
     Hike,
     TandemFlight,
@@ -38,6 +40,7 @@ logger = logging.getLogger(__name__)
 FITNESSPROGRAMM_SHEET = "Fitnessprogramm"
 GROUNDHANDLING_SHEET = "Groundhandling"
 TANDEMFLUEGE_SHEET = "Tandemflüge"
+ZIELE_SHEET = "Ziele"
 
 # 0-based column indices, verbatim from each sheet's real header row (research.md).
 FP_COL_DATUM = 0
@@ -63,6 +66,17 @@ TF_COL_PILOT = 3
 TF_COL_KOMMENTAR = 4
 TF_COL_KOSTEN = 5
 
+# Ziele reports ~505 columns wide per row, but every column past the 8th is a leftover Excel
+# formatting artifact — None on every real row (research.md). Read only these 8 by position.
+ZI_COL_TITEL = 0
+ZI_COL_WETTERLAGE = 1
+ZI_COL_LEVEL = 2
+ZI_COL_KATEGORIE = 3
+ZI_COL_BESCHREIBUNG = 4
+ZI_COL_LINKS = 5
+ZI_COL_SAISON = 6
+ZI_COL_STATUS = 7
+
 
 @dataclass
 class SecondaryImportReport:
@@ -77,6 +91,9 @@ class SecondaryImportReport:
     tandem_flights_read: int = 0
     tandem_flights_written: int = 0
     tandem_flights_skipped_existing: int = 0
+    goals_read: int = 0
+    goals_written: int = 0
+    goals_skipped_existing: int = 0
 
 
 def _to_date(value):
@@ -254,17 +271,59 @@ def _import_tandem_flights(
         report.tandem_flights_written += 1
 
 
+def _import_goals(
+    db: Session, wb, owner_id: str, write: bool, report: SecondaryImportReport
+) -> None:
+    if ZIELE_SHEET not in wb.sheetnames:
+        return
+    ws = wb[ZIELE_SHEET]
+
+    for excel_row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if row[ZI_COL_TITEL] is None:
+            continue
+        report.goals_read += 1
+        import_key = f"ziele:{excel_row_number}"
+
+        existing = db.execute(
+            select(Goal.id).where(Goal.owner_id == owner_id, Goal.import_key == import_key)
+        ).scalar_one_or_none()
+        if existing is not None:
+            report.goals_skipped_existing += 1
+            continue
+
+        if not write:
+            continue
+
+        status = row[ZI_COL_STATUS] or "open"
+        db.add(
+            Goal(
+                owner_id=owner_id,
+                import_key=import_key,
+                title=row[ZI_COL_TITEL],
+                wind_direction=row[ZI_COL_WETTERLAGE],
+                difficulty=row[ZI_COL_LEVEL],
+                category=row[ZI_COL_KATEGORIE],
+                description=row[ZI_COL_BESCHREIBUNG],
+                links=row[ZI_COL_LINKS],
+                target_season=str(row[ZI_COL_SAISON]) if row[ZI_COL_SAISON] is not None else None,
+                status=status,
+            )
+        )
+        report.goals_written += 1
+
+
 def run_secondary_import(
     db: Session, path: str, owner_id: str, write: bool = False
 ) -> SecondaryImportReport:
-    """Reads Fitnessprogramm/Groundhandling/Tandemflüge from `path` and either previews
-    (default) or commits (`write=True`) hikes/groundhandling_sessions/tandem_flights."""
+    """Reads Fitnessprogramm/Groundhandling/Tandemflüge/Ziele from `path` and either previews
+    (default) or commits (`write=True`) hikes/groundhandling_sessions/tandem_flights/goals."""
     report = SecondaryImportReport()
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
 
     _import_hikes(db, wb, owner_id, write, report)
     _import_groundhandling(db, wb, owner_id, write, report)
     _import_tandem_flights(db, wb, owner_id, write, report)
+    _import_goals(db, wb, owner_id, write, report)
 
     if write:
         db.commit()
@@ -305,6 +364,9 @@ def _print_report(report: SecondaryImportReport, write: bool) -> None:
     print(f"Tandem flights read: {report.tandem_flights_read}")
     print(f"Tandem flights written: {report.tandem_flights_written}")
     print(f"Tandem flights skipped (already imported): {report.tandem_flights_skipped_existing}")
+    print(f"Goals read: {report.goals_read}")
+    print(f"Goals written: {report.goals_written}")
+    print(f"Goals skipped (already imported): {report.goals_skipped_existing}")
 
 
 def main(argv: list[str] | None = None) -> None:

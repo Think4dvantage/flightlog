@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Goals — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="goals.title">Goals</h1>
+        <button type="button" id="addGoalBtn" data-i18n="goals.add">Add goal</button>
+      </div>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <div class="filter-row">
+        <select id="filterStatus">
+          <option value="" data-i18n="goals.filter.all">All</option>
+          <option value="open" data-i18n="goals.filter.open">Open</option>
+          <option value="done" data-i18n="goals.filter.done">Done</option>
+        </select>
+      </div>
+
+      <div id="resultCount" class="muted"></div>
+
+      <div class="table-scroll">
+        <table id="goalsTable">
+          <thead>
+            <tr>
+              <th data-i18n="goals.col.title">Title</th>
+              <th data-i18n="goals.col.category">Category</th>
+              <th data-i18n="goals.col.difficulty">Difficulty</th>
+              <th data-i18n="goals.col.wind">Wind</th>
+              <th data-i18n="goals.col.season">Season</th>
+              <th data-i18n="goals.col.status">Status</th>
+              <th data-i18n="goals.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="goalsBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" hidden>
+        <p data-i18n="goals.empty">No goals match the current filter.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="goalDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="goals.drawer.add_title">Add goal</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="goalForm" novalidate>
+      <input type="hidden" id="g_id">
+
+      <div class="field">
+        <label for="g_title" data-i18n="goals.drawer.title_label">Title</label>
+        <input type="text" id="g_title" required maxlength="200">
+        <p class="field-error" data-field="title"></p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="g_category" data-i18n="goals.drawer.category">Category</label>
+          <input type="text" id="g_category">
+        </div>
+        <div class="field">
+          <label for="g_difficulty" data-i18n="goals.drawer.difficulty">Difficulty</label>
+          <input type="text" id="g_difficulty">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="g_wind" data-i18n="goals.drawer.wind">Wind direction</label>
+          <input type="text" id="g_wind">
+        </div>
+        <div class="field">
+          <label for="g_season" data-i18n="goals.drawer.season">Target season</label>
+          <input type="text" id="g_season">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="g_description" data-i18n="goals.drawer.description">Description</label>
+        <textarea id="g_description" rows="3"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="g_links" data-i18n="goals.drawer.links">Links</label>
+        <textarea id="g_links" rows="2"></textarea>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="goals.drawer.save">Save</button>
+        <button type="button" id="drawerMarkDone" class="btn-ghost" data-i18n="goals.drawer.mark_done" hidden>Mark done</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="goals.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="goals.delete_confirm.prompt">Delete this goal? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="goals.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="goals.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
+
+  <script type="module" src="/static/goals.js"></script>
+</body>
+</html>

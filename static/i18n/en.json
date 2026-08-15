@@ -10,6 +10,7 @@
     "hikes": "Hikes",
     "groundhandling": "Groundhandling",
     "tandem_flights": "Tandem flights",
+    "goals": "Goals",
     "import": "Import findings",
     "tracks": "Tracks",
     "stats": "Statistics",
@@ -249,6 +250,48 @@
       "operator": "Pilot / operator",
       "cost": "Cost",
       "comment": "Comment"
+    }
+  },
+  "goals": {
+    "title": "Goals",
+    "add": "Add goal",
+    "edit": "Edit",
+    "empty": "No goals match the current filter.",
+    "result_count": "{count} goals",
+    "status_open": "Open",
+    "status_done": "Done",
+    "filter": {
+      "all": "All",
+      "open": "Open",
+      "done": "Done"
+    },
+    "col": {
+      "title": "Title",
+      "category": "Category",
+      "difficulty": "Difficulty",
+      "wind": "Wind",
+      "season": "Season",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add goal",
+      "edit_title": "Edit goal",
+      "title_label": "Title",
+      "category": "Category",
+      "difficulty": "Difficulty",
+      "wind": "Wind direction",
+      "season": "Target season",
+      "description": "Description",
+      "links": "Links",
+      "save": "Save",
+      "mark_done": "Mark done",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this goal? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "import": {
