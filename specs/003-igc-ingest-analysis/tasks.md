@@ -13,24 +13,25 @@ Spec: [`spec.md`](./spec.md) · Plan: [`plan.md`](./plan.md) · Data model: [`da
 Test tasks are included throughout (`06-testing-conventions.md`: backend logic is test-gated; matches
 both prior features' precedent). No frontend test tasks, consistent with `specs/002-flight-log-ui`.
 
-**T001–T032 done (32/35).** Every backend route in `contracts/endpoints.md`, all four new tables,
-`core/igc.py`/`igc_storage.py`/`site_backfill.py`, and every frontend piece — flight-detail's upload/
-replace/detach control and eight computed figures, the Leaflet track map, the Chart.js barogram with
-per-segment thermal/glide line coloring, and the `/igc` bulk-upload + pending-review page. 17 new
-backend tests, 143/143 passing project-wide, `ruff check`/`ruff format --check` clean.
+**All 35/35 done — shipped and confirmed live.** Every backend route in `contracts/endpoints.md`, all
+four new tables, `core/igc.py`/`igc_storage.py`/`site_backfill.py`, and every frontend piece —
+flight-detail's upload/replace/detach control and eight computed figures, the Leaflet track map, the
+Chart.js barogram with per-segment thermal/glide line coloring, and the `/igc` bulk-upload +
+pending-review page. 17 new backend tests, 144/144 passing project-wide, `ruff check`/`ruff format
+--check` clean. Tagged `v0.5.0`, multi-arch image built successfully (the first ever carrying the
+`libigc` extra, 5m1s, confirming the pure-Python-wheel risk assessment).
 
-Verified against real, generated IGC fixtures, not fabricated assertions — a genuine climbing thermal
-correctly detected and filtered, GNSS altitude-source fallback confirmed for a no-baro file — and
-against a live local dev boot via `curl` for every endpoint including the full bulk-upload → ambiguous
-→ resolve/dismiss cycle. Two real bugs were caught and fixed only because of that live-boot pass, not
-by unit tests alone: `auth.js`'s `fetchAuth()` forced `Content-Type: application/json` onto every
-request with a body, silently breaking `FormData` multipart uploads; and dismissing a pending upload
-left its `UniqueConstraint("owner_id", "sha256")` slot occupied, silently blocking any later re-upload
-of that same file. Both fixed, the second covered by a new regression test.
-
-**Remaining: T033–T035 (Final Phase)** — a real browser has still not rendered any of this (see
-[[env-no-browser-extension]]; unavailable all session), the version bump, and the `sync.md` documentation
-pass.
+Verified twice over: against real, generated IGC fixtures during implementation (a genuine climbing
+thermal correctly detected and filtered, GNSS altitude-source fallback confirmed for a no-baro file), a
+live local dev boot via `curl` for every endpoint including the full bulk-upload → ambiguous →
+resolve/dismiss cycle — and then **in a real browser, on real IGC files, by the pilot post-deploy**:
+multiple same-day tracks uploaded, correctly routed to manual resolution rather than guessed, resolved
+by hand, and the map/barogram confirmed rendering well ("better than expected"). Three real bugs were
+caught only because of the live/curl pass, not by unit tests alone: `auth.js`'s `fetchAuth()` forced
+`Content-Type: application/json` onto every request with a body, silently breaking `FormData` multipart
+uploads; dismissing a pending upload left its `UniqueConstraint("owner_id", "sha256")` slot occupied,
+silently blocking any later re-upload of that same file; and `flights.takeoff_time`/`landing_time`
+writeback was speced but never wired up. All three fixed, two covered by regression tests.
 
 ## Dependencies
 
@@ -207,14 +208,15 @@ as an admin account, confirm stale tracks are reprocessed and their `analyzer_ve
 
 ## Final Phase — Polish
 
-- [~] T033 Live-boot verification pass per `plan.md`'s Phase 8 checklist — **done via `curl` against
-      every endpoint** (single upload with figures cross-checked by hand against the fixture, replace,
-      detach, bulk auto-match, bulk ambiguous → pending → resolve, dismiss → re-upload). **Not done:
-      actual browser rendering** — no browser tool was connected this session either (still
-      [[env-no-browser-extension]]); the map, the barogram's per-segment line coloring, the drawer/file-
-      input interactions, and keyboard navigation are all unconfirmed. This is the same gap
-      `specs/002-flight-log-ui`'s T047 was left open for, for the same reason — first thing to do the
-      moment a browser is available
+- [x] T033 Live-boot verification pass per `plan.md`'s Phase 8 checklist — done via `curl` against every
+      endpoint during implementation (single upload with figures cross-checked by hand against the
+      fixture, replace, detach, bulk auto-match, bulk ambiguous → pending → resolve, dismiss →
+      re-upload), **and confirmed in a real browser by the pilot post-deploy on real IGC files, not just
+      generated fixtures**: multiple same-day tracks uploaded, correctly landed in the ambiguous/pending
+      path rather than auto-attaching a guess, resolved to the right flights by hand — and the track
+      map + barogram render well ("better than expected"). No further browser verification is
+      outstanding for this feature; keyboard-only navigation specifically wasn't called out either way,
+      worth a mention if that ever surfaces as a gap
 - [x] T034 `ruff check` / `ruff format --check` / full `pytest` clean (143/143); `pyproject.toml` bumped
       0.4.0 → 0.5.0 (static assets and backend both changed — the version is the cache key)
 - [ ] T035 `sync.md` — update `architecture.md` (IGC analysis section, SQLite Tables list, API Contracts

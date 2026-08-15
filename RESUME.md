@@ -2,16 +2,16 @@
 
 ## In Progress
 
-**v0.5.0 is implemented, tested, tagged, and pushed — the multi-arch image is built, but `fl.sdh.lol`
-running it has not been confirmed yet.** `v0.4.0` (the `/sites` drawer + Leaflet icon-path fix) shipped
-and was confirmed live earlier this session. For `v0.5.0`: the tag triggered
-`docker-publish.yml`, and the build — the first ever to carry the `libigc` extra — completed
-successfully in 5m1s (amd64 + arm64), confirming the pure-Python-wheel risk assessment
-(`architecture.md`'s Runtime section, `features.md`'s former backlog item, now resolved and removed).
-**Not yet confirmed: whether the running container at `fl.sdh.lol` actually picked up this image** —
-same as every previous tag this session, nothing in this repo triggers that pull; it's happened
-automatically within minutes each time so far (Watchtower or similar, never confirmed which), worth a
-quick check next session rather than assumed.
+**v0.5.0 is shipped, live, and confirmed working end-to-end by the pilot on real hardware.**
+Implemented, tested, tagged, pushed; the multi-arch image (first ever carrying the `libigc` extra)
+built successfully in 5m1s; and `fl.sdh.lol` picked it up — confirmed not by checking the deploy
+mechanism directly (still never identified, same as every prior tag this session) but by the pilot
+actually using the feature live: uploaded multiple real IGC tracks from the same day, the bulk-match
+algorithm correctly refused to guess between them and routed them to manual resolution, resolved them
+by hand to the right flights, and confirmed the track map and barogram render well — "better than
+expected." **This closes out the browser-rendering gap that had been open across three features in a
+row** (`specs/002-flight-log-ui`'s T047, `v0.4.0`'s icon fix, and this feature's T033) — first
+real-device, real-browser, real-data confirmation of any of this session's frontend work.
 
 **What shipped in this pass**: per-flight IGC upload/replace/detach with eight computed figures
 (duration, distance, max altitude, altitude gain, thermal count, best/peak climb, glide ratio); a
@@ -51,39 +51,32 @@ cycle end to end. Two real bugs were caught only because of that live pass, both
   `landing_time` writeback was speced (`architecture.md`'s "writeback shrinks the problem") but never
   actually wired into `_attach_track`/`delete_igc`. Added, with its own test.
 
-**Not yet done: actual browser rendering.** No browser automation tool was connected this session either
-— see [[env-no-browser-extension]]. The map, the barogram's per-segment coloring, every file-input
-control, and keyboard navigation are all unconfirmed. This is the same gap `specs/002-flight-log-ui`'s
-T047 was left open for, now repeated for a third feature in a row for the same reason.
+**Claude in Chrome still never connected this session** — see [[env-no-browser-extension]]. The pilot's
+own live confirmation above stands in for it this time; still worth retrying the extension next
+session so verification doesn't depend on the pilot happening to test manually every time.
 
 ## Next Step
 
-1. **Confirm `fl.sdh.lol` actually picked up the `v0.5.0` image** — the tag is pushed and the multi-arch
-   build succeeded; whether the running container updated is unconfirmed (see In Progress above).
-2. **Get a real browser connected and do the T033-equivalent visual pass** on `/flights/{id}`'s new
-   track section and the new `/igc` bulk page — the single biggest open risk right now, since three
-   features in a row have shipped without ever being actually seen rendered.
-3. **Try some real IGC files.** Every test and live-boot check so far used hand-generated fixtures
-   (`tests/backend/fixtures/*.igc`) — realistic enough to exercise the full pipeline (a genuine detected
-   thermal, a glide, correct GNSS fallback for a no-baro file), but nobody has run this against an actual
-   flight recorder's output yet. Config tuning (`igc.parsing:` in `config.yml`) is very likely to need
-   iteration once real tracks are tried — the shipped defaults are `libigc`'s own sailplane-tuned ones,
-   and `architecture.md` already flags paraglider thermals as slower and sloppier than that.
-4. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters, from `specs/002-flight-log-ui`)
-   — still open, not tied to any particular tag.
-5. **v0.6 — secondary sheets + XContest is next** on the roadmap after this ships, per `features.md`.
+1. **Config tuning may need iteration.** The shipped `igc.parsing:` defaults are `libigc`'s own
+   sailplane-tuned values; `architecture.md` already flags paraglider thermals as slower and sloppier
+   than that. Worth asking the pilot whether the thermal/glide figures on their real uploads looked
+   right, now that real tracks have actually been through it — no report of a problem yet, but nobody's
+   explicitly checked the numbers against what the pilot remembers of those flights either.
+2. **Decide on Phases 9–11** (`/contacts`, CSV export, remember-last-filters, from
+   `specs/002-flight-log-ui`) — still open, not tied to any particular tag.
+3. **v0.6 — secondary sheets + XContest is next** on the roadmap after this ships, per `features.md`.
 
 ## Open Questions
 
-- Whether Phases 9–11 ship before or alongside `v0.6` — see step 4 above.
+- Whether Phases 9–11 ship before or alongside `v0.6` — see step 2 above.
 - `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
   `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
 - **v0.5's spec/plan/research/data-model/contracts/tasks live in `specs/003-igc-ingest-analysis/`** —
-  `tasks.md` has the precise, checked-off task-by-task record of what shipped and what (T033 — the
-  browser pass) is still open.
+  `tasks.md` is 35/35 checked off, including T033 (the browser pass, closed by the pilot's live
+  confirmation above).
 - **The dev server needs a restart after every backend edit** (no `--reload`) — hit this repeatedly
   this session (the new `/igc` page 404'd until the server was restarted after adding its route to
   `pages.py`). See [[flightlog-dev-server-workflow]].
