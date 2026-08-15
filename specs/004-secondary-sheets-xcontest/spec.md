@@ -10,6 +10,20 @@ ships, the Excel file has no remaining unique data.
 
 ## Clarifications
 
+### Session 2026-08-15 (implementation kickoff)
+- Q: No real XContest "My Flights" export sample is available right now — proceed with implementation
+  anyway? → A: Yes — build and ship Phases 1–4 (hikes/ground-handling/tandem-flights import + goals
+  CRUD) now; defer Phase 5 (XContest score import) entirely until a real sample export exists to verify
+  the parser against. Not a redesign, just a sequencing decision — `research.md`'s open item stands
+  unchanged.
+- Q: Should hikes/ground-handling/tandem-flights get ongoing create/edit in this pass, given the real
+  `Fitnessprogramm` sheet has entries through mid-2025 (the pilot may still be logging these)? → A: No —
+  ship import-and-view only, as originally scoped. Full CRUD is an explicit fast-follow if it turns out
+  to be wanted, not part of this pass.
+- Q: Should an ambiguous (unlinked) hike get a manual resolve action, mirroring the IGC bulk-upload's
+  pending-review queue? → A: No — report-only is sufficient at this volume (85 hikes total); an unlinked
+  hike is still a complete, valid record on its own.
+
 ### Session 2026-08-15
 - Q: The real workbook's `Fitnessprogramm` sheet has 85 rows; some rows carry `Airtime`/`Landeplatz`
   values (a hike that became a flight) and some don't (a pure hike). How should an imported hike relate

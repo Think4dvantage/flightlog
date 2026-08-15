@@ -10,6 +10,10 @@ Spec: [`spec.md`](./spec.md) · Plan: [`plan.md`](./plan.md) · Data model: [`da
 - MVP scope: Phase 3 (US1 — the three read-only imports + their list views) is the smallest
   independently-shippable slice; it alone retires most of the spreadsheet's remaining unique data.
 
+**Phase 5 (XContest import, T018–T024) is deferred** — no real "My Flights" export sample was available
+at implementation kickoff (2026-08-15). Phases 1–4 and the Final Phase's non-XContest items ship in this
+pass; Phase 5 resumes once a sample export exists (`spec.md`'s implementation-kickoff Clarifications).
+
 Test tasks included throughout, matching every prior feature's precedent.
 
 ## Dependencies
@@ -32,19 +36,20 @@ and to Phase 3.
 
 ## Phase 1 — Setup
 
-- [ ] T001 Obtain one real XContest "My Flights" export sample from the pilot's own account and record
-      its actual JSON structure in `research.md`, resolving that section's open item — this determines
-      T009/T010's exact schema, must happen before either is written
-- [ ] T002 [P] Confirm the real workbook's four secondary sheets still match `research.md`'s recorded
-      structure (re-read via `openpyxl` if implementation starts a meaningful time after this plan) —
-      the workbook could have been edited by the pilot since this plan was written
+- [~] T001 **Deferred** — obtain one real XContest "My Flights" export sample from the pilot's own
+      account and record its actual JSON structure in `research.md`. Not done at kickoff; Phase 5
+      (T018–T024) is deferred until this happens, per this pass's implementation-kickoff decision
+- [x] T002 [P] Confirm the real workbook's four secondary sheets still match `research.md`'s recorded
+      structure — re-read via `openpyxl`, unchanged since planning
 
 ## Phase 2 — Foundation
 
 - [ ] T003 [P] Add `Hike`, `GroundhandlingSession`, `TandemFlight`, `Goal` ORM models to
       `src/flightlog/database/models.py` per `data-model.md`
-- [ ] T004 Add `flights.xc_official_score`/`_type`/`_url` columns with an idempotent
-      `_run_column_migrations()` guard in `src/flightlog/database/db.py`
+- [~] T004 **Deferred alongside Phase 5** — `flights.xc_official_score`/`_type`/`_url` columns have no
+      consumer until the XContest import exists; adding them now would be dead schema ahead of the
+      feature that populates them, which the minimal-scope principle argues against. Add together with
+      Phase 5 once T001 unblocks it
 - [ ] T005 [P] Create `src/flightlog/models/secondary.py` — Pydantic schemas for all four new types
       (`HikeOut`, `GroundhandlingSessionOut`, `TandemFlightOut`, `GoalOut`/`GoalCreate`/`GoalUpdate`)
 
