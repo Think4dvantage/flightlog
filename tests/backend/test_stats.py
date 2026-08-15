@@ -224,6 +224,21 @@ async def test_distribution_buckets(client, make_token, stats_setup):
     }
 
 
+async def test_monthly_extremes(client, make_token, stats_setup):
+    """Max per calendar month across all years — not an average; an untouched month is null."""
+    headers = make_token(user=stats_setup.user)
+    body = (await client.get("/api/stats/monthly-extremes", headers=headers)).json()
+
+    assert body["max_duration_min_by_month"]["5"] == 90  # f1
+    assert body["max_duration_min_by_month"]["6"] == 60  # f2
+    assert body["max_duration_min_by_month"]["7"] == 45  # f3
+    assert body["max_duration_min_by_month"]["8"] == 200  # f4
+    assert body["max_duration_min_by_month"]["1"] is None  # no January flight
+
+    assert body["max_distance_km_by_month"]["5"] == 20.0
+    assert body["max_alt_gain_m_by_month"]["5"] == 500  # tied with June, both included per-month
+
+
 async def test_personal_bests_tie_resolves_to_earliest_flight(client, make_token, stats_setup):
     headers = make_token(user=stats_setup.user)
     body = (await client.get("/api/stats/personal-bests", headers=headers)).json()
@@ -232,9 +247,23 @@ async def test_personal_bests_tie_resolves_to_earliest_flight(client, make_token
     assert len(body) == 8
     assert by_label["max_altitude"]["value"] == 2000
     assert by_label["max_altitude"]["flight_id"] == stats_setup.flights[0].id  # f1, tied with f2
+    assert by_label["max_altitude"]["flight_date"] == "2023-05-01"
     assert by_label["longest_airtime"]["flight_id"] == stats_setup.flights[3].id  # f4
     assert by_label["highest_launch"]["flight_id"] == stats_setup.flights[2].id  # f3 (launch_b)
     assert by_label["shortest_distance"]["flight_id"] == stats_setup.flights[3].id  # f4
+
+
+async def test_xc_progression_uses_distance_threshold_not_category_name(
+    client, make_token, stats_setup
+):
+    """f1/f2/f3 are >=10km (the default threshold); f4 (5km) is not — all four are 2023."""
+    headers = make_token(user=stats_setup.user)
+    body = (await client.get("/api/stats/xc-progression", headers=headers)).json()
+
+    assert body["threshold_km"] == 10.0
+    assert body["rows"] == [
+        {"year": 2023, "total_flights": 4, "xc_shaped_flights": 3, "xc_pct": 75.0}
+    ]
 
 
 async def test_matrix_glider_not_recorded_bucket(client, make_token, stats_setup):
@@ -356,6 +385,11 @@ async def test_progression_shape(client, make_token, stats_setup):
     assert body["current_streak"] == {"unit": "week", "count": 0}
     assert len(body["cumulative_series"]) == 4
     assert body["cumulative_series"][-1]["cumulative_count"] == 4
+    # f4 (2023-08-01) is the most recent fixture flight; "today" is the real clock, so only
+    # the deterministic last_flight_date is asserted, not the day count itself.
+    assert body["last_flight_date"] == "2023-08-01"
+    assert isinstance(body["days_since_last_flight"], int)
+    assert body["days_since_last_flight"] > 0
 
 
 async def test_zero_state_for_a_brand_new_account(client, make_token):
@@ -368,6 +402,17 @@ async def test_zero_state_for_a_brand_new_account(client, make_token):
     assert (await client.get("/api/stats/matrix/site", headers=headers)).json()["rows"] == []
     igc = (await client.get("/api/stats/igc-rollup", headers=headers)).json()
     assert igc == {"cumulative_thermal_climb_m": 0.0, "tracks_uploaded": 0}
+
+    monthly = (await client.get("/api/stats/monthly-extremes", headers=headers)).json()
+    assert all(v is None for v in monthly["max_duration_min_by_month"].values())
+    assert len(monthly["max_duration_min_by_month"]) == 12
+
+    xc = (await client.get("/api/stats/xc-progression", headers=headers)).json()
+    assert xc["rows"] == []
+
+    progression = (await client.get("/api/stats/progression", headers=headers)).json()
+    assert progression["days_since_last_flight"] is None
+    assert progression["last_flight_date"] is None
 
 
 async def test_ownership_scoping_another_users_flights_never_leak_in(

@@ -77,6 +77,7 @@ class FlightOut(BaseModel):
     alt_gain_m: float | None = None
     site_drop_m: float | None = None
     total_descent_m: float | None = None
+    has_igc_track: bool = False
     created_at: datetime
     updated_at: datetime | None = None
 

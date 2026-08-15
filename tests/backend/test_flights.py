@@ -121,6 +121,55 @@ async def test_get_update_delete_own_flight(client, make_token, base_entities):
     assert gone.status_code == 404
 
 
+async def test_has_igc_track_reflects_presence_on_list_and_single_get(
+    client, make_token, base_entities, db_session
+):
+    """List and single-flight GET must agree — the list path batches this, the single path
+    queries directly (see api/routers/flights.py's _to_out docstring)."""
+    from flightlog.database.models import IgcTrack, utcnow
+
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+
+    with_track = await client.post(
+        "/api/flights",
+        json={"flight_date": "2020-01-01", "launch_site_id": launch.id, "category_id": category.id},
+        headers=headers,
+    )
+    without_track = await client.post(
+        "/api/flights",
+        json={"flight_date": "2020-01-02", "launch_site_id": launch.id, "category_id": category.id},
+        headers=headers,
+    )
+    with_track_id = with_track.json()["id"]
+    without_track_id = without_track.json()["id"]
+
+    assert with_track.json()["has_igc_track"] is False  # not yet uploaded
+
+    db_session.add(
+        IgcTrack(
+            owner_id=user.id,
+            flight_id=with_track_id,
+            original_filename="track.igc",
+            sha256="a" * 64,
+            file_path="irrelevant",
+            analyzer_version="test",
+            analyzed_at=utcnow(),
+        )
+    )
+    db_session.commit()
+
+    listed = {
+        f["id"]: f["has_igc_track"]
+        for f in (await client.get("/api/flights", headers=headers)).json()
+    }
+    assert listed[with_track_id] is True
+    assert listed[without_track_id] is False
+
+    fetched = await client.get(f"/api/flights/{with_track_id}", headers=headers)
+    assert fetched.json()["has_igc_track"] is True
+
+
 async def test_another_users_flight_is_404_not_403(client, make_token, base_entities):
     user, launch, _landing, category = base_entities
     owner_headers = make_token(user=user)

@@ -4,6 +4,8 @@ Statistics.
     GET /api/stats/totals
     GET /api/stats/time-breakdown
     GET /api/stats/distribution
+    GET /api/stats/monthly-extremes
+    GET /api/stats/xc-progression
     GET /api/stats/personal-bests
     GET /api/stats/matrix/{dimension}   -- site|region|glider|harness|category|buddy
     GET /api/stats/launch-technique
@@ -32,10 +34,12 @@ from flightlog.models.stats import (
     DistributionOut,
     IgcRollupOut,
     LaunchTechniqueOut,
+    MonthlyExtremesOut,
     PersonalBestOut,
     ProgressionOut,
     TimeBreakdownOut,
     TotalsOut,
+    XcProgressionOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +66,20 @@ def get_distribution(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> DistributionOut:
     return stats_core.distribution(db, current_user.id)
+
+
+@router.get("/monthly-extremes", response_model=MonthlyExtremesOut)
+def get_monthly_extremes(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> MonthlyExtremesOut:
+    return stats_core.monthly_extremes(db, current_user.id)
+
+
+@router.get("/xc-progression", response_model=XcProgressionOut)
+def get_xc_progression(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> XcProgressionOut:
+    return stats_core.xc_progression(db, current_user.id)
 
 
 @router.get("/personal-bests", response_model=list[PersonalBestOut])

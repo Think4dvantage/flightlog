@@ -13,15 +13,22 @@ const MATRIX_DIMENSIONS = ['site', 'region', 'glider', 'harness', 'category', 'b
 const MONTH_LABELS = Array.from({ length: 12 }, (_, i) =>
   new Date(2000, i, 1).toLocaleString('en', { month: 'short' }),
 );
+const MONTH_NUMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 let activeDimension = 'site';
 const matrixCache = {};
+
+let totalFlights = null;
 
 let chartByYear;
 let chartByMonth;
 let chartDurationDist;
 let chartDistanceDist;
 let chartAltitudeDist;
+let chartMonthlyDuration;
+let chartMonthlyDistance;
+let chartMonthlyAltitude;
+let chartXcProgression;
 let chartProgression;
 
 function showAlert(message) {
@@ -68,23 +75,72 @@ function fmtNum(value, digits = 1) {
   return value == null ? '—' : Number(value).toFixed(digits);
 }
 
+function currencyColor(days) {
+  const styles = getComputedStyle(document.documentElement);
+  if (days == null) return '';
+  if (days <= 14) return styles.getPropertyValue('--success').trim();
+  if (days <= 45) return styles.getPropertyValue('--warm').trim();
+  return styles.getPropertyValue('--danger').trim();
+}
+
 function accentColor() {
   const styles = getComputedStyle(document.documentElement);
   return styles.getPropertyValue('--accent-strong').trim() || '#63b3ed';
 }
 
-function barChart(canvasId, labels, data, existing) {
+function textColor() {
+  const styles = getComputedStyle(document.documentElement);
+  return styles.getPropertyValue('--text').trim() || '#e2e8f0';
+}
+
+/**
+ * Draws each bar's own value above it, so a value never needs a hover to read.
+ *
+ * The formatter is stashed directly on the chart instance (chart.$barValueLabelFormatter),
+ * NOT inside `options` — Chart.js auto-invokes any function found while resolving its own
+ * `options` tree as a "scriptable option" (passing its own internal context object, not
+ * the bar's value), which crashed every downstream `Math.round()`/`toFixed()` call the
+ * first time this tried storing the formatter under `options.plugins.barValueLabel`.
+ */
+const barValueLabelPlugin = {
+  id: 'barValueLabel',
+  afterDatasetsDraw(chart) {
+    const formatter = chart.$barValueLabelFormatter;
+    if (!formatter) return;
+    const { ctx } = chart;
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if (value == null) return;
+        ctx.save();
+        ctx.fillStyle = textColor();
+        ctx.font = '11px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(formatter(value), bar.x, bar.y - 4);
+        ctx.restore();
+      });
+    });
+  },
+};
+
+function barChart(canvasId, labels, data, existing, formatter) {
   existing?.destroy();
-  return new Chart(el(canvasId).getContext('2d'), {
+  const chart = new Chart(el(canvasId).getContext('2d'), {
     type: 'bar',
     data: { labels, datasets: [{ data, backgroundColor: accentColor() }] },
+    plugins: [barValueLabelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 18 } }, // room for the tallest bar's label
       plugins: { legend: { display: false } },
       scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
     },
   });
+  chart.$barValueLabelFormatter = formatter || ((v) => String(Math.round(v)));
+  return chart;
 }
 
 // ---- totals ----
@@ -92,6 +148,8 @@ function barChart(canvasId, labels, data, existing) {
 async function loadTotals() {
   const data = await getJson('/api/stats/totals');
   if (!data) return;
+
+  totalFlights = data.total_flights;
 
   const mount = el('totalsGrid');
   mount.textContent = '';
@@ -169,6 +227,25 @@ async function loadTimeBreakdown() {
   console.log(`[FL:stats] time breakdown rendered: ${years.length} years`);
 }
 
+// ---- XC progression ----
+
+async function loadXcProgression() {
+  const data = await getJson('/api/stats/xc-progression');
+  if (!data) return;
+
+  const threshold = data.threshold_km;
+  el('xcProgressionHint').textContent = window.t('stats.xc_progression.hint', { threshold });
+
+  chartXcProgression = barChart(
+    'chartXcProgression',
+    data.rows.map((r) => String(r.year)),
+    data.rows.map((r) => r.xc_pct),
+    chartXcProgression,
+    (v) => `${Math.round(v)}%`,
+  );
+  console.log(`[FL:stats] XC progression rendered: ${data.rows.length} years, threshold=${threshold}km`);
+}
+
 // ---- distributions ----
 
 async function loadDistribution() {
@@ -196,12 +273,48 @@ async function loadDistribution() {
   console.log('[FL:stats] distributions rendered');
 }
 
+// ---- monthly extremes ----
+
+async function loadMonthlyExtremes() {
+  const data = await getJson('/api/stats/monthly-extremes');
+  if (!data) return;
+
+  chartMonthlyDuration = barChart(
+    'chartMonthlyDuration',
+    MONTH_LABELS,
+    MONTH_NUMS.map((m) => data.max_duration_min_by_month[m] ?? null),
+    chartMonthlyDuration,
+    (v) => fmtDuration(v),
+  );
+  chartMonthlyDistance = barChart(
+    'chartMonthlyDistance',
+    MONTH_LABELS,
+    MONTH_NUMS.map((m) => data.max_distance_km_by_month[m] ?? null),
+    chartMonthlyDistance,
+    (v) => `${fmtNum(v)} km`,
+  );
+  chartMonthlyAltitude = barChart(
+    'chartMonthlyAltitude',
+    MONTH_LABELS,
+    MONTH_NUMS.map((m) => data.max_alt_gain_m_by_month[m] ?? null),
+    chartMonthlyAltitude,
+    (v) => `${Math.round(v)} m`,
+  );
+  console.log('[FL:stats] monthly extremes rendered');
+}
+
 // ---- personal bests ----
 
 function formatPersonalBestValue(label, value) {
   if (label === 'longest_airtime') return fmtDuration(value);
   if (label.includes('distance')) return `${fmtNum(value)} km`;
   return `${Math.round(value)} m`;
+}
+
+function daysAgoText(isoDate) {
+  const days = Math.round((Date.now() - new Date(`${isoDate}T00:00:00Z`).getTime()) / 86400000);
+  if (days >= 365) return window.t('stats.personal_bests.set_years_ago', { count: (days / 365).toFixed(1) });
+  return window.t('stats.personal_bests.set_days_ago', { count: days });
 }
 
 async function loadPersonalBests() {
@@ -222,6 +335,11 @@ async function loadPersonalBests() {
     const valueTd = document.createElement('td');
     valueTd.textContent = formatPersonalBestValue(best.label, best.value);
     tr.appendChild(valueTd);
+
+    const setTd = document.createElement('td');
+    setTd.className = 'muted';
+    setTd.textContent = daysAgoText(best.flight_date);
+    tr.appendChild(setTd);
 
     const linkTd = document.createElement('td');
     const a = document.createElement('a');
@@ -268,6 +386,20 @@ async function loadMatrix(dimension) {
   return data;
 }
 
+function renderSiteDiversityNote(rows) {
+  const note = el('siteDiversityNote');
+  if (activeDimension !== 'site' || !rows || rows.length === 0) {
+    note.hidden = true;
+    return;
+  }
+  const sorted = [...rows].sort((a, b) => b.total - a.total);
+  const top5Total = sorted.slice(0, 5).reduce((sum, r) => sum + r.total, 0);
+  const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
+  const pct = grandTotal ? Math.round((top5Total / grandTotal) * 100) : 0;
+  note.hidden = false;
+  note.textContent = window.t('stats.matrix.site_diversity', { pct, siteCount: rows.length });
+}
+
 async function renderMatrix() {
   const data = await loadMatrix(activeDimension);
   const table = el('matrixTable');
@@ -275,6 +407,8 @@ async function renderMatrix() {
   const tbody = table.querySelector('tbody');
   thead.textContent = '';
   tbody.textContent = '';
+
+  renderSiteDiversityNote(data?.rows);
 
   if (!data || data.rows.length === 0) {
     el('matrixEmpty').hidden = false;
@@ -346,6 +480,15 @@ async function loadIgcRollup() {
   const mount = el('igcRollupGrid');
   mount.textContent = '';
 
+  if (totalFlights) {
+    const coveragePct = (data.tracks_uploaded / totalFlights) * 100;
+    statTile(
+      mount,
+      window.t('stats.igc_rollup.coverage'),
+      `${fmtNum(coveragePct, 1)}% (${data.tracks_uploaded}/${totalFlights})`,
+    );
+  }
+
   if (data.tracks_uploaded === 0) {
     el('igcRollupEmpty').hidden = false;
     console.log('[FL:stats] igc rollup: no tracks uploaded yet');
@@ -377,6 +520,16 @@ async function loadProgression() {
       ? window.t('stats.progression.streak_week', { count: data.current_streak.count })
       : window.t('stats.progression.streak_zero');
   statTile(mount, window.t('stats.progression.title'), streakLabel);
+
+  if (data.days_since_last_flight != null) {
+    const currencyValue = window.t('stats.progression.currency_days', {
+      count: data.days_since_last_flight,
+    });
+    statTile(mount, window.t('stats.progression.currency'), currencyValue);
+    const lastTile = mount.lastElementChild.querySelector('.stat-value');
+    lastTile.style.color = currencyColor(data.days_since_last_flight);
+  }
+
   statTile(mount, window.t('stats.progression.ytd_this_year'), String(data.ytd_pace.this_year));
   statTile(
     mount,
@@ -406,7 +559,7 @@ async function loadProgression() {
     },
   });
   console.log(
-    `[FL:stats] progression rendered: streak=${data.current_streak.count}${data.current_streak.unit}, ${data.cumulative_series.length} points`,
+    `[FL:stats] progression rendered: streak=${data.current_streak.count}${data.current_streak.unit}, days_since_last_flight=${data.days_since_last_flight}, ${data.cumulative_series.length} points`,
   );
 }
 
@@ -414,10 +567,15 @@ async function init() {
   await bootstrapPage({ page: 'stats', requireAuth: true });
   renderMatrixTabs();
 
+  // totalFlights (module-level) must be known before loadIgcRollup()'s coverage nudge —
+  // awaited alone rather than folded into the Promise.all below.
+  await loadTotals();
+
   await Promise.all([
-    loadTotals(),
     loadTimeBreakdown(),
+    loadXcProgression(),
     loadDistribution(),
+    loadMonthlyExtremes(),
     loadPersonalBests(),
     renderMatrix(),
     loadLaunchTechnique(),

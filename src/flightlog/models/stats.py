@@ -7,6 +7,8 @@ specs/005-statistics/data-model.md for the source shapes.
 
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -32,10 +34,22 @@ class DistributionOut(BaseModel):
     altitude_buckets: dict[str, int]
 
 
+class MonthlyExtremesOut(BaseModel):
+    """The single best (max) duration/distance/alt_gain per calendar month, across all years —
+    "in what month did I get my longest/farthest/highest flight," not an average. All 12 months
+    are always present; a month with no flights is `null`, not `0` (a flight of zero minutes
+    would be a nonsensical record, not "no data")."""
+
+    max_duration_min_by_month: dict[int, float | None]
+    max_distance_km_by_month: dict[int, float | None]
+    max_alt_gain_m_by_month: dict[int, float | None]
+
+
 class PersonalBestOut(BaseModel):
     label: str
     value: float
     flight_id: str
+    flight_date: date
 
 
 class DimensionYearMatrixRow(BaseModel):
@@ -81,3 +95,25 @@ class ProgressionOut(BaseModel):
     current_streak: CurrentStreakOut
     ytd_pace: YtdPaceOut
     cumulative_series: list[ProgressionPoint]
+    days_since_last_flight: int | None
+    last_flight_date: date | None
+
+
+class XcProgressionYearRow(BaseModel):
+    year: int
+    total_flights: int
+    xc_shaped_flights: int
+    xc_pct: float
+
+
+class XcProgressionOut(BaseModel):
+    """
+    Per-year share of flights that are "XC-shaped" — distance_km at or above
+    `threshold_km` — as a category-name-independent proxy for "real" cross-country flying
+    vs. short local hops. Never keys off a flight_categories.name string (free text, not a
+    stable enum); `threshold_km` reuses distribution()'s own first distance bucket
+    boundary (10km) rather than inventing a second number.
+    """
+
+    threshold_km: float
+    rows: list[XcProgressionYearRow]

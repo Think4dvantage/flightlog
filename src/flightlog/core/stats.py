@@ -42,11 +42,14 @@ from flightlog.models.stats import (
     DistributionOut,
     IgcRollupOut,
     LaunchTechniqueOut,
+    MonthlyExtremesOut,
     PersonalBestOut,
     ProgressionOut,
     ProgressionPoint,
     TimeBreakdownOut,
     TotalsOut,
+    XcProgressionOut,
+    XcProgressionYearRow,
     YtdPaceOut,
 )
 
@@ -293,6 +296,30 @@ def distribution(db: Session, owner_id: str) -> DistributionOut:
     )
 
 
+def _max_by_month(flights, attr: str) -> dict[int, float | None]:
+    result: dict[int, float | None] = dict.fromkeys(range(1, 13), None)
+    for f in flights:
+        value = getattr(f, attr)
+        if value is None:
+            continue
+        month = f.flight_date.month
+        if result[month] is None or value > result[month]:
+            result[month] = value
+    return result
+
+
+def monthly_extremes(db: Session, owner_id: str) -> MonthlyExtremesOut:
+    """The single best duration/distance/alt_gain per calendar month across all years — "in what
+    month did my longest/farthest/highest flight happen," not an average."""
+    flights = _load_owner_data(db, owner_id).flights
+
+    return MonthlyExtremesOut(
+        max_duration_min_by_month=_max_by_month(flights, "duration_min"),
+        max_distance_km_by_month=_max_by_month(flights, "distance_km"),
+        max_alt_gain_m_by_month=_max_by_month(flights, "alt_gain_m"),
+    )
+
+
 # label -> (attribute getter, is_min)
 _PERSONAL_BEST_SPECS: tuple[tuple[str, str, bool], ...] = (
     ("longest_airtime", "duration_min", False),
@@ -318,9 +345,49 @@ def personal_bests(db: Session, owner_id: str) -> list[PersonalBestOut]:
         tied = [f for v, f in candidates if v == best_value]
         # Deterministic across page loads: earliest flight_date, then id.
         winner = min(tied, key=lambda f: (f.flight_date, f.id))
-        results.append(PersonalBestOut(label=label, value=best_value, flight_id=winner.id))
+        results.append(
+            PersonalBestOut(
+                label=label, value=best_value, flight_id=winner.id, flight_date=winner.flight_date
+            )
+        )
 
     return results
+
+
+def xc_progression(
+    db: Session, owner_id: str, threshold_km: float | None = None
+) -> XcProgressionOut:
+    """
+    Per-year share of flights at or above `threshold_km` — a category-name-independent
+    proxy for "real" cross-country flying vs. short local hops (`flight_categories.name`
+    is free text, not a stable enum, so this never matches against a category name).
+    Defaults to `distribution()`'s own first distance-bucket boundary rather than
+    inventing a second number.
+    """
+    if threshold_km is None:
+        threshold_km = float(_DISTANCE_BOUNDS[0])
+
+    flights = _load_owner_data(db, owner_id).flights
+
+    by_year: dict[int, list] = {}
+    for f in flights:
+        by_year.setdefault(f.flight_date.year, []).append(f)
+
+    rows = [
+        XcProgressionYearRow(
+            year=year,
+            total_flights=len(yfs),
+            xc_shaped_flights=sum(1 for f in yfs if (f.distance_km or 0) >= threshold_km),
+            xc_pct=(
+                sum(1 for f in yfs if (f.distance_km or 0) >= threshold_km) / len(yfs) * 100
+                if yfs
+                else 0.0
+            ),
+        )
+        for year, yfs in sorted(by_year.items())
+    ]
+
+    return XcProgressionOut(threshold_km=threshold_km, rows=rows)
 
 
 # ---- P1 continued: dimension matrices, launch technique ----
@@ -526,8 +593,13 @@ def progression(db: Session, owner_id: str, today: date | None = None) -> Progre
     pace = ytd_pace(flights, today)
     series = cumulative_progression(flights)
 
+    last_flight_date = max((f.flight_date for f in flights), default=None)
+    days_since_last_flight = (today - last_flight_date).days if last_flight_date else None
+
     return ProgressionOut(
         current_streak=CurrentStreakOut(**streak),
         ytd_pace=YtdPaceOut(**pace),
         cumulative_series=[ProgressionPoint(**p) for p in series],
+        days_since_last_flight=days_since_last_flight,
+        last_flight_date=last_flight_date,
     )

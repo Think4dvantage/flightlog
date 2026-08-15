@@ -226,6 +226,14 @@ function render() {
       tr.appendChild(td);
     }
 
+    const trackTd = document.createElement('td');
+    const trackBadge = document.createElement('span');
+    trackBadge.className = f.has_igc_track ? 'track-badge track-yes' : 'track-badge track-no';
+    trackBadge.textContent = f.has_igc_track ? '✓' : '–';
+    trackBadge.title = window.t(f.has_igc_track ? 'flights.track_yes' : 'flights.track_no');
+    trackTd.appendChild(trackBadge);
+    tr.appendChild(trackTd);
+
     const actionTd = document.createElement('td');
     const editBtn = document.createElement('button');
     editBtn.type = 'button';

@@ -365,6 +365,30 @@ Four deliberate disagreements with the Excel's `Übersicht` sheet — **confirm 
    (as of this writing, likely zero — nothing has ever auto-created one, per v0.2's FR-017), confirmed live
    where the buddy matrix returns an empty `rows: []` against the real dev database.
 
+**Coaching-oriented additions (v0.7.3), from a direct pilot-review pass, not a new spec cycle**: `/stats`
+gained five small features aimed at motivation-with-safety-margins rather than raw volume — `xc_progression()`
+(per-year % of flights ≥`_DISTANCE_BOUNDS[0]`km, a deliberately category-name-independent proxy for "real"
+XC flying, since `flight_categories.name` is free text a pilot could rename or never use consistently), a
+`progression.days_since_last_flight`/`last_flight_date` currency pair (frontend colour-bands it green/
+amber/red), a client-side-only site-diversity note ("N% of flights at your top 5 sites") computed from the
+already-fetched `matrix/site` response, a client-side-only IGC track-coverage nudge combining `totals.
+total_flights` with `igc-rollup.tracks_uploaded`, and a `personal_bests.flight_date` field powering a
+"set N days/years ago" column. A safety-incident-category tile (surfacing `Bruchflug`/`Schwarzflug` counts)
+was proposed in the same pass and explicitly declined by the pilot — do not re-add it speculatively. The
+framing reason behind all of this (why currency is a safety nudge, not a volume push) is a personal-context
+decision, not a technical one — see `RESUME.md` and this session's memory record before changing the tone
+of any of this copy.
+
+**Chart.js gotcha, hit and fixed in v0.7.2: never store a callback function as a leaf value inside
+`chart.options`.** `static/stats.js`'s `barChart()` helper draws each bar's own value on the chart (per
+pilot feedback against the deployed instance) via a small inline `afterDatasetsDraw` plugin. The first
+version stashed the per-chart formatter function at `chart.options.plugins.barValueLabel.formatter` —
+Chart.js treats *any* function found while resolving its `options` tree as a "scriptable option" and
+auto-invokes it with its own internal context object, not the bar's value, which crashed every downstream
+`Math.round()`/`toFixed()` call the moment the plugin read it back. The fix: stash the formatter directly
+on the chart instance (`chart.$barValueLabelFormatter`), entirely outside `options`, where Chart.js's
+resolver never looks.
+
 **`database/db.py`'s `_seed_regions()` list and `core/aliases.py`'s `SITE_REGION` values must use
 identical spelling for every region name.** `_get_or_create_region` matches by exact string, not fuzzy —
 a spelling drift between the two doesn't error, it silently creates a second, orphaned region row on the
@@ -397,14 +421,14 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
 | `/api/categories` | `categories.py` | **shipped v0.2** — CRUD + `PUT /reorder` + `POST /{id}/archive` |
 | `/api/buddies` | `buddies.py` | **shipped v0.2** — CRUD + `POST /{id}/link` (always 202) + `/link/accept` + `/link/decline` |
-| `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m` |
+| `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m`. **v0.7.4**: `FlightOut.has_igc_track` — the list endpoint batches one `IgcTrack.flight_id IN (...)` query for the page rather than checking `flight.igc_track` per row (the N+1 `04-constraints.md` warns about); single-flight routes check directly, since that's one row |
 | `/api/import-report` | `import_report.py` | **shipped v0.3** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer |
 | — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
 | `/api/flights/{id}/igc`, `/api/igc/*`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route |
 | `/api/hikes`, `/api/groundhandling`, `/api/tandem-flights` | `hikes.py`, `groundhandling.py`, `tandem_flights.py` | **shipped v0.6** — `GET` list + `GET /{id}` only, import-and-view (no `POST`/`PUT`/`DELETE`); rows are created only by `core/secondary_import.py` |
 | `/api/goals` | `goals.py` | **shipped v0.6** — full CRUD + `POST /{id}/mark-done`; the one imported type in this milestone that stays editable — `import_key` is never accepted from the request body |
 | — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) has moved to `features.md`'s Backlog — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |
-| `/api/stats` | `stats.py` | **shipped v0.7** — 8 `GET`-only, owner-scoped endpoints (`totals`, `time-breakdown`, `distribution`, `personal-bests`, `matrix/{dimension}`, `launch-technique`, `igc-rollup`, `progression`); no new tables, every figure a read-time aggregate over `core/stats.py`. `matrix/{dimension}` takes a plain `str` + allowlist, not `Literal[...]`, so an unknown dimension is `404 ENTITY_NOT_FOUND` rather than FastAPI's own `422` |
+| `/api/stats` | `stats.py` | **shipped v0.7, extended v0.7.2–v0.7.3** — 10 `GET`-only, owner-scoped endpoints (`totals`, `time-breakdown`, `distribution`, `monthly-extremes`, `xc-progression`, `personal-bests`, `matrix/{dimension}`, `launch-technique`, `igc-rollup`, `progression`); no new tables, every figure a read-time aggregate over `core/stats.py`. `matrix/{dimension}` takes a plain `str` + allowlist, not `Literal[...]`, so an unknown dimension is `404 ENTITY_NOT_FOUND` rather than FastAPI's own `422`. All of `monthly-extremes`, `xc-progression`, `personal-bests.flight_date`, and `progression.days_since_last_flight`/`last_flight_date` were added post-ship, per direct pilot feedback against the deployed `fl.sdh.lol` instance rather than a new spec cycle — see this section's "Coaching-oriented additions" note below |
 | `/api/integration/v1` | `integration.py` | v0.8 — frozen contract, versioned separately from the UI's models |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**

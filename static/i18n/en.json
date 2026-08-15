@@ -69,8 +69,11 @@
       "glider": "Glider",
       "duration": "Duration",
       "distance": "Distance",
+      "track": "Track",
       "actions": "Edit"
     },
+    "track_yes": "IGC track uploaded",
+    "track_no": "No IGC track uploaded",
     "drawer": {
       "add_title": "Add flight",
       "edit_title": "Edit flight",
@@ -371,10 +374,24 @@
       "distance_title": "Distance",
       "altitude_title": "Altitude gain"
     },
+    "monthly_extremes": {
+      "title": "Best by month",
+      "hint": "The single best flight in each calendar month, across every year — not an average.",
+      "duration_title": "Longest flight",
+      "distance_title": "Longest distance",
+      "altitude_title": "Highest altitude gain"
+    },
+    "xc_progression": {
+      "title": "XC progression",
+      "hint": "Share of flights each year that reached at least {threshold}km — a category-independent proxy for \"real\" cross-country flying vs. short local hops.",
+      "chart_title": "% of flights ≥{threshold}km, per year"
+    },
     "personal_bests": {
       "title": "Personal bests",
       "view_flight": "View flight",
       "empty": "No personal bests yet.",
+      "set_days_ago": "set {count} days ago",
+      "set_years_ago": "set {count} years ago",
       "label": {
         "longest_airtime": "Longest airtime",
         "max_altitude": "Highest max altitude",
@@ -396,7 +413,8 @@
       "buddy_hint": "Only flights tagged with a buddy going forward appear here — historical flights were never tagged automatically, so this legitimately starts sparse.",
       "not_recorded": "Not recorded",
       "col_total": "Total",
-      "empty": "No data yet."
+      "empty": "No data yet.",
+      "site_diversity": "{pct}% of your flights are at your top 5 sites ({siteCount} sites flown in total)"
     },
     "launch_technique": {
       "title": "Launch technique",
@@ -407,12 +425,15 @@
     },
     "igc_rollup": {
       "title": "IGC rollups",
+      "coverage": "Track coverage",
       "cumulative_climb": "Cumulative thermal climb",
       "tracks_uploaded": "Tracks uploaded",
       "empty": "No tracks uploaded yet — upload IGC files on a flight to see your cumulative thermal climb build up here."
     },
     "progression": {
       "title": "Momentum",
+      "currency": "Currency",
+      "currency_days": "{count} days since your last flight",
       "streak_week": "{count}-week streak",
       "streak_zero": "No current streak",
       "ytd_pace_title": "Year-to-date pace",

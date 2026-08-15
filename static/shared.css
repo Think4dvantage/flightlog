@@ -195,6 +195,10 @@ tbody tr.row-highlight { background: rgba(144, 205, 244, 0.18); transition: back
 
 .empty-state { padding: 2rem 0; text-align: center; }
 
+.track-badge { font-weight: 700; cursor: default; }
+.track-badge.track-yes { color: var(--success); }
+.track-badge.track-no { color: var(--text-dim); }
+
 .pagination {
   display: flex;
   align-items: center;

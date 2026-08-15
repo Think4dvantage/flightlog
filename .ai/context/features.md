@@ -1,13 +1,18 @@
 # Feature History & Backlog
 
-## Current Version: v0.6.0 tagged and deployed; v0.7 (statistics) implemented on `main`, not yet tagged
+## Current Version: v0.7.0 tagged and deployed to `fl.sdh.lol`; v0.7.1–v0.7.4 (stats polish + coaching features + IGC track flag) implemented, not yet tagged
 
-v0.1 through v0.6 are all tagged (`v0.1.0`–`v0.6.0`) and each triggered `docker-publish.yml`. v0.6 shipped
-the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the XContest
-score import originally scoped alongside it has moved to the Backlog below rather than staying an open
-phase of that milestone — see its entry there. **v0.7 (statistics) is implemented** — `/api/stats` and
-`/stats` per `specs/005-statistics/`, verified live via `curl` and a real connected browser against the
-603-flight dev database, not yet tagged or deployed. See `RESUME.md` for the moment-to-moment state.
+v0.1 through v0.7.0 are all tagged (`v0.1.0`–`v0.7.0`) and each triggered `docker-publish.yml`. v0.6
+shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
+XContest score import originally scoped alongside it has moved to the Backlog below rather than staying
+an open phase of that milestone — see its entry there. **v0.7 (statistics) shipped and is live at
+`fl.sdh.lol`** — `/api/stats` and `/stats` per `specs/005-statistics/`, verified live via `curl` and a
+real connected browser against the 603-flight dev database. A round of small post-ship enhancements is
+implemented on `main` as `v0.7.1`–`v0.7.4` (on-bar chart value labels, "Best by month", five
+coaching-oriented stats from a pilot-review pass — XC progression, currency, site diversity, IGC
+coverage, personal-best recency — and a sortable IGC-track-present/missing flag on `/flights`), not yet
+tagged or deployed — pilot said to hold off on shipping for now; see that entry's note below and
+`RESUME.md` for the moment-to-moment state.
 
 ---
 
@@ -206,6 +211,28 @@ returned empty (`rows: []`), confirming zero `flight_buddies` rows exist yet —
 state the spec predicted, not a defect. See `architecture.md`'s Statistics section for the full detail,
 now updated from "two" to **four** confirmed workbook disagreements (the `Buddys`-tally name/count
 mismatch discovered while planning this feature is the newly-added one).
+
+**Deployed to `fl.sdh.lol`. Two small post-ship enhancements shipped as `v0.7.1`/`v0.7.2`**, driven by
+pilot feedback against the live instance rather than new spec work: every bar chart on `/stats` now draws
+each bar's own value directly on the bar (no hover needed) via a small inline Chart.js plugin, and a new
+"Best by month" section (`GET /api/stats/monthly-extremes`) shows the single best duration/distance/
+altitude-gain flight in each calendar month across all years — deliberately the max, not an average,
+matching the pilot's literal ask ("in what months did I get my longest flights"). `v0.7.1`'s
+bar-value-label plugin shipped with a real bug (see `architecture.md`'s Chart.js gotcha note) caught only
+by a live re-verification pass, not by the test suite — fixed in `v0.7.2`.
+
+**`v0.7.3` adds five coaching-oriented stats from a direct pilot-review pass** (asked as "review my
+flightlog as an X-Alps pilot/instructor, run every idea by me first") — see `architecture.md`'s
+"Coaching-oriented additions" note for the full list (XC progression, currency, site diversity, IGC
+coverage, personal-best recency) and what was proposed-but-declined (a safety-incident-category tile).
+Framed around the pilot's own life context (a newborn on the way, deliberately less flying time and
+higher safety margins) rather than pushing volume — recorded in this session's memory, not just here,
+since it should shape how future `/stats` copy is worded too.
+
+**`v0.7.4` adds a sortable IGC-track flag to `/flights`** — a green ✓/dim – badge per row so it's obvious
+at a glance which flights are missing a track, requested directly by the pilot as a follow-up. Purely
+additive (`FlightOut.has_igc_track`, batched not per-row — see `architecture.md`'s `/api/flights` entry);
+no `/stats` or `flight-detail` change needed.
 
 ### v0.8 — Public API + VidFactory integration
 

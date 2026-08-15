@@ -19,7 +19,7 @@ from flightlog.api.dependencies import get_current_user
 from flightlog.api.errors import AppException
 from flightlog.core.flights import compute_altitude_figures, list_flights
 from flightlog.database.db import get_db
-from flightlog.database.models import Flight, FlightBuddy, User
+from flightlog.database.models import Flight, FlightBuddy, IgcTrack, User
 from flightlog.models.flights import FlightCreate, FlightOut, FlightUpdate
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,13 @@ def _get_own_flight(flight_id: str, current_user: User, db: Session) -> Flight:
     return row
 
 
-def _to_out(db: Session, flight: Flight) -> FlightOut:
+def _to_out(db: Session, flight: Flight, has_igc_track: bool | None = None) -> FlightOut:
+    """
+    `has_igc_track` is precomputed and passed in by the caller for a list (see
+    `list_flights_route`) — a batched query, not one `IgcTrack` lookup per flight, which
+    would be the exact N+1 `04-constraints.md` warns against. Single-flight callers
+    (create/get/update) look it up directly here since that's a single row, not a loop.
+    """
     buddy_ids = [
         fb.buddy_id for fb in db.query(FlightBuddy).filter(FlightBuddy.flight_id == flight.id)
     ]
@@ -45,6 +51,11 @@ def _to_out(db: Session, flight: Flight) -> FlightOut:
     out.alt_gain_m = figures["alt_gain_m"]
     out.site_drop_m = figures["site_drop_m"]
     out.total_descent_m = figures["total_descent_m"]
+    if has_igc_track is None:
+        has_igc_track = (
+            db.query(IgcTrack).filter(IgcTrack.flight_id == flight.id).first() is not None
+        )
+    out.has_igc_track = has_igc_track
     return out
 
 
@@ -73,7 +84,13 @@ def list_flights_route(
         site_id=site_id,
         region_id=region_id,
     )
-    return [_to_out(db, f) for f in flights]
+    flight_ids = [f.id for f in flights]
+    tracked_ids = (
+        {row[0] for row in db.query(IgcTrack.flight_id).filter(IgcTrack.flight_id.in_(flight_ids))}
+        if flight_ids
+        else set()
+    )
+    return [_to_out(db, f, has_igc_track=f.id in tracked_ids) for f in flights]
 
 
 @router.post("", response_model=FlightOut, status_code=201)

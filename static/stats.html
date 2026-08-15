@@ -27,6 +27,10 @@
         <table id="yearMonthTable"><thead></thead><tbody></tbody></table>
       </div>
 
+      <h2 data-i18n="stats.xc_progression.title">XC progression</h2>
+      <p class="muted" id="xcProgressionHint"></p>
+      <div class="chart-container"><canvas id="chartXcProgression"></canvas></div>
+
       <h2 data-i18n="stats.distribution.title">Distributions</h2>
       <h3 data-i18n="stats.distribution.duration_title">Duration</h3>
       <div class="chart-container"><canvas id="chartDurationDist"></canvas></div>
@@ -34,6 +38,15 @@
       <div class="chart-container"><canvas id="chartDistanceDist"></canvas></div>
       <h3 data-i18n="stats.distribution.altitude_title">Altitude gain</h3>
       <div class="chart-container"><canvas id="chartAltitudeDist"></canvas></div>
+
+      <h2 data-i18n="stats.monthly_extremes.title">Best by month</h2>
+      <p class="muted" data-i18n="stats.monthly_extremes.hint">The single best flight in each calendar month, across every year — not an average.</p>
+      <h3 data-i18n="stats.monthly_extremes.duration_title">Longest flight</h3>
+      <div class="chart-container"><canvas id="chartMonthlyDuration"></canvas></div>
+      <h3 data-i18n="stats.monthly_extremes.distance_title">Longest distance</h3>
+      <div class="chart-container"><canvas id="chartMonthlyDistance"></canvas></div>
+      <h3 data-i18n="stats.monthly_extremes.altitude_title">Highest altitude gain</h3>
+      <div class="chart-container"><canvas id="chartMonthlyAltitude"></canvas></div>
 
       <h2 data-i18n="stats.personal_bests.title">Personal bests</h2>
       <div id="personalBestsEmpty" class="muted" hidden data-i18n="stats.personal_bests.empty">No personal bests yet.</div>
@@ -44,6 +57,7 @@
       <h2 id="matrixTitle"></h2>
       <div class="tab-row" id="matrixTabs"></div>
       <p class="muted" id="matrixHint" hidden></p>
+      <p class="muted" id="siteDiversityNote" hidden></p>
       <div id="matrixEmpty" class="muted" hidden data-i18n="stats.matrix.empty">No data yet.</div>
       <div class="table-scroll">
         <table id="matrixTable"><thead></thead><tbody></tbody></table>
