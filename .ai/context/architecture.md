@@ -31,10 +31,10 @@ plan and research behind it.
 | `igc_segments` | **shipped v0.5** | thermals / glides / markers with takeoff-relative offsets |
 | `site_observations` | **shipped v0.5** | `id`, `site_id`, `track_id`, `kind` (takeoff\|landing), `lat`, `lon`, `alt_m` — feeds `core/site_backfill.py`'s median coordinate recompute |
 | `igc_pending_uploads` | **shipped v0.5** | a plan-level addition beyond the original `architecture.md` table list (`specs/003-igc-ingest-analysis/data-model.md`) — a bulk-uploaded file that didn't auto-attach; persists the review queue past a closed tab |
-| `hikes` | v0.6 | `Fitnessprogramm` sheet; nullable `flight_id` |
-| `groundhandling` | v0.6 | `date`, `place`, `duration_min`, `comment` |
-| `tandem_flights` | v0.6 | flights as a passenger — deliberately NOT in `flights` |
-| `goals` | v0.6 | `Ziele` sheet |
+| `hikes` | **shipped v0.6** | `Fitnessprogramm` sheet; nullable `flight_id`, linked only on an unambiguous same-date match against an `is_hike_fly` flight — never guessed |
+| `groundhandling_sessions` | **shipped v0.6** | `date`, `place`, `duration_min`, `comment` — named with a `_sessions` suffix, not bare `groundhandling` (the sheet name is German shorthand, not a schema-naming convention) |
+| `tandem_flights` | **shipped v0.6** | flights as a passenger — deliberately NOT in `flights`; `tandem_operator` stays free text, never a `buddies` FK (real source values include company names) |
+| `goals` | **shipped v0.6** | `Ziele` sheet; the one imported type that stays fully editable afterward (full CRUD + a `mark-done` action) — every other type in this milestone is import-and-view only |
 
 ### Tables that do NOT exist — do not code against them
 
@@ -173,6 +173,34 @@ every Hike&Fly statistic. The flags also express the Excel's "Average Airtime sp
 
 The buddy row always belongs to its creator. `linked_user_id` is enrichment, never ownership — deleting
 a buddy never touches the linked account.
+
+---
+
+## Secondary sheets import — `core/secondary_import.py`
+
+**Shipped v0.6.** Mirrors `core/importer.py`'s existing shape exactly: `import_key` of
+`"<sheet>:<row>"`, looked up per-owner before writing, so a second run changes nothing. Three of the
+four imported types (`hikes`, `groundhandling_sessions`, `tandem_flights`) are import-and-view only —
+no write path exists beyond the importer itself. `goals` is the exception: fully editable afterward via
+`/api/goals`'s normal CRUD router, the same as every other owner-scoped domain entity in this app.
+
+**Hike-to-flight linking never guesses.** A hike's source row carries `Airtime`/`Landeplatz` values only
+when it became a real flight; that presence (not the date alone) is the signal to attempt a link, and
+even then only when exactly one same-date flight with `flight_categories.is_hike_fly = True` exists.
+Zero or multiple candidates → the hike imports with `flight_id = NULL`, never a guessed match — the same
+principle already applied to the IGC bulk-match and XContest score matching. Against the real workbook:
+85 hikes, 35 linked.
+
+**`Ziele`'s reported column width (~505) is misleading — real data lives in the first 8 columns only**,
+the rest being leftover Excel formatting artifacts, `None` on every real row. The importer reads by
+fixed position (0–7), never iterates the sheet's full reported width.
+
+**XContest "My Flights" score import was originally scoped alongside this milestone and remains
+unimplemented** — its exact export JSON schema was never confirmed (the site requires a login session to
+inspect, and the one third-party integration investigated, `Iv/FlyHigh`, turned out to implement the
+opposite direction — submitting a flight for scoring, not reading back an already-scored list). Resolve
+by obtaining one real sample export before writing that parser; `flights.xc_official_score`/`_type`/
+`_url` (already named in `specs/001-core-data-import/data-model.md`) remain unpopulated until then.
 
 ---
 
@@ -341,6 +369,9 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/import-report` | `import_report.py` | **shipped v0.3** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer |
 | — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
 | `/api/flights/{id}/igc`, `/api/igc/*`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route |
+| `/api/hikes`, `/api/groundhandling`, `/api/tandem-flights` | `hikes.py`, `groundhandling.py`, `tandem_flights.py` | **shipped v0.6** — `GET` list + `GET /{id}` only, import-and-view (no `POST`/`PUT`/`DELETE`); rows are created only by `core/secondary_import.py` |
+| `/api/goals` | `goals.py` | **shipped v0.6** — full CRUD + `POST /{id}/mark-done`; the one imported type in this milestone that stays editable — `import_key` is never accepted from the request body |
+| — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) remains unimplemented — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |
 | `/api/stats` | `stats.py` | v0.7 |
 | `/api/integration/v1` | `integration.py` | v0.8 — frozen contract, versioned separately from the UI's models |
 
