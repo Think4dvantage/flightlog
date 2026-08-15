@@ -13,6 +13,7 @@
     <div class="card">
       <div class="page-head">
         <h1 data-i18n="tandem_flights.title">Tandem flights</h1>
+        <button type="button" id="addTandemBtn" data-i18n="tandem_flights.add">Add tandem flight</button>
       </div>
 
       <div id="alert" class="alert alert-error"></div>
@@ -28,6 +29,7 @@
               <th data-i18n="tandem_flights.col.operator">Pilot / operator</th>
               <th data-i18n="tandem_flights.col.cost">Cost</th>
               <th data-i18n="tandem_flights.col.comment">Comment</th>
+              <th data-i18n="tandem_flights.col.actions">Actions</th>
             </tr>
           </thead>
           <tbody id="tandemBody"></tbody>
@@ -39,6 +41,69 @@
       </div>
     </div>
   </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="tandemDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="tandem_flights.drawer.add_title">Add tandem flight</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="tandemForm" novalidate>
+      <input type="hidden" id="t_id">
+
+      <div class="field">
+        <label for="t_date" data-i18n="tandem_flights.drawer.date">Date</label>
+        <input type="date" id="t_date" required>
+        <p class="field-error" data-field="flight_date"></p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="t_launch" data-i18n="tandem_flights.drawer.launch_place">Launch place</label>
+          <input type="text" id="t_launch" required maxlength="200">
+          <p class="field-error" data-field="launch_place"></p>
+        </div>
+        <div class="field">
+          <label for="t_landing" data-i18n="tandem_flights.drawer.landing_place">Landing place</label>
+          <input type="text" id="t_landing" required maxlength="200">
+          <p class="field-error" data-field="landing_place"></p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="t_operator" data-i18n="tandem_flights.drawer.operator">Pilot / operator</label>
+          <input type="text" id="t_operator">
+          <p class="field-error" data-field="tandem_operator"></p>
+        </div>
+        <div class="field">
+          <label for="t_cost" data-i18n="tandem_flights.drawer.cost">Cost</label>
+          <input type="number" id="t_cost" min="0" step="0.01">
+          <p class="field-error" data-field="cost"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="t_comment" data-i18n="tandem_flights.drawer.comment">Comment</label>
+        <textarea id="t_comment" rows="3"></textarea>
+        <p class="field-error" data-field="comment"></p>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="tandem_flights.drawer.save">Save</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="tandem_flights.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="tandem_flights.delete_confirm.prompt">Delete this tandem flight? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="tandem_flights.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="tandem_flights.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
 
   <script type="module" src="/static/tandem-flights.js"></script>
 </body>

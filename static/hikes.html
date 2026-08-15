@@ -13,6 +13,7 @@
     <div class="card">
       <div class="page-head">
         <h1 data-i18n="hikes.title">Hikes</h1>
+        <button type="button" id="addHikeBtn" data-i18n="hikes.add">Add hike</button>
       </div>
 
       <div id="alert" class="alert alert-error"></div>
@@ -29,6 +30,7 @@
               <th data-i18n="hikes.col.distance">Distance</th>
               <th data-i18n="hikes.col.duration">Duration</th>
               <th data-i18n="hikes.col.flight">Became a flight</th>
+              <th data-i18n="hikes.col.actions">Actions</th>
             </tr>
           </thead>
           <tbody id="hikesBody"></tbody>
@@ -40,6 +42,88 @@
       </div>
     </div>
   </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="hikeDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="hikes.drawer.add_title">Add hike</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="hikeForm" novalidate>
+      <input type="hidden" id="h_id">
+
+      <div class="field">
+        <label for="h_date" data-i18n="hikes.drawer.date">Date</label>
+        <input type="date" id="h_date" required>
+        <p class="field-error" data-field="hike_date"></p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="h_start" data-i18n="hikes.drawer.start_place">Start place</label>
+          <input type="text" id="h_start" required maxlength="200">
+          <p class="field-error" data-field="start_place"></p>
+        </div>
+        <div class="field">
+          <label for="h_destination" data-i18n="hikes.drawer.destination_place">Destination</label>
+          <input type="text" id="h_destination" required maxlength="200">
+          <p class="field-error" data-field="destination_place"></p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="h_ascent" data-i18n="hikes.drawer.ascent">Ascent (m)</label>
+          <input type="number" id="h_ascent" min="0" step="1">
+          <p class="field-error" data-field="ascent_m"></p>
+        </div>
+        <div class="field">
+          <label for="h_descent" data-i18n="hikes.drawer.descent">Descent (m)</label>
+          <input type="number" id="h_descent" min="0" step="1">
+          <p class="field-error" data-field="descent_m"></p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="h_distance" data-i18n="hikes.drawer.distance">Distance (km)</label>
+          <input type="number" id="h_distance" min="0" step="0.1">
+          <p class="field-error" data-field="distance_km"></p>
+        </div>
+        <div class="field">
+          <label for="h_duration" data-i18n="hikes.drawer.duration">Duration (min)</label>
+          <input type="number" id="h_duration" min="0" step="1">
+          <p class="field-error" data-field="duration_min"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="h_route_description" data-i18n="hikes.drawer.route_description">Route description</label>
+        <textarea id="h_route_description" rows="2"></textarea>
+        <p class="field-error" data-field="route_description"></p>
+      </div>
+
+      <div class="field">
+        <label for="h_flight" data-i18n="hikes.drawer.flight_link">Linked flight (optional)</label>
+        <select id="h_flight"><option value="" data-i18n="hikes.drawer.no_flight_link">Not linked to a flight</option></select>
+        <p class="field-error" data-field="flight_id"></p>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="hikes.drawer.save">Save</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="hikes.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="hikes.delete_confirm.prompt">Delete this hike? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="hikes.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="hikes.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
 
   <script type="module" src="/static/hikes.js"></script>
 </body>

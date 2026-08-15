@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from flightlog.core.stats import (
-    cumulative_progression,
     current_streak,
     hike_fly_total,
     launch_technique_split,
@@ -80,14 +79,6 @@ def test_ytd_pace_compares_same_calendar_window():
         _f(prior_cutoff + timedelta(days=1), flight_id="c"),  # one day past the window
     ]
     assert ytd_pace(flights, today) == {"this_year": 1, "same_point_prior_year": 1}
-
-
-def test_cumulative_progression_orders_by_date_and_is_monotonic():
-    flights = [_f(date(2023, 6, 1), flight_id="b"), _f(date(2023, 5, 1), flight_id="a")]
-    assert cumulative_progression(flights) == [
-        {"date": "2023-05-01", "cumulative_count": 1},
-        {"date": "2023-06-01", "cumulative_count": 2},
-    ]
 
 
 # ---- API tests ----
@@ -383,8 +374,7 @@ async def test_progression_shape(client, make_token, stats_setup):
     body = (await client.get("/api/stats/progression", headers=headers)).json()
     # All fixture flights are in 2023 — no streak against "today".
     assert body["current_streak"] == {"unit": "week", "count": 0}
-    assert len(body["cumulative_series"]) == 4
-    assert body["cumulative_series"][-1]["cumulative_count"] == 4
+    assert "cumulative_series" not in body  # replaced by the frontend's per-year chart
     # f4 (2023-08-01) is the most recent fixture flight; "today" is the real clock, so only
     # the deterministic last_flight_date is asserted, not the day count itself.
     assert body["last_flight_date"] == "2023-08-01"

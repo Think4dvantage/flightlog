@@ -45,7 +45,6 @@ from flightlog.models.stats import (
     MonthlyExtremesOut,
     PersonalBestOut,
     ProgressionOut,
-    ProgressionPoint,
     TimeBreakdownOut,
     TotalsOut,
     XcProgressionOut,
@@ -576,14 +575,6 @@ def ytd_pace(flights, today: date) -> dict:
     return {"this_year": this_year_count, "same_point_prior_year": prior_count}
 
 
-def cumulative_progression(flights) -> list[dict]:
-    ordered = sorted(flights, key=lambda f: (f.flight_date, f.id))
-    return [
-        {"date": f.flight_date.isoformat(), "cumulative_count": count}
-        for count, f in enumerate(ordered, start=1)
-    ]
-
-
 def progression(db: Session, owner_id: str, today: date | None = None) -> ProgressionOut:
     if today is None:
         today = utcnow().date()
@@ -591,7 +582,6 @@ def progression(db: Session, owner_id: str, today: date | None = None) -> Progre
     flights = _load_owner_data(db, owner_id).flights
     streak = current_streak(flights, today)
     pace = ytd_pace(flights, today)
-    series = cumulative_progression(flights)
 
     last_flight_date = max((f.flight_date for f in flights), default=None)
     days_since_last_flight = (today - last_flight_date).days if last_flight_date else None
@@ -599,7 +589,6 @@ def progression(db: Session, owner_id: str, today: date | None = None) -> Progre
     return ProgressionOut(
         current_streak=CurrentStreakOut(**streak),
         ytd_pace=YtdPaceOut(**pace),
-        cumulative_series=[ProgressionPoint(**p) for p in series],
         days_since_last_flight=days_since_last_flight,
         last_flight_date=last_flight_date,
     )

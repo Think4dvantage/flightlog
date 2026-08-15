@@ -2,142 +2,121 @@
 
 ## In Progress
 
-**v0.7.0 (statistics) is tagged, pushed, and deployed — confirmed live by the pilot at `fl.sdh.lol`.**
-A growing set of small follow-up enhancements, driven directly by pilot feedback against that live
-instance, is implemented and live-verified locally as `v0.7.1`→`v0.7.4` but **not yet committed, tagged,
-or pushed**. The pilot was explicitly asked and said to hold off on shipping this round — do not commit/
-tag/push it without asking again.
+**Nothing in progress — `v0.7.5` is implemented, tested, live-verified, committed, tagged, and pushed
+this session, closing out a live pilot-feedback pass against the deployed `fl.sdh.lol` instance.**
+`v0.7.0`–`v0.7.4` were already tagged/deployed from earlier in this session; `v0.7.5` continues straight
+on from there with the pilot's explicit go-ahead to decide any open design questions and ship
+autonomously (given at the point they went to sleep mid-session).
 
-### `v0.7.4`: IGC track flag on `/flights`
+### What shipped in `v0.7.5`
 
-Smallest addition of the round: a "Track" column on the `/flights` list — a green ✓ (`.track-yes`) or dim
-– (`.track-no`) badge showing at a glance which flights have an uploaded IGC track, sortable like any
-other column. `FlightOut.has_igc_track` is new; `api/routers/flights.py`'s list endpoint batches one
-`IgcTrack.flight_id IN (...)` query for the whole page rather than checking `flight.igc_track` per row
-(would've been the exact N+1 `04-constraints.md` warns against) — single-flight routes (create/get/update)
-still check directly, since that's one row, not a loop. Purely additive: no change to `flight-detail`
-(already shows the full track section) or to any `/stats` endpoint. 1 new backend test
-(`test_has_igc_track_reflects_presence_on_list_and_single_get`), 183/183 passing, verified live via
-`curl` and a real browser (sorted by the new column, confirmed the 3 tracked flights sort to the top with
-the green badge, everything else shows dim).
+The pilot reviewed the live `fl.sdh.lol` deployment and reported four real gaps plus one bug report
+(the bug turned out to be infrastructure, not app code — see below). All four gaps are fixed:
 
-### What's in this round
+1. **`/contacts` — full buddy CRUD.** Backend (`/api/buddies`) already had complete CRUD +
+   link/accept/decline since v0.2 (Phase 9 of `specs/002-flight-log-ui` spec'd this page since v0.3); it
+   was simply never built. This was also the actual root cause of "I can't tag buddies on flights" — the
+   flight drawer's buddy multi-select was always empty because nothing could create a buddy. Verified
+   live end-to-end: created a contact named "Tom," tagged it on a real flight via the existing flights
+   drawer, confirmed the contact's flight-count went 0→1 on `/contacts`. Both test records deleted after.
+2. **Full CRUD for hikes, groundhandling sessions, and tandem flights.** All three were deliberately
+   "import-and-view only" since v0.6 — reasonable until a pilot with a newborn on the way and less flying
+   time wants to log a ground-handling session or a solo hike going forward, with no way to. New
+   `HikeCreate`/`HikeUpdate`/`GroundhandlingSessionCreate`/`Update`/`TandemFlightCreate`/`Update` schemas,
+   `POST`/`PUT`/`DELETE` added to all three routers, matching `goals.py`'s existing CRUD pattern exactly
+   (including `import_key` staying server-only). `HikeCreate`/`Update` additionally accept an optional
+   `flight_id` so a pilot can link/unlink a hike to a flight by hand — never ownership-validated, matching
+   how `flights.py` already treats other cross-referenced ids (`launch_site_id`, `category_id`). New
+   `tests/backend/test_secondary_crud.py`, 8 tests, all three entities × create/get/update/delete +
+   ownership-scoping (404-not-403). Verified live: added a groundhandling session (9→10), edited a hike
+   (confirmed the flight-link dropdown pre-selects the real linked flight), added a tandem flight
+   (17→18) — all three deleted after.
+3. **"Import findings" page removed.** Pilot's own words: "outdated and not needed." Nav link and
+   `/import` route deleted, `static/import.html`/`import.js` deleted. `/api/import-report` and
+   `core/import_history.py`'s frozen snapshot are deliberately untouched — kept in case the historical
+   record is ever wanted again, just no longer surfaced in the UI. Confirmed `GET /import` now 404s
+   cleanly.
+4. **"Cumulative flights over time" chart replaced.** Pilot's own words: "just a straight line from
+   bottom left to top right — has no use at all," and they're right — a running total by date is
+   monotonically increasing by construction, so it could never show a slowdown or a comeback. Replaced
+   with "Monthly pace, by year" — one line per year across Jan–Dec, built entirely client-side from
+   `time-breakdown`'s already-fetched `year_month_matrix` (no new backend call). `ProgressionOut.
+   cumulative_series`, `ProgressionPoint`, and `core/stats.py`'s `cumulative_progression()` were deleted
+   outright, not left as dead code. Verified live: the new chart renders 9 distinctly-colored year lines
+   with a bottom legend, showing real month-to-month variation per year — including the daughter-related
+   2024+ slowdown as an honest dip rather than an invisible non-event.
 
-1. **Every bar chart on `/stats` draws each bar's own value on the bar** (no hover needed) — a small
-   inline Chart.js plugin (`barValueLabelPlugin` in `static/stats.js`), not a vendored dependency.
-2. **"Best by month"** (`GET /api/stats/monthly-extremes`) — the single best (max, never average)
-   duration/distance/altitude-gain flight per calendar month across all years.
-3. **A pilot-coaching review pass**: asked to role-play an X-Alps pilot/instructor and propose new stats
-   aimed at motivation + safety. Pulled the real 603-flight dataset first (not generic ideas), presented a
-   menu of concrete proposals with rationale, and only built what the pilot greenlit:
-   - **XC progression** (`GET /api/stats/xc-progression`) — % of flights ≥10km per year (reuses
-     `distribution()`'s own first distance-bucket boundary rather than inventing a number, and is
-     deliberately category-name-independent — `flight_categories.name` is free text, never matched
-     against). Tells a real story in this pilot's own data: 0%→33% growth 2018-2023, dropping to 11-12%
-     in 2024-2025 — see the life-context note below before reading that drop as a regression.
-   - **Currency indicator** — "N days since your last flight" on the Momentum section, colour-banded
-     (green ≤14d / amber ≤45d / red beyond, via `--success`/`--warm`/`--danger`) — a safety nudge, not a
-     guilt trip. Backend: `ProgressionOut.days_since_last_flight`/`last_flight_date`.
-   - **Site diversity / comfort-zone note** — "62% of your flights are at your top 5 sites (34 sites
-     flown in total)" under the dimension-matrix section, only shown on the "site" tab. Computed entirely
-     client-side from already-fetched `matrix/site` data — no backend change.
-   - **IGC track-coverage nudge** — "Track coverage: 0.5% (3/603)" tile, always shown (even at 0%),
-     separate from the cumulative-climb empty state. Also client-side only, combining `totals.total_flights`
-     (now cached in a module-level `totalFlights`, `loadTotals()` awaited before the rest of `init()`'s
-     `Promise.all` so it's ready in time) with the existing `igc-rollup` response.
-   - **"Set N days/years ago" on each personal best** — `PersonalBestOut` gained a `flight_date` field;
-     the personal-bests table gained a 4th column computed client-side from it.
-   - Proposed but **declined by the pilot**: surfacing `Bruchflug`/`Schwarzflug` category counts as a
-     dedicated safety-incident tile. Not built — don't re-propose without new signal.
+### The "Add goal doesn't work" report — investigated, root-caused, deliberately not touched
 
-### A real bug, caught only by live re-verification
+Tested locally against the exact `v0.7.4` build running in prod: worked perfectly, clean `201` on create.
+Traced the real cause via `ssh sdh` (the pilot's own offer): `fl.sdh.lol` sits behind a Traefik
+`traefik-oidc-auth` (Pocket-ID) middleware protecting the **entire host**, layered on top of flightlog's
+own independent JWT login. Confirmed by hitting the live site unauthenticated from outside the network —
+got a 401 in that proxy's own RFC9110-style error shape, and the flightlog container's own logs show zero
+trace of that request ever arriving. Two independent session lifetimes stacked on one host is almost
+certainly why writes (POST) silently fail for the pilot while reads (page loads, GETs) keep working.
+**Deliberately not touched**: this is shared infrastructure fronting other public services on the same
+host, the config file has live credentials in it, and the pilot chose to self-test (re-login to the SSO,
+retry) before deciding whether an actual config change is warranted. See Open Questions below.
 
-The first version of the bar-value-label plugin stored its per-chart formatter function at
-`chart.options.plugins.barValueLabel.formatter`. Chart.js auto-invokes *any* function found while
-resolving its `options` tree as a "scriptable option," passing its own internal context object instead of
-the bar's value — this crashed every `Math.round()`/`toFixed()` call inside the formatter the moment the
-plugin read it back, which froze the browser tab (screenshots timed out; the page's JS thread itself was
-fine per direct console/JS introspection — the render loop was what wedged, not the page). Fixed by
-stashing the formatter directly on the chart instance (`chart.$barValueLabelFormatter`), outside `options`
-entirely, where Chart.js's resolver never looks. Full write-up in `architecture.md`'s Statistics section
-and in memory as `flightlog_chartjs_scriptable_option_trap` — read before touching any Chart.js
-scriptable-option-shaped code in this repo again.
+### Tests, lint, verification
 
-### Personal context that shaped this round's framing
+190/190 passing project-wide (24 new: 8 in `test_secondary_crud.py`, plus `test_stats.py` updates for
+the removed `cumulative_series` field). `ruff check`/`ruff format --check` clean. Every change verified
+in a real connected browser against the local dev server (Claude in Chrome connected successfully again
+this session) — screenshots plus direct `javascript_tool`/console introspection where CDP screenshot
+capture hit its now-familiar transient flakiness. `pyproject.toml` bumped `0.7.4` → `0.7.5`.
 
-The pilot's daughter is due/was born around 29 Oct 2026 — much higher safety margins and much less time
-to fly, going forward, by explicit choice. The 2024–2026 dip in flight frequency/length visible in the
-real data is **not a regression to fix**; every stat and any coaching-style commentary going forward
-should support confident, occasional, safety-first flying rather than push volume. Recorded in memory as
-`flightlog_pilot_life_context` — read it before framing any future stats/coaching copy for this pilot.
+### Committed, tagged, pushed
 
-### Mechanics gotchas hit (again) this session
-
-- `pyproject.toml`'s version bump alone doesn't refresh `importlib.metadata`'s cached install info —
-  `poetry install` must re-run (see [[flightlog-dev-server-workflow]]).
-- Versioned static assets are `immutable` — once a `?v=` URL has been fetched once by the browser (even
-  mid-debug, even in a since-closed tab), fixing the file's *content* requires *another* version bump
-  before a fresh fetch happens anywhere, including brand-new tabs on the same profile. This round bumped
-  `0.7.1`→`0.7.2` (bug fix) and `0.7.2`→`0.7.3` (the five coaching stats) for exactly this reason.
-
-**Tests**: 182/182 passing project-wide (backend: `test_xc_progression_uses_distance_threshold_not_
-category_name`, personal-bests/progression/zero-state assertions extended for the new fields). `ruff
-check`/`ruff format --check` clean. No frontend test suite exists in this repo (per
-`06-testing-conventions.md`), so the five frontend-only additions (currency tile, site-diversity note,
-IGC coverage nudge, personal-best "set X ago") are covered by live-browser verification only, not
-automated tests — re-verify visually if touched again.
-
-**Verified live**: booted the real dev server (603 real flights), confirmed every new/changed endpoint via
-`curl`, then — Claude in Chrome connected again this session — logged in via a real tab (token injected
-into `localStorage`) and visually confirmed every item above renders correctly with zero console errors:
-on-bar labels across every chart, the XC-progression bar chart showing the real 0%→33%→11-12% arc, the
-site-diversity note ("62%... 34 sites"), the IGC coverage tile ("0.5% (3/603)"), the currency tile
-("34 days since your last flight", rendered in amber), and "set 3.0 years ago"/"set 6.0 years ago" on the
-personal-bests table. Screenshot capture was flaky partway through (CDP `Page.captureScreenshot` timing
-out repeatedly, same transient extension/tab glitch documented in prior sessions) — confirmed via direct
-`javascript_tool`/console introspection that the page itself was never frozen; screenshots did eventually
-succeed on retry and show everything working.
-
-**Not yet done**: `git add`/commit, a version tag, and pushing/deploying this round. Ask before doing so.
+The pilot explicitly authorized finishing autonomously (deciding any open design questions themselves)
+and shipping via commit/tag/push before going to sleep mid-session — done. `v0.7.5` is live in the
+`docker-publish.yml` pipeline same as every prior tag.
 
 ## Next Step
 
-1. **Ask the pilot before committing/tagging/pushing this round** (they said "hold off" earlier in this
-   session — that's a standing answer until they say otherwise, not just for that specific ask). If they
-   say go: this whole round (bar labels + fix + five coaching stats) can land as a single `v0.7.3` release,
-   since 0.7.1/0.7.2 were never pushed.
+1. **Confirm with the pilot whether re-logging into the SSO fixed "Add goal"** on `fl.sdh.lol` — they
+   were going to self-test this. If it didn't help, the next step is proposing an actual `traefik-
+   oidc-auth` config change (e.g., excluding API POST/PUT/DELETE paths from the OIDC session requirement,
+   or extending its session lifetime) — get explicit sign-off before touching shared infra with live
+   credentials in it.
 2. **v0.8 (public API + VidFactory) or v0.9 (sharing) are both fully planned** (`specs/006-public-api-
    vidfactory/`, `specs/007-sharing-public-readiness/`) and ready to implement next, in either order.
 3. **XContest score import remains a backlog item** — see `features.md`'s Backlog entry.
 4. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — still unconfirmed whether the
    pilot's real thermal/glide figures looked right against what they remember of those flights.
-5. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
-   — still open, not tied to any particular tag.
+5. **Decide on `specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters) — Phase 9
+   (contacts) is now done; these two remain open, not tied to any particular tag.
 
 ## Open Questions
 
-- Whether the pilot wants an *average*-per-month variant alongside "Best by month"'s current max — a
-  deliberate scope call, not an oversight; easy to add if asked (see `flightlog_feature_proposal_workflow`
-  memory for how to run that kind of addition by them first).
+- Whether the OIDC/Traefik layer in front of `fl.sdh.lol` needs an actual config change, or whether
+  re-authenticating to the SSO resolves the write-failure symptom on its own — pilot is self-testing.
 - None blocking v0.8/v0.9 — both are ready to implement as planned, in either order.
 - `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
   `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
+- **`specs/002-flight-log-ui/tasks.md`'s Phase 9 (contacts)** is now implemented — its own checkboxes
+  aren't marked (implemented directly from live pilot feedback, not by walking that task list), but the
+  delivered scope matches what T037–T041 originally specified.
 - **`specs/005-statistics/`** holds the complete spec/research/data-model/contracts/plan/tasks set for
-  the original v0.7 scope. Every post-ship enhancement (bar labels, monthly extremes, XC progression,
-  currency, site diversity, IGC coverage, PB recency) was implemented directly from pilot chat feedback,
-  not through a new spec cycle — deliberately, given their size; if `/stats` grows much larger than this,
-  consider a lightweight addendum spec rather than continuing to fold everything into
-  `architecture.md`/`features.md` prose only.
+  the original v0.7 scope. Every post-ship enhancement since (v0.7.1 through v0.7.5) was implemented
+  directly from pilot chat feedback, not through new spec cycles — deliberately, given their size; if
+  `/stats` or the secondary-sheet pages keep growing like this, a lightweight addendum spec might be worth
+  writing rather than continuing to fold everything into `architecture.md`/`features.md` prose only.
 - **`specs/006-public-api-vidfactory/` and `specs/007-sharing-public-readiness/`** hold complete spec sets
   for v0.8/v0.9 — ready whenever picked up.
+- **This session's SSH access to the prod host (`ssh sdh`) was pilot-offered**, used only for read-only
+  diagnosis (docker logs/inspect, reading — never editing — the Traefik dynamic config). No config was
+  changed, no container was restarted, no secret was echoed back to the pilot in chat.
 - **A running theme worth remembering for whichever milestone comes next**: prior sessions repeatedly
-  found that an existing doc or an old spec's prose had drifted from reality, and this session found a
-  real *runtime* bug (the Chart.js scriptable-option trap) that only a live browser re-verification pass
-  caught — the test suite could not have caught it, since it's a DOM/canvas rendering behavior with no
-  backend surface. Live-boot + real-browser verification earns its keep again.
+  found that an existing doc or an old spec's prose had drifted from reality — this session's "Add goal"
+  investigation is the sharpest example yet: the app-level bug report was real (writes fail) but the root
+  cause was one layer below the application entirely. When a pilot reports something "not working" on a
+  live deployment, reproduce against the exact same build locally before assuming the app code is at
+  fault — it wasn't, here.
 - **The dev server needs a restart after every backend edit** (no `--reload`). See
   [[flightlog-dev-server-workflow]].
 - **The Windows-only WAL gotcha**: `data/flightlog.db`'s main file is often stale on its own — real,

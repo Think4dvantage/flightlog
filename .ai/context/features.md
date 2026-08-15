@@ -1,18 +1,21 @@
 # Feature History & Backlog
 
-## Current Version: v0.7.0 tagged and deployed to `fl.sdh.lol`; v0.7.1–v0.7.4 (stats polish + coaching features + IGC track flag) implemented, not yet tagged
+## Current Version: v0.7.4 tagged and deployed to `fl.sdh.lol`; v0.7.5 (contacts/secondary CRUD/import removal/progression fix) implemented, tagged, deployed this session
 
-v0.1 through v0.7.0 are all tagged (`v0.1.0`–`v0.7.0`) and each triggered `docker-publish.yml`. v0.6
+v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
 XContest score import originally scoped alongside it has moved to the Backlog below rather than staying
 an open phase of that milestone — see its entry there. **v0.7 (statistics) shipped and is live at
-`fl.sdh.lol`** — `/api/stats` and `/stats` per `specs/005-statistics/`, verified live via `curl` and a
-real connected browser against the 603-flight dev database. A round of small post-ship enhancements is
-implemented on `main` as `v0.7.1`–`v0.7.4` (on-bar chart value labels, "Best by month", five
-coaching-oriented stats from a pilot-review pass — XC progression, currency, site diversity, IGC
-coverage, personal-best recency — and a sortable IGC-track-present/missing flag on `/flights`), not yet
-tagged or deployed — pilot said to hold off on shipping for now; see that entry's note below and
-`RESUME.md` for the moment-to-moment state.
+`fl.sdh.lol`**, followed by a round of small post-ship enhancements shipped as `v0.7.1`–`v0.7.4` (on-bar
+chart value labels, "Best by month", five coaching-oriented stats from a pilot-review pass, and a
+sortable IGC-track-present/missing flag on `/flights`).
+
+**`v0.7.5` closes four real gaps the pilot found on the live `fl.sdh.lol` deployment**: no way to create
+buddies/contacts, no way to add a hike/groundhandling session/tandem flight by hand, an outdated and
+unwanted "Import findings" page, and a "Cumulative flights over time" chart that was a straight diagonal
+line with zero information content. See that entry's note below for the full detail — all four are
+implemented, tested, live-verified, and shipped this session. See `RESUME.md` for the moment-to-moment
+state.
 
 ---
 
@@ -233,6 +236,46 @@ since it should shape how future `/stats` copy is worded too.
 at a glance which flights are missing a track, requested directly by the pilot as a follow-up. Purely
 additive (`FlightOut.has_igc_track`, batched not per-row — see `architecture.md`'s `/api/flights` entry);
 no `/stats` or `flight-detail` change needed.
+
+**`v0.7.5` — four fixes from a live pilot-feedback pass against the deployed `fl.sdh.lol` instance,
+tagged and shipped this session:**
+
+1. **`/contacts` (Phase 9 of `specs/002-flight-log-ui`, spec'd since v0.3, never built until now)** —
+   full CRUD for buddies. The backend (`/api/buddies`) already had complete CRUD + link/accept/decline
+   since v0.2; the only gap was a page. Also fixes the actual root cause of "I can't tag buddies on a
+   flight" — the flight drawer's buddy multi-select was always empty because there was no way to create
+   a buddy in the first place, not a bug in the drawer itself. Verified live end-to-end: created a
+   contact, tagged it on a real flight, confirmed the contact's flight-count updated from 0 to 1.
+2. **Full CRUD for hikes, groundhandling sessions, and tandem flights** — all three were "import-and-view
+   only" by original v0.6 design (`specs/004-secondary-sheets-xcontest`), which made sense before the
+   pilot pointed out there was no way to add one by hand afterward. `HikeCreate`/`HikeUpdate` add an
+   optional `flight_id` a pilot can link/unlink manually (never ownership-validated, matching this app's
+   existing convention for other cross-referenced ids in `flights.py`); `import_key` stays server-only
+   across all three. New `tests/backend/test_secondary_crud.py` (8 tests) covers create/get/update/delete
+   and ownership scoping for all three.
+3. **The "Import findings" page is gone** — nav link and `/import` route removed, `static/import.html`/
+   `import.js` deleted. The pilot's own words: "outdated and not needed." `/api/import-report` and
+   `core/import_history.py`'s frozen snapshot are deliberately untouched, in case the historical record is
+   ever wanted again — only the UI surfacing it is gone.
+4. **The useless "Cumulative flights over time" chart is replaced** — a running total by date is
+   monotonically increasing by construction, so the chart was always a straight line bottom-left to
+   top-right regardless of the pilot's actual activity pattern; the pilot called this out directly as
+   having "no use at all." Replaced with "Monthly pace, by year" — one line per year across Jan-Dec,
+   built entirely client-side from `time-breakdown`'s already-fetched `year_month_matrix` (no new backend
+   call). `ProgressionOut.cumulative_series`/`ProgressionPoint`/`core/stats.py`'s `cumulative_progression()`
+   were deleted outright rather than left as dead code.
+
+**Also investigated, not fixed in-app**: the pilot separately reported "Add goal" not working on
+`fl.sdh.lol`. Tested locally against the exact same deployed version (`v0.7.4`) — worked perfectly,
+201 on create. Traced the real cause via SSH to the prod host: `fl.sdh.lol` sits behind a Traefik
+`traefik-oidc-auth` (Pocket-ID) middleware protecting the *entire* host, layered on top of flightlog's
+own independent JWT login — confirmed by an unauthenticated external request returning a 401 in that
+proxy's own RFC9110-style error format, with no trace of the request ever reaching the flightlog
+container's own logs. This is almost certainly why writes silently fail for the pilot while reads (page
+loads) keep working — two separate session lifetimes stacked on the same host. Deliberately **not**
+touched — shared infrastructure serving other public services on the same host, config file contains
+live credentials, and the pilot chose to self-test (re-login to the SSO) before deciding whether it needs
+a config change at all. See `RESUME.md`'s Open Questions for the follow-up.
 
 ### v0.8 — Public API + VidFactory integration
 

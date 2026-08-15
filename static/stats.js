@@ -29,7 +29,9 @@ let chartMonthlyDuration;
 let chartMonthlyDistance;
 let chartMonthlyAltitude;
 let chartXcProgression;
-let chartProgression;
+let chartMonthlyByYear;
+
+const YEAR_PALETTE = ['#63b3ed', '#68d391', '#f6ad55', '#fc8181', '#b794f4', '#4fd1c5', '#f687b3', '#ecc94b'];
 
 function showAlert(message) {
   const box = el('alert');
@@ -224,7 +226,39 @@ async function loadTimeBreakdown() {
   );
 
   renderYearMonthMatrix(data.year_month_matrix, years);
+  renderMonthlyByYearChart(data.year_month_matrix, years);
   console.log(`[FL:stats] time breakdown rendered: ${years.length} years`);
+}
+
+/**
+ * Replaces the old "cumulative flights over time" chart (v0.7.4) — a running total is
+ * monotonically increasing by construction and carries no information (a straight line
+ * regardless of the pilot's real activity). This instead overlays one line per year across
+ * Jan-Dec, built entirely from time-breakdown's own year_month_matrix — no new backend call.
+ */
+function renderMonthlyByYearChart(matrix, years) {
+  const datasets = years.map((year, idx) => ({
+    label: String(year),
+    data: MONTH_NUMS.map((m) => matrix[year]?.[m] ?? 0),
+    borderColor: YEAR_PALETTE[idx % YEAR_PALETTE.length],
+    backgroundColor: YEAR_PALETTE[idx % YEAR_PALETTE.length],
+    pointRadius: 2,
+    tension: 0.25,
+    fill: false,
+  }));
+
+  chartMonthlyByYear?.destroy();
+  chartMonthlyByYear = new Chart(el('chartMonthlyByYear').getContext('2d'), {
+    type: 'line',
+    data: { labels: MONTH_LABELS, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+  console.log(`[FL:stats] monthly-by-year chart rendered: ${years.length} years`);
 }
 
 // ---- XC progression ----
@@ -537,29 +571,10 @@ async function loadProgression() {
     String(data.ytd_pace.same_point_prior_year),
   );
 
-  chartProgression?.destroy();
-  chartProgression = new Chart(el('chartProgression').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: data.cumulative_series.map((p) => p.date),
-      datasets: [
-        {
-          data: data.cumulative_series.map((p) => p.cumulative_count),
-          borderColor: accentColor(),
-          pointRadius: 0,
-          tension: 0,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true } },
-    },
-  });
+  // The monthly-by-year chart under this section is rendered by loadTimeBreakdown()
+  // (it's built from year_month_matrix, already fetched there — no separate call here).
   console.log(
-    `[FL:stats] progression rendered: streak=${data.current_streak.count}${data.current_streak.unit}, days_since_last_flight=${data.days_since_last_flight}, ${data.cumulative_series.length} points`,
+    `[FL:stats] progression rendered: streak=${data.current_streak.count}${data.current_streak.unit}, days_since_last_flight=${data.days_since_last_flight}`,
   );
 }
 

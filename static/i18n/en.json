@@ -11,7 +11,7 @@
     "groundhandling": "Groundhandling",
     "tandem_flights": "Tandem flights",
     "goals": "Goals",
-    "import": "Import findings",
+    "contacts": "Contacts",
     "tracks": "Tracks",
     "stats": "Statistics",
     "login": "Log in",
@@ -218,6 +218,8 @@
   },
   "hikes": {
     "title": "Hikes",
+    "add": "Add hike",
+    "edit": "Edit",
     "empty": "No hikes recorded.",
     "result_count": "{count} hikes",
     "view_flight": "View flight",
@@ -228,22 +230,64 @@
       "descent": "Descent",
       "distance": "Distance",
       "duration": "Duration",
-      "flight": "Became a flight"
+      "flight": "Became a flight",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add hike",
+      "edit_title": "Edit hike",
+      "date": "Date",
+      "start_place": "Start place",
+      "destination_place": "Destination",
+      "ascent": "Ascent (m)",
+      "descent": "Descent (m)",
+      "distance": "Distance (km)",
+      "duration": "Duration (min)",
+      "route_description": "Route description",
+      "flight_link": "Linked flight (optional)",
+      "no_flight_link": "Not linked to a flight",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this hike? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "groundhandling": {
     "title": "Groundhandling",
+    "add": "Add session",
+    "edit": "Edit",
     "empty": "No groundhandling sessions recorded.",
     "result_count": "{count} sessions",
     "col": {
       "date": "Date",
       "place": "Place",
       "duration": "Duration",
-      "comment": "Comment"
+      "comment": "Comment",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add session",
+      "edit_title": "Edit session",
+      "date": "Date",
+      "place": "Place",
+      "duration": "Duration (min)",
+      "comment": "Comment",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this session? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "tandem_flights": {
     "title": "Tandem flights",
+    "add": "Add tandem flight",
+    "edit": "Edit",
     "empty": "No tandem flights recorded.",
     "result_count": "{count} tandem flights",
     "col": {
@@ -252,7 +296,49 @@
       "landing": "Landing",
       "operator": "Pilot / operator",
       "cost": "Cost",
-      "comment": "Comment"
+      "comment": "Comment",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add tandem flight",
+      "edit_title": "Edit tandem flight",
+      "date": "Date",
+      "launch_place": "Launch place",
+      "landing_place": "Landing place",
+      "operator": "Pilot / operator",
+      "cost": "Cost",
+      "comment": "Comment",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this tandem flight? This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
+    }
+  },
+  "contacts": {
+    "title": "Contacts",
+    "add": "Add contact",
+    "edit": "Edit",
+    "empty": "No contacts yet.",
+    "result_count": "{count} contacts",
+    "col": {
+      "name": "Name",
+      "flight_count": "Flights together",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add contact",
+      "edit_title": "Edit contact",
+      "name": "Name",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "delete_confirm": {
+      "prompt": "Delete this contact? Any flights tagged with them keep their other tags, but lose this one. This cannot be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "goals": {
@@ -295,32 +381,6 @@
       "prompt": "Delete this goal? This cannot be undone.",
       "yes": "Delete",
       "no": "Cancel"
-    }
-  },
-  "import": {
-    "title": "Historical import findings",
-    "imported_at": "From the production import on {date}.",
-    "snapshot_note": "This is a historical snapshot of the v0.2 production import, not a live view — it does not reflect any edits made since.",
-    "none_found": "None found.",
-    "unresolved_gear_title": "Unresolved gear",
-    "unresolved_gear_note": "The importer never guesses: a gear value only gets attached to a flight if it exactly matches the equipment list (or a known spelling variant) — otherwise the flight is kept but that field is left blank, and reported here. \"Advance Success 2\" is retired gear that was deliberately left off the list rather than auto-created. To bring those 3 flights' harness back: add \"Advance Success 2\" under Equipment, then edit each of those flights to attach it.",
-    "region_mismatches_title": "Region count mismatches",
-    "region_mismatches_note": "These compare this app's own per-flight region totals against the legacy sheet's \"Total\" column — and they're expected to disagree, for a confirmed reason, not a guess: three launch sites (Ober Burgfeldstand, Alp Unterburgfeld, Lauberhorn) were added to the workbook's yearly formulas after the Total column was last updated. The Total column still misses all of their flights: 3 for Interlaken (1 + 2 flights from the first two sites), 1 for Grindelwald (from Lauberhorn) — exactly the gaps shown below. A fourth site, Fiescheralp, was never assigned to any region anywhere in the sheet — its one flight has no legacy total to agree or disagree with.",
-    "altgain_mismatches_title": "Altitude gain mismatches",
-    "altgain_mismatches_note": "Computed altitude gain is max altitude minus launch elevation. The one row below is where the sheet's own recorded gain doesn't match that arithmetic from its own columns — a discrepancy already present in the source data, left as-is rather than silently corrected in either direction.",
-    "buddy_proposals_title": "Buddy name proposals",
-    "col": {
-      "kind": "Kind",
-      "value": "Value",
-      "flight_count": "Flights",
-      "region": "Region",
-      "computed": "This app",
-      "sheet": "Legacy sheet",
-      "row": "Row",
-      "computed_alt_gain": "This app",
-      "sheet_altgain": "Legacy sheet",
-      "delta": "Delta",
-      "name": "Name mentioned in notes"
     }
   },
   "igc": {
@@ -439,7 +499,8 @@
       "ytd_pace_title": "Year-to-date pace",
       "ytd_this_year": "This year",
       "ytd_prior_year": "Same point last year",
-      "chart_title": "Cumulative flights over time"
+      "chart_title": "Monthly pace, by year",
+      "chart_hint": "One line per year — compare this year's monthly flight count against past years."
     }
   }
 }

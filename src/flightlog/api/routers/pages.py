@@ -96,11 +96,6 @@ def equipment_page(request: Request) -> Response:
     return _page(request, "equipment.html")
 
 
-@router.get("/import")
-def import_page(request: Request) -> Response:
-    return _page(request, "import.html")
-
-
 @router.get("/igc")
 def igc_bulk_page(request: Request) -> Response:
     return _page(request, "igc.html")
@@ -124,6 +119,11 @@ def tandem_flights_page(request: Request) -> Response:
 @router.get("/goals")
 def goals_page(request: Request) -> Response:
     return _page(request, "goals.html")
+
+
+@router.get("/contacts")
+def contacts_page(request: Request) -> Response:
+    return _page(request, "contacts.html")
 
 
 @router.get("/stats")

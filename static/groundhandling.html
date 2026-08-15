@@ -13,6 +13,7 @@
     <div class="card">
       <div class="page-head">
         <h1 data-i18n="groundhandling.title">Groundhandling</h1>
+        <button type="button" id="addSessionBtn" data-i18n="groundhandling.add">Add session</button>
       </div>
 
       <div id="alert" class="alert alert-error"></div>
@@ -26,6 +27,7 @@
               <th data-i18n="groundhandling.col.place">Place</th>
               <th data-i18n="groundhandling.col.duration">Duration</th>
               <th data-i18n="groundhandling.col.comment">Comment</th>
+              <th data-i18n="groundhandling.col.actions">Actions</th>
             </tr>
           </thead>
           <tbody id="sessionsBody"></tbody>
@@ -37,6 +39,55 @@
       </div>
     </div>
   </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="sessionDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="groundhandling.drawer.add_title">Add session</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="sessionForm" novalidate>
+      <input type="hidden" id="s_id">
+
+      <div class="field">
+        <label for="s_date" data-i18n="groundhandling.drawer.date">Date</label>
+        <input type="date" id="s_date" required>
+        <p class="field-error" data-field="session_date"></p>
+      </div>
+
+      <div class="field">
+        <label for="s_place" data-i18n="groundhandling.drawer.place">Place</label>
+        <input type="text" id="s_place" required maxlength="200">
+        <p class="field-error" data-field="place"></p>
+      </div>
+
+      <div class="field">
+        <label for="s_duration" data-i18n="groundhandling.drawer.duration">Duration (min)</label>
+        <input type="number" id="s_duration" min="0" step="1">
+        <p class="field-error" data-field="duration_min"></p>
+      </div>
+
+      <div class="field">
+        <label for="s_comment" data-i18n="groundhandling.drawer.comment">Comment</label>
+        <textarea id="s_comment" rows="3"></textarea>
+        <p class="field-error" data-field="comment"></p>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="groundhandling.drawer.save">Save</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="groundhandling.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="groundhandling.delete_confirm.prompt">Delete this session? This cannot be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="groundhandling.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="groundhandling.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
 
   <script type="module" src="/static/groundhandling.js"></script>
 </body>

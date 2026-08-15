@@ -7,6 +7,30 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
+class HikeCreate(BaseModel):
+    hike_date: date
+    start_place: str = Field(..., min_length=1, max_length=200)
+    destination_place: str = Field(..., min_length=1, max_length=200)
+    ascent_m: int | None = Field(None, ge=0)
+    descent_m: int | None = Field(None, ge=0)
+    distance_km: float | None = Field(None, ge=0)
+    duration_min: int | None = Field(None, ge=0)
+    route_description: str | None = None
+    flight_id: str | None = None
+
+
+class HikeUpdate(BaseModel):
+    hike_date: date | None = None
+    start_place: str | None = Field(None, min_length=1, max_length=200)
+    destination_place: str | None = Field(None, min_length=1, max_length=200)
+    ascent_m: int | None = Field(None, ge=0)
+    descent_m: int | None = Field(None, ge=0)
+    distance_km: float | None = Field(None, ge=0)
+    duration_min: int | None = Field(None, ge=0)
+    route_description: str | None = None
+    flight_id: str | None = None
+
+
 class HikeOut(BaseModel):
     id: str
     owner_id: str
@@ -25,6 +49,20 @@ class HikeOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class GroundhandlingSessionCreate(BaseModel):
+    session_date: date
+    place: str = Field(..., min_length=1, max_length=200)
+    duration_min: int | None = Field(None, ge=0)
+    comment: str | None = None
+
+
+class GroundhandlingSessionUpdate(BaseModel):
+    session_date: date | None = None
+    place: str | None = Field(None, min_length=1, max_length=200)
+    duration_min: int | None = Field(None, ge=0)
+    comment: str | None = None
+
+
 class GroundhandlingSessionOut(BaseModel):
     id: str
     owner_id: str
@@ -36,6 +74,24 @@ class GroundhandlingSessionOut(BaseModel):
     updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class TandemFlightCreate(BaseModel):
+    flight_date: date
+    launch_place: str = Field(..., min_length=1, max_length=200)
+    landing_place: str = Field(..., min_length=1, max_length=200)
+    tandem_operator: str | None = None
+    comment: str | None = None
+    cost: float | None = Field(None, ge=0)  # 0 is a real value — a free tandem
+
+
+class TandemFlightUpdate(BaseModel):
+    flight_date: date | None = None
+    launch_place: str | None = Field(None, min_length=1, max_length=200)
+    landing_place: str | None = Field(None, min_length=1, max_length=200)
+    tandem_operator: str | None = None
+    comment: str | None = None
+    cost: float | None = Field(None, ge=0)
 
 
 class TandemFlightOut(BaseModel):

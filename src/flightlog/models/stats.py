@@ -86,15 +86,17 @@ class YtdPaceOut(BaseModel):
     same_point_prior_year: int
 
 
-class ProgressionPoint(BaseModel):
-    date: str
-    cumulative_count: int
-
-
 class ProgressionOut(BaseModel):
+    """
+    No `cumulative_series` field — a running total by date is monotonically increasing by
+    construction and was found to carry no information (a straight line bottom-left to
+    top-right regardless of the pilot's real activity pattern). Replaced entirely by the
+    frontend's "monthly flights per year, overlaid" chart, built client-side from
+    `TimeBreakdownOut.year_month_matrix` (no new backend data needed).
+    """
+
     current_streak: CurrentStreakOut
     ytd_pace: YtdPaceOut
-    cumulative_series: list[ProgressionPoint]
     days_since_last_flight: int | None
     last_flight_date: date | None
 
