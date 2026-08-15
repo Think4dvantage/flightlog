@@ -1,12 +1,13 @@
 # Feature History & Backlog
 
-## Current Version: v0.6.0 tagged and deployed; v0.7 (statistics) is next
+## Current Version: v0.6.0 tagged and deployed; v0.7 (statistics) implemented on `main`, not yet tagged
 
 v0.1 through v0.6 are all tagged (`v0.1.0`–`v0.6.0`) and each triggered `docker-publish.yml`. v0.6 shipped
 the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the XContest
 score import originally scoped alongside it has moved to the Backlog below rather than staying an open
-phase of that milestone — see its entry there. **v0.7 (statistics) is next up** — fully planned
-(`specs/005-statistics/`), not yet implemented. See `RESUME.md` for the moment-to-moment state.
+phase of that milestone — see its entry there. **v0.7 (statistics) is implemented** — `/api/stats` and
+`/stats` per `specs/005-statistics/`, verified live via `curl` and a real connected browser against the
+603-flight dev database, not yet tagged or deployed. See `RESUME.md` for the moment-to-moment state.
 
 ---
 
@@ -168,13 +169,43 @@ rewritten.
 `flights` is now reproduced elsewhere in the app; the workbook's exact XContest scores are the one
 remaining reason it might still be opened.
 
-### v0.7 — Statistics · **← NEXT UP**
+### v0.7 — Statistics (implemented on `main`, not yet tagged or deployed)
 
 The full catalogue: totals, averages (including excluding-training), per-year / per-month / year×month,
 duration buckets and histograms, distance and altitude distributions, personal bests each linking to
 their flight, per-site / per-region / per-glider / per-harness / per-category / per-buddy year matrices,
 launch-technique split, Hike&Fly totals, IGC rollups (cumulative thermal climb — the headline number the
-Excel cannot produce), streaks and YTD pace, cumulative progression series. `/stats` and `/goals` pages.
+Excel cannot produce), streaks and YTD pace, cumulative progression series. `/stats` page only — `/goals`
+already shipped as part of v0.6 (see that entry's note above).
+
+**Implemented and verified live.** `core/stats.py` batches one load of the owner's flights plus every
+reference row needed to resolve them (sites, `user_site_prefs`, categories, gliders, harnesses, regions,
+`flight_buddies`), then computes every figure in pure Python from there — deliberately not reusing
+`core/flights.py`'s per-flight `compute_altitude_figures()`, which would reintroduce the exact N+1
+`04-constraints.md` warns against. Only the cumulative thermal-climb rollup stays a genuine SQL aggregate.
+No new tables, no cache — matches the project's explicit non-speculative-caching stance
+(`architecture.md`). `api/routers/stats.py`'s 8 `GET` endpoints are thin wrappers; `matrix/{dimension}`
+takes a plain `str` + allowlist (never `Literal[...]`) so an unknown dimension is a `404
+ENTITY_NOT_FOUND`, not FastAPI's own `422`. 180 tests passing project-wide (23 new — a pure-logic set
+duck-typing flights with `SimpleNamespace`, per `06-testing-conventions.md`'s own pinned example, plus API
+tests against a small hand-built fixture covering a personal-best tie, a "not recorded" dimension bucket,
+and zero-track/zero-buddy states), `ruff check`/`ruff format --check` clean. `pyproject.toml` bumped
+`0.6.0` → `0.7.0`.
+
+**Verified live via `curl` and a real connected browser** (Claude in Chrome connected successfully again
+this session) against the real 603-flight dev database — every one of the 8 endpoints exercised, the full
+`/stats` page scrolled and screenshotted end-to-end with zero console errors, the buddy-matrix sparse
+state and a "View flight" personal-best link both confirmed interactively (the link resolved to the
+correct flight: 3h30min / 3645m, matching the `longest_airtime`/`max_altitude` figures shown on `/stats`).
+`spec.md`'s Success Criteria were confirmed against real numbers, not just plausible-looking output: the
+reverse-launch share (209/603 ≈ 34.66%) still disagrees with the workbook's stale 33.5%, as expected, and
+the denominator has grown from 600 to 603 — exactly the live-not-frozen behavior FR-001 requires, not a
+bug; `total_alt_gain_m` (60841) differs from the workbook's own reference Total Altgain (61191) by exactly
+350 — the already-known row-387 correction, with no unexplained residual; and the buddy year matrix
+returned empty (`rows: []`), confirming zero `flight_buddies` rows exist yet — the "legitimately sparse"
+state the spec predicted, not a defect. See `architecture.md`'s Statistics section for the full detail,
+now updated from "two" to **four** confirmed workbook disagreements (the `Buddys`-tally name/count
+mismatch discovered while planning this feature is the newly-added one).
 
 ### v0.8 — Public API + VidFactory integration
 

@@ -4,8 +4,9 @@ This is the source of truth for the data model, the domain algorithms and the de
 It records not just *what* the design is, but *why it is not the obvious alternative*, and what breaks
 if someone "fixes" it.
 
-Status: **v0.2 shipped.** Core data + Excel import — see `specs/001-core-data-import/` for the spec,
-plan and research behind it.
+Status: **v0.7 shipped.** Statistics — see `specs/005-statistics/` for the spec, plan and research
+behind it. (v0.2's Core data + Excel import remains the foundation everything since builds on — see
+`specs/001-core-data-import/`.)
 
 ---
 
@@ -44,8 +45,10 @@ plan and research behind it.
 - **`outings`.** That is VidFactory's name for the same concept. This project's table is `flights`.
 - **`lookups`.** VidFactory keeps gliders/harnesses/categories in one key-value `lookups` table. Here
   they are three first-class tables with their own columns.
-- **`stats_cache`.** Nothing is materialised except IGC analysis. Add one only if `/stats/overview`
-  measurably exceeds ~200 ms — not speculatively.
+- **`stats_cache`.** Nothing is materialised except IGC analysis. `/api/stats` (v0.7) confirmed this in
+  practice, not just in principle — every figure is a read-time aggregate over ~600 rows and the full
+  page loads well under a second live. Add a cache only if a specific figure is later measurably too
+  slow — not speculatively.
 
 ### Foreign keys are NOT enforced
 
@@ -314,12 +317,26 @@ enough.
 
 ## Statistics
 
-Nothing is materialised. Every figure is one or two indexed aggregates over ~600 rows.
+**Shipped v0.7** (`specs/005-statistics/`). Nothing is materialised — every figure is a read-time
+aggregate assembled by `core/stats.py`. One batched load per call (`_load_owner_data`) fetches the
+owner's flights plus every reference row needed to resolve them (sites, `user_site_prefs`, categories,
+gliders, harnesses, regions, `flight_buddies`), then every other function is pure Python over that
+in-memory set — this deliberately does not reuse `core/flights.py`'s `compute_altitude_figures()`, which
+does a per-flight `db.get()` and would be the exact N+1 this section already warns against. Only the IGC
+thermal-climb rollup stays a genuine SQL aggregate (`SUM(igc_segments.alt_change_m) WHERE kind =
+'thermal'`), since `igc_segments` isn't otherwise loaded for any other figure on the page.
+`launch_technique_split()`/`hike_fly_total()` are pure functions over a flight list, matching
+`06-testing-conventions.md`'s own pinned example — a test can duck-type flights with `SimpleNamespace`
+and skip the database entirely.
 
-Two deliberate disagreements with the Excel's `Übersicht` sheet — **confirm these, do not "fix" them**:
+Four deliberate disagreements with the Excel's `Übersicht` sheet — **confirm these, do not "fix" them**:
 
 1. The workbook's reverse-launch share (33.5%) is computed over a stale `$N$2:$N$499` range and misses
-   102 flights. The correct figure is 209/600 ≈ 34.8%.
+   102 flights. The correct figure is 209/600 ≈ 34.8% — confirmed again live against the real (now
+   603-flight) dev database, where `/api/stats/launch-technique` reports 209 reverse of 603 total
+   (34.66%): the reverse count is unchanged at 209, the denominator has simply grown by the 3 flights
+   added since the original 600-row import, exactly as FR-001 requires ("computed live... not a stale
+   snapshot").
 2. The workbook's twelve region counts sum to **596**, not 600. **Root cause, confirmed by reading the
    formulas directly** (`specs/001-core-data-import/research.md`): three launch sites (`Ober
    Burgfeldstand`, `Lauberhorn`, `Alp Unterburgfeld`) were added to the workbook after its initial
@@ -333,7 +350,20 @@ Two deliberate disagreements with the Excel's `Übersicht` sheet — **confirm t
    (`ImportReport.region_mismatches`); neither is silently treated as correct.
 3. Row 387's stored `Altgain` (350) disagrees with `max_alt_m − launch_elev` (1930 − 1930 = 0) — the one
    altitude-figure mismatch found across all 600 flights by the importer's formula cross-check
-   (`ImportReport.altgain_mismatches`). Reported, never overwritten in either direction.
+   (`ImportReport.altgain_mismatches`). Reported, never overwritten in either direction. `/api/stats/totals`
+   sums the app's own computed `alt_gain_m`, never the stored `Altgain` column, so this fix is baked into
+   `total_alt_gain_m` automatically: confirmed live where the sheet's reference `Total Altgain (m)` of
+   61191 and the app's own 60841 differ by exactly 350 — this one row's correction, with the remaining gap
+   fully explained (no unexplained residual).
+4. `Übersicht`'s own `Buddys` tally (`Tom` 141, `Ueli` 61, `Simon` 16, `Päsci` 36) uses a different name
+   set and different counts than the v0.2 import's comment-scan buddy proposals (`Tom` 134, `Ueli` 61,
+   `Simon` 16, plus `Susi`/`Tigi`/`Jürg`/`Beni`, none of which appear in `Übersicht`'s block at all) —
+   discovered while planning v0.7 (`specs/005-statistics/research.md`). Neither is a formula bug like the
+   two above: the workbook's tally is a manually-kept count, the comment-scan is a derived regex signal
+   over free text — two genuinely different data sources for the same real-world fact. `/api/stats/matrix/
+   buddy` deliberately reconciles neither: it computes only over `flight_buddies` rows that actually exist
+   (as of this writing, likely zero — nothing has ever auto-created one, per v0.2's FR-017), confirmed live
+   where the buddy matrix returns an empty `rows: []` against the real dev database.
 
 **`database/db.py`'s `_seed_regions()` list and `core/aliases.py`'s `SITE_REGION` values must use
 identical spelling for every region name.** `_get_or_create_region` matches by exact string, not fuzzy —
@@ -361,7 +391,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`, `/import`. **shipped v0.5:** `/igc`. All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`, `/import`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
 | `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
@@ -374,7 +404,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/hikes`, `/api/groundhandling`, `/api/tandem-flights` | `hikes.py`, `groundhandling.py`, `tandem_flights.py` | **shipped v0.6** — `GET` list + `GET /{id}` only, import-and-view (no `POST`/`PUT`/`DELETE`); rows are created only by `core/secondary_import.py` |
 | `/api/goals` | `goals.py` | **shipped v0.6** — full CRUD + `POST /{id}/mark-done`; the one imported type in this milestone that stays editable — `import_key` is never accepted from the request body |
 | — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) has moved to `features.md`'s Backlog — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |
-| `/api/stats` | `stats.py` | v0.7 — **next up** |
+| `/api/stats` | `stats.py` | **shipped v0.7** — 8 `GET`-only, owner-scoped endpoints (`totals`, `time-breakdown`, `distribution`, `personal-bests`, `matrix/{dimension}`, `launch-technique`, `igc-rollup`, `progression`); no new tables, every figure a read-time aggregate over `core/stats.py`. `matrix/{dimension}` takes a plain `str` + allowlist, not `Literal[...]`, so an unknown dimension is `404 ENTITY_NOT_FOUND` rather than FastAPI's own `422` |
 | `/api/integration/v1` | `integration.py` | v0.8 — frozen contract, versioned separately from the UI's models |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**

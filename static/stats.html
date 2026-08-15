@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Statistics — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <h1 data-i18n="stats.title">Statistics</h1>
+      <div class="alert alert-error" id="alert"></div>
+
+      <h2 data-i18n="stats.totals.title">Totals & averages</h2>
+      <div class="stat-grid" id="totalsGrid"></div>
+
+      <h2 data-i18n="stats.time_breakdown.title">Flights over time</h2>
+      <h3 data-i18n="stats.time_breakdown.by_year_title">Flights per year</h3>
+      <div class="chart-container"><canvas id="chartByYear"></canvas></div>
+      <h3 data-i18n="stats.time_breakdown.by_month_title">Flights per month</h3>
+      <div class="chart-container"><canvas id="chartByMonth"></canvas></div>
+      <h3 data-i18n="stats.time_breakdown.matrix_title">Year × month</h3>
+      <div class="table-scroll">
+        <table id="yearMonthTable"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <h2 data-i18n="stats.distribution.title">Distributions</h2>
+      <h3 data-i18n="stats.distribution.duration_title">Duration</h3>
+      <div class="chart-container"><canvas id="chartDurationDist"></canvas></div>
+      <h3 data-i18n="stats.distribution.distance_title">Distance</h3>
+      <div class="chart-container"><canvas id="chartDistanceDist"></canvas></div>
+      <h3 data-i18n="stats.distribution.altitude_title">Altitude gain</h3>
+      <div class="chart-container"><canvas id="chartAltitudeDist"></canvas></div>
+
+      <h2 data-i18n="stats.personal_bests.title">Personal bests</h2>
+      <div id="personalBestsEmpty" class="muted" hidden data-i18n="stats.personal_bests.empty">No personal bests yet.</div>
+      <div class="table-scroll">
+        <table id="personalBestsTable"><tbody id="personalBestsBody"></tbody></table>
+      </div>
+
+      <h2 id="matrixTitle"></h2>
+      <div class="tab-row" id="matrixTabs"></div>
+      <p class="muted" id="matrixHint" hidden></p>
+      <div id="matrixEmpty" class="muted" hidden data-i18n="stats.matrix.empty">No data yet.</div>
+      <div class="table-scroll">
+        <table id="matrixTable"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <h2 data-i18n="stats.launch_technique.title">Launch technique</h2>
+      <div class="stat-grid" id="launchTechniqueGrid"></div>
+
+      <h2 data-i18n="stats.igc_rollup.title">IGC rollups</h2>
+      <div id="igcRollupEmpty" class="muted" hidden data-i18n="stats.igc_rollup.empty">No tracks uploaded yet.</div>
+      <div class="stat-grid" id="igcRollupGrid"></div>
+
+      <h2 data-i18n="stats.progression.title">Momentum</h2>
+      <div class="stat-grid" id="progressionGrid"></div>
+      <h3 data-i18n="stats.progression.chart_title">Cumulative flights over time</h3>
+      <div class="chart-container"><canvas id="chartProgression"></canvas></div>
+    </div>
+  </main>
+
+  <script src="/static/vendor/chartjs/chart.umd.js"></script>
+  <script type="module" src="/static/stats.js"></script>
+</body>
+</html>

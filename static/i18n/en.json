@@ -346,5 +346,79 @@
       "needs_resolution": "Needs review",
       "rejected": "Rejected"
     }
+  },
+  "stats": {
+    "title": "Statistics",
+    "totals": {
+      "title": "Totals & averages",
+      "total_flights": "Total flights",
+      "total_airtime": "Total airtime",
+      "total_distance": "Total distance",
+      "total_alt_gain": "Total altitude gain",
+      "avg_airtime": "Average airtime",
+      "avg_airtime_excl_training": "Average airtime (excl. training)",
+      "avg_distance": "Average distance"
+    },
+    "time_breakdown": {
+      "title": "Flights over time",
+      "by_year_title": "Flights per year",
+      "by_month_title": "Flights per month",
+      "matrix_title": "Year × month"
+    },
+    "distribution": {
+      "title": "Distributions",
+      "duration_title": "Duration",
+      "distance_title": "Distance",
+      "altitude_title": "Altitude gain"
+    },
+    "personal_bests": {
+      "title": "Personal bests",
+      "view_flight": "View flight",
+      "empty": "No personal bests yet.",
+      "label": {
+        "longest_airtime": "Longest airtime",
+        "max_altitude": "Highest max altitude",
+        "highest_launch": "Highest launch",
+        "lowest_launch": "Lowest launch",
+        "highest_landing": "Highest landing",
+        "lowest_landing": "Lowest landing",
+        "longest_distance": "Longest distance",
+        "shortest_distance": "Shortest distance"
+      }
+    },
+    "matrix": {
+      "site_title": "By launch site",
+      "region_title": "By region",
+      "glider_title": "By glider",
+      "harness_title": "By harness",
+      "category_title": "By flight category",
+      "buddy_title": "By buddy",
+      "buddy_hint": "Only flights tagged with a buddy going forward appear here — historical flights were never tagged automatically, so this legitimately starts sparse.",
+      "not_recorded": "Not recorded",
+      "col_total": "Total",
+      "empty": "No data yet."
+    },
+    "launch_technique": {
+      "title": "Launch technique",
+      "forward": "Forward",
+      "reverse": "Reverse",
+      "reverse_pct": "Reverse %",
+      "hike_fly_total": "Hike&Fly flights"
+    },
+    "igc_rollup": {
+      "title": "IGC rollups",
+      "cumulative_climb": "Cumulative thermal climb",
+      "tracks_uploaded": "Tracks uploaded",
+      "empty": "No tracks uploaded yet — upload IGC files on a flight to see your cumulative thermal climb build up here."
+    },
+    "progression": {
+      "title": "Momentum",
+      "streak_week": "{count}-week streak",
+      "streak_zero": "No current streak",
+      "ytd_pace_title": "Year-to-date pace",
+      "ytd_this_year": "This year",
+      "ytd_prior_year": "Same point last year",
+      "chart_title": "Cumulative flights over time"
+    }
   }
 }

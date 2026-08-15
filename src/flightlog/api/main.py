@@ -49,6 +49,7 @@ from flightlog.api.routers import import_report as import_report_router
 from flightlog.api.routers import pages as pages_router
 from flightlog.api.routers import regions as regions_router
 from flightlog.api.routers import sites as sites_router
+from flightlog.api.routers import stats as stats_router
 from flightlog.api.routers import tandem_flights as tandem_flights_router
 from flightlog.config import load_config, log_effective_config
 from flightlog.database.db import init_db, seed_bootstrap_admin
@@ -239,6 +240,7 @@ def create_app() -> FastAPI:
     app.include_router(groundhandling_router.router)
     app.include_router(tandem_flights_router.router)
     app.include_router(goals_router.router)
+    app.include_router(stats_router.router)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(pages_router.router)

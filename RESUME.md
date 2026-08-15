@@ -2,97 +2,101 @@
 
 ## In Progress
 
-**v0.6.0 (secondary sheets + goals) is implemented, tested, verified in a real browser, committed, and
-pushed — but not yet tagged or deployed.** `v0.5.0` remains shipped and confirmed live from earlier this
-session. Everything below is new: overnight, `v0.6` through `v0.9` were fully planned (spec → research →
-data-model → contracts → plan → tasks, in `specs/004`–`specs/007`); this pass then implemented v0.6's
-Phases 1–4.
+**v0.7 (statistics) is implemented, tested, verified live via `curl` and a real connected browser,
+but not yet committed, tagged, or deployed.** `v0.6.0` remains the last tagged release (still itself
+awaiting its own tag/deploy per the previous session's notes below — check `git status`/`git tag` before
+assuming which of v0.6/v0.7 is actually live in any given environment).
 
-**What shipped**: `core/secondary_import.py` imports `Fitnessprogramm` (hikes), `Groundhandling`,
-`Tandemflüge` (tandem flights), and `Ziele` (goals) — idempotent, `import_key`-guarded, mirroring
-`core/importer.py`'s existing shape exactly. Four new tables. Hikes link to a `Hike&Fly` flight only on
-an unambiguous same-date match (never guessed — same principle as the IGC bulk-match). Three read-only
-list pages (`/hikes`, `/groundhandling`, `/tandem-flights`) plus one fully editable page (`/goals`, full
-CRUD + mark-done, imported from `Ziele`). 13 new backend tests, 157/157 passing project-wide, `ruff`
-clean. `pyproject.toml` bumped `0.5.0` → `0.6.0`.
+**What shipped**: `core/stats.py` — every `/api/stats` aggregate, computed read-time with no new tables.
+One batched load per call (`_load_owner_data`) fetches the owner's flights plus every reference row
+needed to resolve them (sites, `user_site_prefs`, categories, gliders, harnesses, regions,
+`flight_buddies`), then every figure is pure Python over that in-memory set — deliberately not reusing
+`core/flights.py`'s per-flight `compute_altitude_figures()`, which would be the exact N+1
+`04-constraints.md` warns against. Only the cumulative thermal-climb rollup stays a genuine SQL aggregate
+(`SUM(igc_segments.alt_change_m) WHERE kind='thermal'`). `api/routers/stats.py`'s 8 `GET` endpoints
+(`totals`, `time-breakdown`, `distribution`, `personal-bests`, `matrix/{dimension}`, `launch-technique`,
+`igc-rollup`, `progression`) are thin wrappers; `matrix/{dimension}` validates against a plain allowlist
+(never `Literal[...]`) so an unknown dimension 404s instead of FastAPI's own 422. One new page,
+`/stats` (`static/stats.html`/`stats.js`), fetches all 8 sections independently so the page renders
+incrementally. `pyproject.toml` bumped `0.6.0` → `0.7.0`.
 
-**Verified against the real workbook, not just non-crashing**: exactly 85 hikes / 9 ground-handling
-sessions / 17 tandem flights / 11 goals, matching the counts confirmed at planning time. 35 of 85 hikes
-correctly linked — spot-checked (both via a script and by clicking through in a real browser) that a
-linked hike's destination place matches its flight's launch site and date, not just "some" flight.
-Idempotent on a second run (0 written, all skipped). Also verified live against the real dev database
-(603 real flights) via the CLI entry point and `curl` against every endpoint.
+**Tests**: 23 new (180/180 passing project-wide) — a pure-logic set duck-typing flights with
+`SimpleNamespace` (matching `06-testing-conventions.md`'s own pinned `launch_technique_split` example, so
+no DB is needed for `launch_technique_split`/`hike_fly_total`/`current_streak`/`ytd_pace`/
+`cumulative_progression`), plus API tests against a small hand-built fixture (not the real workbook) that
+specifically covers a personal-best tie, a flight missing glider/harness/landing site (the "not recorded"
+matrix bucket), zero-track and zero-then-populated-buddy states, and the 404-not-422 dimension check.
+`ruff check`/`ruff format --check` clean.
 
-**Claude in Chrome connected successfully for the first time all session** — every prior feature
-(`specs/002-flight-log-ui`, `v0.4.0`'s icon fix, `specs/003-igc-ingest-analysis`) had shipped without
-this and only got real-browser confirmation later or via the pilot's own manual testing. This time: all
-four new pages (Hikes, Groundhandling, Tandem flights, Goals) confirmed rendering correctly with real
-data via actual screenshots, plus the Goals add/edit drawer exercised interactively (create → edit-drawer
-pre-fill → mark-done → delete). One screenshot-capture timeout occurred partway through (CDP's
-`Page.captureScreenshot` hung on the tab after clicking "Mark done") — confirmed via direct API calls
-that the mark-done and subsequent delete had both already succeeded server-side before the timeout, so
-this was a transient extension/tab glitch, not an application bug. The tab was closed cleanly rather than
-force-retried, per the browser-automation guidance against looping on a failing tool.
+**Verified live, not just non-crashing.** Booted the real dev server (`config.yml` +
+`data/flightlog.db`, 603 real flights) and hit every one of the 8 endpoints via `curl`/`urllib`, then —
+**Claude in Chrome connected successfully again this session** — logged in through a real tab (token
+injected into `localStorage` via `javascript_tool` rather than driving the login form, since the point was
+verifying `/stats`, not re-verifying `/login`), navigated to `/stats`, and scrolled the entire page:
+totals, both bar charts, the year×month table, all three distribution charts, all 8 personal bests, every
+one of the 6 matrix tabs (including clicking "By buddy" to confirm its sparse-state hint and empty-state
+copy render instead of a bare zero), launch technique, the IGC rollup, and the momentum/progression
+section including its cumulative-flights line chart — zero console errors throughout, console logging
+followed the `[FL:stats]` convention with URL/status/elapsed-ms on every fetch. Clicked a "View flight"
+link from `longest_airtime` and confirmed it navigated to the correct flight detail page (3h30min /
+3645m, matching the number shown on `/stats`).
 
-**XContest score import (v0.6's Phase 5) has moved to `features.md`'s Backlog** — confirmed with the
-pilot at implementation kickoff that no real "My Flights" export sample was available, and confirmed
-again that v0.6 ships complete without it rather than staying open pending a sample.
-`flights.xc_official_score`/`_type`/`_url` stay unpopulated until a sample surfaces. This is the one
-piece keeping `Flugbuch.xlsx` from being fully retired.
+**Three of the four confirmed workbook disagreements were re-confirmed against live numbers**, not just
+asserted in tests: reverse-launch share is 209/603 ≈ 34.66% (denominator now 603, not the original 600 —
+the reverse count itself, 209, is unchanged, which is exactly the "live, not frozen" behavior FR-001
+requires, not a bug); `total_alt_gain_m` (60841) differs from the workbook's own reference Total Altgain
+(61191) by exactly 350 — the already-known row-387 correction baked in automatically since totals sum the
+app's own computed `alt_gain_m`, never the stored column, with no unexplained residual; and the buddy year
+matrix returned empty (`rows: []`), confirming zero `flight_buddies` rows exist yet in the real dev
+database — the "legitimately sparse" state the spec predicted. See `architecture.md`'s Statistics section
+for the fourth (the `Buddys`-tally name/count mismatch, discovered during this feature's planning) and the
+full detail on all four.
 
-**Three roadmap corrections were made to `features.md` overnight, during planning** (not code changes):
-v0.6 now explicitly owns the `/goals` page (v0.7's original wording had listed it too); v0.9's entry had
-two already-shipped items (buddy invite/accept, the `allow_self_registration` flag) removed from its
-description, replaced with the real remaining gap (self-registration seeding).
+**Not yet done**: `git add`/commit, a version tag, and deployment. `specs/005-statistics/tasks.md`'s T022
+(this doc-sync pass) is now done; re-check that file's checkboxes before considering v0.7 fully closed.
 
 ## Next Step
 
-**v0.7 (statistics) is confirmed as the next milestone to implement** — fully planned already
-(`specs/005-statistics/`: spec, research, data-model, contracts, plan, tasks all written). Start there:
-read `specs/005-statistics/tasks.md` and pick up at T001, following this repo's own
-`.ai/prompts/implement.md` workflow.
-
-1. **Implement v0.7 (statistics)** — `/api/stats` plus `/stats` and (per v0.6's note above) NOT `/goals`,
-   which already shipped. See `specs/005-statistics/plan.md` for the full scope: totals, per-year/month
-   breakdowns, personal bests, IGC thermal-climb rollups, streaks, cumulative progression.
-2. **XContest score import is now a backlog item, not a blocking dependency of anything** — see
-   `features.md`'s Backlog entry (moved there 2026-08-15). Pick it up only if/when a real "My Flights"
-   export sample turns up; it does not gate v0.7/v0.8/v0.9.
-3. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — the shipped `igc.parsing:`
-   defaults are `libigc`'s own sailplane-tuned values; still unconfirmed whether the pilot's real
-   thermal/glide figures looked right against what they remember of those flights.
-4. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
+1. **Commit and decide on tagging v0.7** — check with the pilot before tagging/pushing, per this
+   project's own "confirm before push" norm; nothing here was pushed automatically.
+2. **v0.8 (public API + VidFactory) or v0.9 (sharing) are both fully planned** (`specs/006-public-api-
+   vidfactory/`, `specs/007-sharing-public-readiness/`) and ready to implement next, in either order — no
+   code-level dependency forces one before the other.
+3. **XContest score import remains a backlog item**, not a blocking dependency of anything — see
+   `features.md`'s Backlog entry. Pick it up only if/when a real "My Flights" export sample turns up.
+4. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — still unconfirmed whether the
+   pilot's real thermal/glide figures looked right against what they remember of those flights.
+5. **Decide on `specs/002-flight-log-ui`'s Phases 9–11** (`/contacts`, CSV export, remember-last-filters)
    — still open, not tied to any particular tag.
 
 ## Open Questions
 
-- None blocking v0.7 — it's ready to implement as planned.
-- Whether `v0.8`/`v0.9` follow v0.7 in strict order, or get reprioritized — no code-level dependency
-  forces the order (see each plan's own dependency diagram).
-- `features.md`'s backlog, unchanged this session except for the new XContest entry: grant the deploy
-  `gh` token `read:packages`, the `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style
-  logging gap.
+- None blocking v0.8/v0.9 — both are ready to implement as planned, in either order.
+- Whether `v0.6.0` itself still needs tagging/deploying before v0.7 does, or whether they ship together —
+  check `git tag`/the deploy pipeline's actual state rather than assuming from this file alone.
+- `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
+  `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
 
 ## Context
 
-- **`specs/004-secondary-sheets-xcontest/` through `specs/007-sharing-public-readiness/`** each hold a
-  complete spec/research/data-model/contracts/plan/tasks set for `v0.6`–`v0.9`. `specs/004`'s `tasks.md`
-  is checked off through Phase 4 (T001–T017, T025–T030); Phase 5 (T018–T024) is explicitly marked
-  deferred, not forgotten.
-- **A running theme worth remembering for whichever milestone comes next**: this session repeatedly
-  found that an existing doc or an old spec's prose had drifted from reality — stale roadmap version
-  numbers, `01-project-overview.md`/`02-backend-conventions.md` describing code that doesn't exist yet,
-  unread sheets, a third-party repo solving a different problem than expected. Verify against the real
-  source (code, real files, real PyPI/GitHub metadata, an actually-booted dev server) before designing
-  on top of any existing doc's claims — including this file's own claims, once enough time has passed.
-- **`v0.5`'s own spec/tasks live in `specs/003-igc-ingest-analysis/`**, 35/35 checked off — no longer
-  active work, kept for reference.
+- **`specs/005-statistics/`** holds the complete spec/research/data-model/contracts/plan/tasks set for
+  v0.7, now implemented — `tasks.md`'s checkboxes should be marked off to match (not yet done as of this
+  note; do that before considering the milestone fully closed).
+- **`specs/006-public-api-vidfactory/` and `specs/007-sharing-public-readiness/`** hold complete spec sets
+  for v0.8/v0.9 — ready whenever picked up.
+- **A running theme worth remembering for whichever milestone comes next**: prior sessions repeatedly
+  found that an existing doc or an old spec's prose had drifted from reality. Verify against the real
+  source (code, real files, an actually-booted dev server) before designing on top of any existing doc's
+  claims — including this file's own claims, once enough time has passed.
 - **The dev server needs a restart after every backend edit** (no `--reload`). See
   [[flightlog-dev-server-workflow]].
+- **`importlib.metadata.version("flightlog")` caches the version at install time** — after bumping
+  `pyproject.toml`, `poetry install` (no args needed, it's already in the lockfile) must re-run before
+  `APP_VERSION`/the static-asset cache-busting reflects the new version; otherwise `test_app_version_
+  matches_pyproject` fails even though the edit is correct. Caught and fixed this session.
 - **The Windows-only WAL gotcha**: `data/flightlog.db`'s main file is often stale on its own — real,
   current data lives in the accompanying `.db-wal`/`.db-shm` sidecar files until SQLite checkpoints them.
-  Copying just the `.db` file (as a first attempt this session did) silently produces an
-  apparently-empty database. Copy all three together, or better, just point directly at the real path.
+  Copy all three together, or better, just point directly at the real path.
 
 This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
 feature's own `specs/` folder have the detail.
