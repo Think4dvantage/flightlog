@@ -176,9 +176,22 @@ discarded, not reconciled.
 ### v0.9 — Sharing & public readiness
 
 Per-flight visibility (private / unlisted / public), public flight page, public pilot profile, rate
-limiting on the public surface, buddy invite/accept flow, `allow_self_registration` genuinely flippable.
+limiting on the public surface.
 
-**`olddata/Flugbuch.xlsx` must be removed from git history before this ships.**
+**Full spec/plan/tasks written** (`specs/007-sharing-public-readiness/`), not yet implemented. Two items
+in this entry's original wording were already stale by the time planning actually happened: the buddy
+invite/accept/decline flow has been **shipped since v0.2** (`architecture.md`'s API Contracts table
+already lists it), and `allow_self_registration` is **already a working, flippable config flag** — but
+self-registering today produces a broken account with zero flight categories, since the generic
+per-account starter-category seeding was explicitly deferred to "once self-registration is live"
+(`specs/001-core-data-import/research.md`, written under the pre-renumbering scheme where this milestone
+was "v0.8"). That real, still-open gap — not "make the flag flippable," which is already true — is what
+this feature's spec actually scopes for self-registration.
+
+**`olddata/Flugbuch.xlsx` must be removed from git history before this ships.** This is a genuinely
+destructive, hard-to-reverse repository operation (a history rewrite, not a plain `git rm` —
+`04-constraints.md`) and must be explicitly confirmed with the pilot at implementation time, not
+performed as a routine task step.
 
 ### v0.10 — Enrichment
 
