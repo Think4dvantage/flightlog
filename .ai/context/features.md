@@ -149,6 +149,12 @@ available, same as `specs/002-flight-log-ui`'s still-open T047.
 `hikes`, `groundhandling`, `tandem_flights`, `goals` imported in one pass. XContest "My Flights" JSON
 import filling `xc_official_score` / `_type` / `_url` alongside the hand-entered FAI distance.
 
+**Full spec/plan/tasks written** (`specs/004-secondary-sheets-xcontest/`), not yet implemented. Scopes
+the `/goals` page here, not in v0.7 — a pilot who just had their goals imported should be able to see
+and manage them immediately, not wait for the statistics milestone. **v0.7's roadmap entry below still
+says "`/stats` and `/goals` pages" from before this was decided** — that's now stale; `/goals` is a v0.6
+deliverable, v0.7 is `/stats` only. Left as a visible historical trace rather than silently rewritten.
+
 **`Flugbuch.xlsx` is retired here.**
 
 ### v0.7 — Statistics
