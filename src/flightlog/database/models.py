@@ -19,7 +19,6 @@ flight_buddies     — flight <-> buddy join table
 igc_tracks         — one analyzed GPS track per flight; file on disk, aggregates here
 igc_segments       — thermals/glides/markers within a track, takeoff-relative offsets
 site_observations  — a track's takeoff/landing fix, feeding sites' automatic coordinate backfill
-igc_pending_uploads — a bulk-uploaded file that didn't auto-attach to a flight
 hikes              — Fitnessprogramm sheet; optionally linked to a Hike&Fly flight
 groundhandling_sessions — Groundhandling sheet; standalone, never linked to a flight
 tandem_flights     — Tandemflüge sheet; the pilot as passenger, deliberately not in flights
@@ -149,9 +148,6 @@ class User(Base):
     )
     flights = relationship("Flight", back_populates="owner", cascade="all, delete-orphan")
     igc_tracks = relationship("IgcTrack", back_populates="owner", cascade="all, delete-orphan")
-    igc_pending_uploads = relationship(
-        "IgcPendingUpload", back_populates="owner", cascade="all, delete-orphan"
-    )
     hikes = relationship("Hike", back_populates="owner", cascade="all, delete-orphan")
     groundhandling_sessions = relationship(
         "GroundhandlingSession", back_populates="owner", cascade="all, delete-orphan"
@@ -455,36 +451,6 @@ class SiteObservation(Base):
     lon = Column(Float, nullable=False)
     alt_m = Column(Float, nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
-
-
-class IgcPendingUpload(Base):
-    """
-    A bulk-uploaded file that didn't auto-attach — ambiguous match or rejected. The file is
-    already written to content-addressed storage at upload time, whether or not it resolves
-    right away, so resolving later reads stored bytes rather than requiring re-upload. Kept
-    (not deleted) once resolved, as a record of what happened to this upload.
-    """
-
-    __tablename__ = "igc_pending_uploads"
-    __table_args__ = (
-        UniqueConstraint("owner_id", "sha256", name="uq_igc_pending_uploads_owner_sha256"),
-    )
-
-    id = Column(String, primary_key=True, default=new_uuid)
-    owner_id = Column(
-        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    sha256 = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)
-    original_filename = Column(String, nullable=False)
-    status = Column(String, nullable=False)  # needs_resolution|rejected
-    reason = Column(String, nullable=True)
-    candidate_flight_ids_json = Column(Text, nullable=True)
-    resolved_flight_id = Column(String, ForeignKey("flights.id"), nullable=True)
-    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
-    resolved_at = Column(UtcDateTime, nullable=True)
-
-    owner = relationship("User", back_populates="igc_pending_uploads")
 
 
 class Hike(Base):

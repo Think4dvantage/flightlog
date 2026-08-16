@@ -72,9 +72,9 @@ src/flightlog/
 │   ├── aliases.py           # Excel dirty-value normalisation tables
 │   ├── importer.py          # python -m flightlog.core.importer (one-shot, --dry-run default)
 │   ├── igc.py               # libigc wrapper → thermals, glides, segments
-│   ├── igc_store.py         # content-addressed file storage (sha256)
-│   ├── igc_match.py         # upload → flight matching
-│   ├── sites.py             # site coordinate backfill from IGC fixes
+│   ├── igc_storage.py       # content-addressed file storage (sha256)
+│   ├── reset_igc.py         # python -m flightlog.core.reset_igc (one-shot, --dry-run default)
+│   ├── site_backfill.py     # site coordinate backfill from IGC fixes
 │   ├── flights.py           # list / filter / sort / paginate
 │   ├── stats.py             # rollups
 │   └── xcontest.py          # XContest "My Flights" JSON import

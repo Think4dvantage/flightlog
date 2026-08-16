@@ -6,16 +6,16 @@ IGC tracks.
     DELETE /api/flights/{id}/igc            — detach
     GET    /api/flights/{id}/igc/segments
     GET    /api/flights/{id}/igc/track.geojson
-    POST   /api/igc/bulk                    — multipart, multiple files
-    GET    /api/igc/pending
-    POST   /api/igc/pending/{id}/resolve
-    DELETE /api/igc/pending/{id}
     POST   /api/admin/reanalyze             — admin only, 403 for a pilot account
 
 Every handler here is a plain sync `def`, matching every other router in this app — FastAPI
 already runs sync path functions in its worker threadpool, so `core.igc.analyze()`'s CPU-bound
 work never blocks the event loop without needing an explicit `asyncio.to_thread` call (that
 matters when a handler is `async def`, which none of these are; see 04-constraints.md).
+
+Bulk upload + the pending-review queue (`POST /api/igc/bulk`, `/api/igc/pending/*`) were removed
+in v0.8.1 — a real bulk import mismatched flights and the pilot asked for it gone outright, not
+just hidden. Per-flight upload above (unambiguous by construction) is the only attach path now.
 """
 
 from __future__ import annotations
@@ -35,16 +35,12 @@ from flightlog.core import igc_storage, site_backfill
 from flightlog.database.db import get_db
 from flightlog.database.models import (
     Flight,
-    IgcPendingUpload,
     IgcSegment,
     IgcTrack,
     User,
     utcnow,
 )
 from flightlog.models.igc import (
-    BulkUploadOutcomeOut,
-    IgcPendingResolveIn,
-    IgcPendingUploadOut,
     IgcSegmentOut,
     IgcTrackGeoJsonOut,
     IgcTrackGeoJsonPropertiesOut,
@@ -56,12 +52,6 @@ from flightlog.models.igc import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["igc"])
-
-# Auto-attach only when the best-matching flight's duration is this close to the track's
-# measured duration, and the runner-up candidate is well clear of it (architecture.md's
-# bulk-match algorithm) — never guessed when two flights are plausible.
-AUTO_MATCH_MAX_DELTA_S = 3 * 60
-AUTO_MATCH_RUNNER_UP_MIN_GAP_S = 10 * 60
 
 
 # ---- ownership helpers (one per router file, per 02-backend-conventions.md) ----
@@ -85,13 +75,6 @@ def _get_track_for_flight(flight: Flight, db: Session) -> IgcTrack:
     row = db.execute(select(IgcTrack).where(IgcTrack.flight_id == flight.id)).scalar_one_or_none()
     if row is None:
         raise AppException(404, "ENTITY_NOT_FOUND", "This flight has no track")
-    return row
-
-
-def _get_own_pending(pending_id: str, current_user: User, db: Session) -> IgcPendingUpload:
-    row = db.get(IgcPendingUpload, pending_id)
-    if row is None or row.owner_id != current_user.id:
-        raise AppException(404, "ENTITY_NOT_FOUND", "Pending upload not found")
     return row
 
 
@@ -287,217 +270,6 @@ def get_igc_geojson(
         geometry=IgcTrackGeometryOut(coordinates=coordinates),
         properties=IgcTrackGeoJsonPropertiesOut(offsets_s=offsets_s),
     )
-
-
-# ---- bulk upload + pending review ----
-
-
-def _find_bulk_match(db: Session, current_user: User, flight_date, duration_s: int) -> dict:
-    """architecture.md's bulk-match algorithm. Scores every untracked same-day flight by how
-    close its logged duration is to the track's measured one; auto-attaches only when the
-    best match is close AND clearly better than the next-best candidate. Reads the full
-    parsed analysis rather than architecture.md's original "header-only date" fast path —
-    the file needs a full parse regardless once it's going to be attached or held pending, so
-    a separate lightweight pre-scan would just be a second parsing path for no real saving
-    (research.md accepts a bulk batch being slower as a documented tradeoff already)."""
-    candidates = (
-        db.execute(
-            select(Flight).where(
-                Flight.owner_id == current_user.id,
-                Flight.flight_date == flight_date,
-            )
-        )
-        .scalars()
-        .all()
-    )
-    candidates = [f for f in candidates if f.igc_track is None]
-    if not candidates:
-        return {"outcome": "needs_resolution", "candidates": []}
-
-    scored = sorted(
-        ((abs((f.duration_min or 0) * 60 - duration_s), f) for f in candidates),
-        key=lambda pair: pair[0],
-    )
-    best_delta, best_flight = scored[0]
-    runner_up_delta = scored[1][0] if len(scored) > 1 else None
-
-    if best_delta <= AUTO_MATCH_MAX_DELTA_S and (
-        runner_up_delta is None or runner_up_delta - best_delta >= AUTO_MATCH_RUNNER_UP_MIN_GAP_S
-    ):
-        return {"outcome": "auto_attached", "flight": best_flight}
-    return {"outcome": "needs_resolution", "candidates": [f.id for f in candidates]}
-
-
-@router.post("/igc/bulk", response_model=list[BulkUploadOutcomeOut])
-def bulk_upload_igc(
-    files: list[UploadFile] = File(...),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> list[BulkUploadOutcomeOut]:
-    results: list[BulkUploadOutcomeOut] = []
-    for file in files:
-        filename = file.filename or "upload.igc"
-        data = file.file.read()
-        try:
-            sha256, file_path, analysis = _store_and_analyze(current_user, filename, data)
-        except AppException as exc:
-            results.append(
-                BulkUploadOutcomeOut(filename=filename, outcome="rejected", reason=exc.message)
-            )
-            continue
-
-        existing_pending = db.execute(
-            select(IgcPendingUpload).where(
-                IgcPendingUpload.owner_id == current_user.id,
-                IgcPendingUpload.sha256 == sha256,
-            )
-        ).scalar_one_or_none()
-        # Only an *unresolved* pending row blocks reprocessing — a dismissed or already-
-        # resolved one must not, or a dismissed file could never be reconsidered (its
-        # UniqueConstraint("owner_id", "sha256") slot is reused below instead of violated).
-        if existing_pending is not None and existing_pending.resolved_at is None:
-            results.append(
-                BulkUploadOutcomeOut(
-                    filename=filename,
-                    outcome="needs_resolution",
-                    pending_id=existing_pending.id,
-                    candidate_flight_ids=(
-                        json.loads(existing_pending.candidate_flight_ids_json)
-                        if existing_pending.candidate_flight_ids_json
-                        else None
-                    ),
-                    reason="Already uploaded and still awaiting resolution",
-                )
-            )
-            continue
-
-        match = _find_bulk_match(
-            db, current_user, analysis.takeoff_fix.at.date(), analysis.duration_s
-        )
-        if match["outcome"] == "auto_attached":
-            flight = match["flight"]
-            _attach_track(db, flight, current_user, filename, sha256, file_path, analysis)
-            db.commit()
-            results.append(
-                BulkUploadOutcomeOut(
-                    filename=filename, outcome="auto_attached", flight_id=flight.id
-                )
-            )
-            continue
-
-        candidates = match["candidates"]
-        status = "needs_resolution" if candidates else "rejected"
-        reason = None if candidates else f"No flight logged on {analysis.takeoff_fix.at.date()}"
-        candidate_json = json.dumps(candidates) if candidates else None
-
-        if existing_pending is not None:
-            # A previously dismissed/resolved row for this exact file — reuse it rather than
-            # insert a second row and violate UniqueConstraint("owner_id", "sha256").
-            pending = existing_pending
-            pending.file_path = file_path
-            pending.original_filename = filename
-            pending.status = status
-            pending.reason = reason
-            pending.candidate_flight_ids_json = candidate_json
-            pending.resolved_flight_id = None
-            pending.resolved_at = None
-        else:
-            pending = IgcPendingUpload(
-                owner_id=current_user.id,
-                sha256=sha256,
-                file_path=file_path,
-                original_filename=filename,
-                status=status,
-                reason=reason,
-                candidate_flight_ids_json=candidate_json,
-            )
-            db.add(pending)
-        db.commit()
-        results.append(
-            BulkUploadOutcomeOut(
-                filename=filename,
-                outcome="needs_resolution" if candidates else "rejected",
-                candidate_flight_ids=candidates or None,
-                pending_id=pending.id,
-                reason=pending.reason,
-            )
-        )
-
-    logger.info(
-        "Bulk IGC upload: %d files, %d auto-attached, %d needing resolution/rejected by %s",
-        len(files),
-        sum(1 for r in results if r.outcome == "auto_attached"),
-        sum(1 for r in results if r.outcome != "auto_attached"),
-        current_user.id,
-    )
-    return results
-
-
-@router.get("/igc/pending", response_model=list[IgcPendingUploadOut])
-def list_pending(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> list[IgcPendingUploadOut]:
-    rows = (
-        db.execute(
-            select(IgcPendingUpload)
-            .where(
-                IgcPendingUpload.owner_id == current_user.id, IgcPendingUpload.resolved_at.is_(None)
-            )
-            .order_by(IgcPendingUpload.created_at)
-        )
-        .scalars()
-        .all()
-    )
-    return [
-        IgcPendingUploadOut(
-            id=row.id,
-            original_filename=row.original_filename,
-            status=row.status,
-            reason=row.reason,
-            candidate_flight_ids=(
-                json.loads(row.candidate_flight_ids_json) if row.candidate_flight_ids_json else None
-            ),
-            created_at=row.created_at,
-            resolved_at=row.resolved_at,
-        )
-        for row in rows
-    ]
-
-
-@router.post("/igc/pending/{pending_id}/resolve", response_model=IgcTrackOut)
-def resolve_pending(
-    pending_id: str,
-    body: IgcPendingResolveIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> IgcTrackOut:
-    pending = _get_own_pending(pending_id, current_user, db)
-    flight = _get_own_flight(body.flight_id, current_user, db)
-
-    data = igc_storage.read_igc(pending.file_path)
-    _sha256, file_path, analysis = _store_and_analyze(current_user, pending.original_filename, data)
-    track = _attach_track(
-        db, flight, current_user, pending.original_filename, pending.sha256, file_path, analysis
-    )
-    pending.resolved_flight_id = flight.id
-    pending.resolved_at = utcnow()
-    db.commit()
-    db.refresh(track)
-    logger.info("Pending IGC upload resolved: %s -> flight %s", pending_id, flight.id)
-    return IgcTrackOut.model_validate(track)
-
-
-@router.delete("/igc/pending/{pending_id}", status_code=204)
-def dismiss_pending(
-    pending_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> None:
-    pending = _get_own_pending(pending_id, current_user, db)
-    pending.resolved_at = utcnow()
-    db.commit()
-    logger.info("Pending IGC upload dismissed: %s by %s", pending_id, current_user.id)
 
 
 # ---- admin re-analysis ----

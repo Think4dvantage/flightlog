@@ -18,7 +18,6 @@ const NAV_LINKS = [
   { page: 'tandem-flights', href: '/tandem-flights', key: 'nav.tandem_flights' },
   { page: 'goals', href: '/goals', key: 'nav.goals' },
   { page: 'contacts', href: '/contacts', key: 'nav.contacts' },
-  { page: 'igc', href: '/igc', key: 'nav.tracks' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },
   { page: 'api-keys', href: '/api-keys', key: 'nav.api_keys' },
 ];

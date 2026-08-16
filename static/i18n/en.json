@@ -12,7 +12,6 @@
     "tandem_flights": "Tandem flights",
     "goals": "Goals",
     "contacts": "Contacts",
-    "tracks": "Tracks",
     "stats": "Statistics",
     "api_keys": "API keys",
     "login": "Log in",
@@ -383,33 +382,6 @@
       "prompt": "Delete this goal? This cannot be undone.",
       "yes": "Delete",
       "no": "Cancel"
-    }
-  },
-  "igc": {
-    "title": "Tracks",
-    "hint": "Upload one or many IGC files at once. A file that clearly matches exactly one flight attaches automatically; anything ambiguous is queued below for you to resolve by hand.",
-    "upload_label": "IGC files",
-    "upload": "Upload",
-    "no_files": "Choose at least one IGC file first.",
-    "outcomes_title": "Last upload results",
-    "outcomes_empty": "Nothing uploaded yet this visit.",
-    "pending_title": "Needs your review",
-    "pending_hint": "Files that couldn't be attached automatically. Pick the right flight, or dismiss a file you don't want to keep.",
-    "pending_empty": "Nothing waiting for review.",
-    "resolve": "Attach",
-    "dismiss": "Dismiss",
-    "col": {
-      "file": "File",
-      "outcome": "Outcome",
-      "detail": "Detail",
-      "status": "Status",
-      "candidates": "Candidate flight",
-      "actions": "Actions"
-    },
-    "outcome": {
-      "auto_attached": "Attached",
-      "needs_resolution": "Needs review",
-      "rejected": "Rejected"
     }
   },
   "stats": {

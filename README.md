@@ -47,6 +47,13 @@ Shipped in v0.8 (public API): a pilot can mint scoped, revocable API keys from t
 hand one to an external tool — VidFactory today — which then reads flight metadata and IGC-derived
 highlight timing (thermal/glide/launch/landing timestamps, offsets from takeoff) and can push a link
 back to a produced video, which shows up on the pilot's own flight page automatically. No shared login
+
+v0.8.1 removes bulk IGC upload entirely — a real bulk import mismatched flights, and the fix was to
+drop the feature rather than debug it. An IGC track is attached from a flight's own edit page only
+(unambiguous by construction, no matching heuristic involved), which is how it has always worked
+since v0.5. A one-shot `python -m flightlog.core.reset_igc [--write]` cleans up any tracks/segments
+the removed feature mismatched, and the two things it wrote elsewhere (a flight's backfilled takeoff/
+landing time, a site's IGC-derived coordinate).
 credentials, no VidFactory copy of the flight data.
 
 Coming next: sharing & public readiness (v0.9) — per-flight visibility, a public flight page, and rate

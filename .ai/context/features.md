@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.8.0 (API keys + `/api/integration/v1` + flight-link push-back) implemented, tested, doc-drift-cleaned, tagged and pushed this session
+## Current Version: v0.8.1 (bulk IGC upload removed + mis-imported track data reset) implemented, tested this session
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -341,6 +341,47 @@ of them ever existed in `database/models.py`, and no code validated a URL before
 
 `pyproject.toml` bumped `0.7.5` → `0.8.0` (`poetry install` re-run so `APP_VERSION` isn't stale),
 committed, tagged `v0.8.0`, and pushed this session.
+
+### v0.8.1 — Bulk IGC upload removed + track data reset
+
+Prompted directly by the pilot after a real bulk import against `fl.sdh.lol` mismatched flights:
+"I have bulk imported and it got horribly wrong." Rather than debug the bulk-match heuristic, the
+feature is gone outright.
+
+1. **Bulk upload + its pending-review queue removed entirely** — `POST /api/igc/bulk`, `GET
+   /api/igc/pending`, `POST /api/igc/pending/{id}/resolve`, `DELETE /api/igc/pending/{id}`, the
+   `/igc` page (`static/igc.html`/`igc.js`), its nav link, and the `IgcPendingUpload` model/
+   `igc_pending_uploads` table are all gone — not just hidden, unlike the `/import` page's v0.7.5
+   precedent. **No new work was needed for "link an IGC file from the flight edit page"** — the
+   pilot's own edit form has had unambiguous-by-construction upload/replace/detach
+   (`POST`/`DELETE /api/flights/{id}/igc`) since v0.5; that was always the primary path, bulk was
+   always the secondary one. See `architecture.md`'s "Attaching an uploaded IGC to a flight" and
+   "Tables that do NOT exist" sections for the full detail.
+2. **`core/reset_igc.py`** — a new one-shot script, `python -m flightlog.core.reset_igc [--write]`
+   (dry-run default, matching `core/importer.py`'s own shape), that deletes every `igc_tracks`/
+   `igc_segments`/`site_observations` row, drops the now-modelless `igc_pending_uploads` table, and
+   undoes the two things those bad tracks wrote elsewhere: nulls `flights.takeoff_time`/
+   `landing_time` (the legacy workbook has no time-of-day anywhere — every value there came from a
+   track) and clears any site's `coord_source == "igc_median"` coordinate (a median of the
+   observations being deleted). Not owner-scoped — one pilot account, same assumption the importer
+   makes. 3 new tests (`tests/backend/test_reset_igc.py`): dry-run makes zero writes, `--write`
+   clears both tracks and their two side effects, and a simulated leftover `igc_pending_uploads`
+   table (raw SQL, since the ORM model is gone) is dropped correctly.
+3. **Run against the local dev DB this session**: `data/flightlog.db` had 3 `igc_tracks`, 21
+   `igc_segments`, 3 `site_observations`, 2 `igc_pending_uploads`, and 1 site with
+   `coord_source == "igc_median"` — all cleared, 5 `.igc` files deleted from `data/igc/`, 0 flights
+   had `takeoff_time`/`landing_time` set (that dev DB's mismatch was small; the pilot's real damage
+   is on `fl.sdh.lol`). **Not yet run against prod** — `04-constraints.md` forbids direct SSH/
+   `docker-compose` there; the pilot runs `python -m flightlog.core.reset_igc --write` themselves
+   inside the deployed container once this release's image is live, e.g. via
+   `docker exec <container> python -m flightlog.core.reset_igc --write`.
+
+211 tests passing project-wide (`test_igc_bulk.py` deleted with the feature; 3 new tests added in
+`test_reset_igc.py`), `ruff check`/`ruff format --check` clean. `pyproject.toml` bumped `0.8.0` →
+`0.8.1` (`poetry install` re-run).
+Live-boot verified via `curl` against a local dev boot: `/igc` and every bulk/pending route 404,
+`/api/flights/{id}/igc` and its `segments`/`track.geojson` siblings still resolve, the nav no
+longer renders a Tracks link.
 
 ### v0.9 — Sharing & public readiness
 

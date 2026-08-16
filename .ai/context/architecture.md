@@ -30,7 +30,6 @@ behind it. (v0.2's Core data + Excel import remains the foundation everything si
 | `igc_tracks` | **shipped v0.5** | one per flight (`UniqueConstraint(flight_id)`); file on disk, aggregates here — see IGC analysis section below |
 | `igc_segments` | **shipped v0.5** | thermals / glides / markers with takeoff-relative offsets |
 | `site_observations` | **shipped v0.5** | `id`, `site_id`, `track_id`, `kind` (takeoff\|landing), `lat`, `lon`, `alt_m` — feeds `core/site_backfill.py`'s median coordinate recompute |
-| `igc_pending_uploads` | **shipped v0.5** | a plan-level addition beyond the original `architecture.md` table list (`specs/003-igc-ingest-analysis/data-model.md`) — a bulk-uploaded file that didn't auto-attach; persists the review queue past a closed tab |
 | `hikes` | **shipped v0.6** | `Fitnessprogramm` sheet; nullable `flight_id`, linked only on an unambiguous same-date match against an `is_hike_fly` flight — never guessed |
 | `groundhandling_sessions` | **shipped v0.6** | `date`, `place`, `duration_min`, `comment` — named with a `_sessions` suffix, not bare `groundhandling` (the sheet name is German shorthand, not a schema-naming convention) |
 | `tandem_flights` | **shipped v0.6** | flights as a passenger — deliberately NOT in `flights`; `tandem_operator` stays free text, never a `buddies` FK (real source values include company names) |
@@ -48,6 +47,19 @@ behind it. (v0.2's Core data + Excel import remains the foundation everything si
   practice, not just in principle — every figure is a read-time aggregate over ~600 rows and the full
   page loads well under a second live. Add a cache only if a specific figure is later measurably too
   slow — not speculatively.
+- **`igc_pending_uploads`.** Shipped v0.5 as the review queue behind bulk IGC upload
+  (`POST /api/igc/bulk`), **removed in v0.8.1**: a real bulk import mismatched flights against
+  the pilot's real data, and the fix was to drop bulk upload entirely rather than debug its
+  matching heuristic — the per-flight upload path (`POST /api/flights/{id}/igc`, unambiguous
+  by construction, live since v0.5) already covers the actual need. `core/reset_igc.py`
+  (`python -m flightlog.core.reset_igc --write`) is the one-shot cleanup this release shipped:
+  it deletes every `igc_tracks`/`igc_segments`/`site_observations` row, drops this table
+  outright (its model is gone, so `Base.metadata.create_all()` never recreates it), and undoes
+  the two things those bad tracks wrote elsewhere — `flights.takeoff_time`/`landing_time`
+  (nulled; the legacy workbook has no time-of-day anywhere, so every value there came from a
+  track) and any site's `coord_source == "igc_median"` coordinate (cleared; it was a median of
+  the `site_observations` rows being deleted). Not owner-scoped, matching `core/importer.py`'s
+  single-pilot assumption.
 - **`tracker_links`, and any site `webcam_url` / `rules_url` column.** Unlike the others in this list,
   these were never a deliberate design rejection — they were carried in this doc's own table list
   (mislabeled "v0.3", as though shipped or scheduled) and cited by `04-constraints.md`/
@@ -294,31 +306,27 @@ camera that started rolling before takeoff can still be aligned.
 
 Storing segments is what makes the highlight query an indexed `ORDER BY` instead of an IGC re-parse.
 
-### Matching an uploaded IGC to a flight
+### Attaching an uploaded IGC to a flight
 
 The Excel records no time of day and **117 days carry more than one flight**, so date alone is not
-enough.
+enough to guess a flight automatically — which is exactly why there is only one attach path.
 
-- **Primary path**: upload from the flight's own edit form (`POST /api/flights/{id}/igc`) — unambiguous
-  by construction. A second upload for a flight that already has a track replaces it wholesale (new
-  segments and site observations, old ones deleted first), never accumulates a second row.
-- **Bulk path** (`POST /api/igc/bulk`): every file is **fully parsed** up front, not just its header —
-  a deliberate deviation from this section's original "read only the header for speed" plan
-  (`specs/003-igc-ingest-analysis/research.md`): the file needs a full parse regardless once it's
-  going to be attached or held pending, so a separate lightweight pre-scan would just be a second
-  parsing path for no real saving. Only untracked flights are match candidates. Score each candidate's
-  logged `duration_min` against the track's measured duration and auto-attach only when `|Δ| ≤ 3 min`
-  **and** the runner-up is `> 10 min` away (or there is no runner-up at all). Everything else — ambiguous
-  or with zero candidates — is written to `igc_pending_uploads` (file already stored, never re-uploaded
-  to resolve) rather than reported-and-discarded, so the review queue survives a closed tab. Dismissing a
-  pending row must not permanently occupy its `UniqueConstraint(owner_id, sha256)` slot — a dismissed
-  row is *reused* on a later re-upload of the same file, not left blocking it (a real bug caught and
-  fixed via a live-boot pass, not by unit tests alone — see `specs/003-igc-ingest-analysis/tasks.md` T028).
-- **Writeback shrinks the problem**: every attach (`_attach_track` in `api/routers/igc.py`) writes
-  `flights.takeoff_time` / `landing_time` from the track's takeoff/landing fixes, and a detach clears
-  them back to `NULL` — so later imports can match on time overlap. This is the exact gap a first pass
-  at this section left unimplemented; caught and closed during the `sync.md` documentation pass rather
-  than left as a silent TODO.
+- **Upload from the flight's own edit form** (`POST /api/flights/{id}/igc`) — unambiguous by
+  construction, since the pilot picks the flight. A second upload for a flight that already has a
+  track replaces it wholesale (new segments and site observations, old ones deleted first), never
+  accumulates a second row.
+- **Writeback shrinks the problem for any future matching feature**: every attach (`_attach_track` in
+  `api/routers/igc.py`) writes `flights.takeoff_time` / `landing_time` from the track's takeoff/
+  landing fixes, and a detach clears them back to `NULL`.
+
+**Bulk upload (`POST /api/igc/bulk`) and its `igc_pending_uploads` review queue were removed in
+v0.8.1.** Shipped in v0.5 with a same-day duration-matching heuristic (auto-attach only when
+`|Δ| ≤ 3 min` **and** the runner-up candidate is `> 10 min` away), it mismatched real flights in
+practice — the pilot's own words: "bulk imported and it got horribly wrong." Rather than debug the
+heuristic, the feature was dropped outright: the per-flight path above already covers the real need
+and can never guess wrong, since there's no candidate scoring to get wrong. See the "Tables that do
+NOT exist" section above for `igc_pending_uploads` and `core/reset_igc.py`, the one-shot script that
+shipped alongside the removal to clean up data the bad heuristic had already written.
 
 ---
 
@@ -422,7 +430,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
 | `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
@@ -431,7 +439,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/flights` | `flights.py` | **shipped v0.2** — CRUD; `GET` responses include computed `alt_gain_m` / `site_drop_m` / `total_descent_m`. **v0.7.4**: `FlightOut.has_igc_track` — the list endpoint batches one `IgcTrack.flight_id IN (...)` query for the page rather than checking `flight.igc_track` per row (the N+1 `04-constraints.md` warns about); single-flight routes check directly, since that's one row. **v0.8**: `FlightOut.links` — one small per-flight `FlightLink` query in every response (list included), same precedent as `buddy_ids`; surfaces any VidFactory-pushed link on the pilot's own flight-detail page with no action needed (FR-009) |
 | `/api/import-report` | `import_report.py` | **shipped v0.3, page removed v0.7.5** — `GET` only, not owner-scoped; always returns `core/import_history.py`'s frozen `HISTORICAL_IMPORT_SUMMARY`, never re-runs the importer. The `/import` HTML page and its nav link are gone (a pilot's own live feedback: "outdated and not needed") but this endpoint and `core/import_history.py` are deliberately untouched — kept in case the frozen snapshot is ever wanted again |
 | — | `core/importer.py` | **shipped v0.2** — `python -m flightlog.core.importer [--write] [--path FILE]`, no HTTP route |
-| `/api/flights/{id}/igc`, `/api/igc/*`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route |
+| `/api/flights/{id}/igc`, `/api/admin/reanalyze` | `igc.py` | **shipped v0.5** — see IGC analysis section below and `specs/003-igc-ingest-analysis/contracts/endpoints.md`. First use anywhere in the app of `require_admin` (`/api/admin/reanalyze`) and of a multipart/`UploadFile` route. **v0.8.1**: `POST /api/igc/bulk` and `/api/igc/pending/*` (list/resolve/dismiss) removed — see "Attaching an uploaded IGC to a flight" above |
 | `/api/hikes`, `/api/groundhandling`, `/api/tandem-flights` | `hikes.py`, `groundhandling.py`, `tandem_flights.py` | **shipped v0.6 as import-and-view only ("no `POST`/`PUT`/`DELETE`" — that line is now stale, corrected below), full CRUD added v0.7.5** — a pilot could import historical rows but never add a new one going forward, which a live pilot-feedback pass flagged directly. `HikeCreate`/`HikeUpdate` add an optional `flight_id` a pilot can set/clear by hand (never ownership-validated, matching `flights.py`'s own cross-referenced-id convention for `launch_site_id`/`category_id`); `import_key` stays server-only across all three, exactly as it already was for `goals.py` |
 | `/api/goals` | `goals.py` | **shipped v0.6** — full CRUD + `POST /{id}/mark-done`; the one imported type in this milestone that stays editable — `import_key` is never accepted from the request body |
 | — | `core/secondary_import.py` | **shipped v0.6** — `python -m flightlog.core.secondary_import [--write] [--path FILE]`, no HTTP route; imports `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`. XContest "My Flights" score import (originally scoped alongside this milestone) has moved to `features.md`'s Backlog — no real export sample was available; see `specs/004-secondary-sheets-xcontest/research.md` |

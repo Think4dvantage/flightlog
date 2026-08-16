@@ -1,4 +1,4 @@
-"""Pydantic schemas for IGC tracks, segments, and bulk-upload review."""
+"""Pydantic schemas for IGC tracks and segments."""
 
 from __future__ import annotations
 
@@ -60,31 +60,6 @@ class IgcTrackGeoJsonOut(BaseModel):
     type: Literal["Feature"] = "Feature"
     geometry: IgcTrackGeometryOut
     properties: IgcTrackGeoJsonPropertiesOut
-
-
-class BulkUploadOutcomeOut(BaseModel):
-    filename: str
-    outcome: Literal["auto_attached", "needs_resolution", "rejected"]
-    flight_id: str | None = None
-    candidate_flight_ids: list[str] | None = None
-    pending_id: str | None = None
-    reason: str | None = None
-
-
-class IgcPendingUploadOut(BaseModel):
-    id: str
-    original_filename: str
-    status: str
-    reason: str | None
-    candidate_flight_ids: list[str] | None
-    created_at: datetime
-    resolved_at: datetime | None
-
-    model_config = {"from_attributes": True}
-
-
-class IgcPendingResolveIn(BaseModel):
-    flight_id: str
 
 
 class ReanalyzeResultOut(BaseModel):

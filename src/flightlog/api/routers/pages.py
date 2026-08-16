@@ -96,11 +96,6 @@ def equipment_page(request: Request) -> Response:
     return _page(request, "equipment.html")
 
 
-@router.get("/igc")
-def igc_bulk_page(request: Request) -> Response:
-    return _page(request, "igc.html")
-
-
 @router.get("/hikes")
 def hikes_page(request: Request) -> Response:
     return _page(request, "hikes.html")
