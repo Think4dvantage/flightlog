@@ -68,6 +68,31 @@
       </div>
     </div>
 
+    <div class="card" id="visibilityCard" hidden>
+      <h2 data-i18n="flight_detail.visibility_title">Sharing</h2>
+
+      <div id="visibilityAlert" class="alert alert-error"></div>
+
+      <div class="field">
+        <label for="visibilitySelect" data-i18n="flight_detail.visibility_label">Visibility</label>
+        <select id="visibilitySelect">
+          <option value="private" data-i18n="flight_detail.visibility_private">Private</option>
+          <option value="unlisted" data-i18n="flight_detail.visibility_unlisted">Unlisted</option>
+          <option value="public" data-i18n="flight_detail.visibility_public">Public</option>
+        </select>
+        <p class="muted" id="visibilityHint"></p>
+      </div>
+
+      <div id="visibilityLink" hidden>
+        <p class="muted" data-i18n="flight_detail.visibility_link_label">Shareable link</p>
+        <code id="visibilityLinkValue"></code>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="button" id="visibilitySaveBtn" data-i18n="flight_detail.visibility_save">Save</button>
+      </div>
+    </div>
+
     <div class="card" id="trackCard" hidden>
       <div class="page-head">
         <h2 data-i18n="flight_detail.track_title">Track</h2>

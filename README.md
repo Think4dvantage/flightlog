@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.8.1 tagged and pushed**. v0.9 (sharing & public readiness) is next. See
+Status: **v0.9.0 implemented, tested and live-verified**, not yet tagged or deployed. See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
@@ -47,6 +47,7 @@ Shipped in v0.8 (public API): a pilot can mint scoped, revocable API keys from t
 hand one to an external tool — VidFactory today — which then reads flight metadata and IGC-derived
 highlight timing (thermal/glide/launch/landing timestamps, offsets from takeoff) and can push a link
 back to a produced video, which shows up on the pilot's own flight page automatically. No shared login
+credentials, no VidFactory copy of the flight data.
 
 v0.8.1 removes bulk IGC upload entirely — a real bulk import mismatched flights, and the fix was to
 drop the feature rather than debug it. An IGC track is attached from a flight's own edit page only
@@ -54,10 +55,15 @@ drop the feature rather than debug it. An IGC track is attached from a flight's 
 since v0.5. A one-shot `python -m flightlog.core.reset_igc [--write]` cleans up any tracks/segments
 the removed feature mismatched, and the two things it wrote elsewhere (a flight's backfilled takeoff/
 landing time, a site's IGC-derived coordinate).
-credentials, no VidFactory copy of the flight data.
 
-Coming next: sharing & public readiness (v0.9) — per-flight visibility, a public flight page, and rate
-limiting on that public surface.
+Shipped in v0.9 (sharing & public readiness): a pilot can mark an individual flight private, unlisted
+(reachable only by its exact link) or public (also listed on their profile), and opt in to a durable
+public profile page — both off/private by default. The public surface is a new, unauthenticated,
+rate-limited router (`/api/public`) with its own explicit response schemas, never the pilot-facing ones.
+Self-registration also seeds five starter flight categories now, closing a gap where a newly
+self-registered account previously had none. `olddata/Flugbuch.xlsx`'s git-history scrub — required
+before this repository itself can go public — is still a separate, manually-confirmed step, not yet
+performed.
 
 ## Getting started
 
@@ -101,6 +107,7 @@ a running instance can be reconstructed from cold logs. `config.yml` is gitignor
 | `auth.allow_self_registration` | `false` keeps registration closed; admins create accounts instead |
 | `storage.igc_dir` | Where raw IGC files live. Content-addressed, never in the database |
 | `sites.dedup_radius_m` | Two sites closer than this are treated as the same place |
+| `api.public_rate_limit` | Request ceiling on `/api/public/*` only (e.g. `"30/minute"`); the authenticated surface is never limited |
 
 ## Testing
 

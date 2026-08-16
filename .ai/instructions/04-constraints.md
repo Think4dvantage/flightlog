@@ -143,6 +143,28 @@ listed under "Tables that do NOT exist."
 user**. A 404 on an unknown address turns the endpoint into a user-enumeration oracle. The same applies
 to password reset when it ships.
 
+### A private/nonexistent row and a genuinely missing row must 404 byte-identically
+
+`GET /api/public/flights/{id}` and `GET /api/public/profiles/{user_id}` (v0.9) are the second real
+implementation of this principle, after the buddy-link rule above. A single shared raise site
+(`api/routers/public.py`'s `_not_found()`), never two independently-written `AppException` calls that
+could drift apart over time — a difference in message, header, or timing is exactly the signal a
+determined visitor could use to enumerate private ids. A regression test for this must compare raw
+response bytes (`response.content`), not parsed JSON (`response.json() ==`) — structural equality
+would still pass if a future edit added a field to one branch but not the other.
+
+### Any unauthenticated page must call `bootstrapPage({ anonymous: true })`, not just `{ requireAuth: false }`
+
+`requireAuth: false` only skips the "redirect if logged out" check. It does **not** stop
+`bootstrap.js`'s nav rendering from calling `loadCurrentUser()` → `fetchAuth('/api/auth/me')` whenever
+`localStorage` happens to hold a token — and a stale/expired token's failed refresh inside `fetchAuth()`
+clears storage and redirects to `/login`, which silently breaks a page a total stranger must be able to
+load. `static/public-flight.js`/`public-profile.js` (v0.9) are the first pages needing this; the `{
+anonymous: true }` option skips the token check and the authenticated nav links entirely, regardless of
+what a visitor's browser happens to hold. Curl-based verification cannot catch this class of bug — curl
+has no `localStorage` — so this needs either a real browser session or a Node harness that imports the
+real `bootstrap.js` under a stubbed DOM/localStorage/fetch.
+
 ### Never interpolate user input into a query string
 
 Use bound parameters. For any identifier that must be interpolated (a table or column name in a

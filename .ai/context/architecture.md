@@ -4,9 +4,9 @@ This is the source of truth for the data model, the domain algorithms and the de
 It records not just *what* the design is, but *why it is not the obvious alternative*, and what breaks
 if someone "fixes" it.
 
-Status: **v0.7 shipped.** Statistics — see `specs/005-statistics/` for the spec, plan and research
-behind it. (v0.2's Core data + Excel import remains the foundation everything since builds on — see
-`specs/001-core-data-import/`.)
+Status: **v0.9 shipped.** Sharing & public readiness — see `specs/007-sharing-public-readiness/` for
+the spec, plan and research behind it. (v0.2's Core data + Excel import remains the foundation
+everything since builds on — see `specs/001-core-data-import/`.)
 
 ---
 
@@ -14,7 +14,7 @@ behind it. (v0.2's Core data + Excel import remains the foundation everything si
 
 | Table | Status | Key columns |
 |---|---|---|
-| `users` | **shipped v0.1** | `id`, `email` (unique), `display_name`, `hashed_password`, `role`, `is_active`, `locale`, `timezone`, `units`, `seeded_at`, `last_login_at`, `created_at`, `updated_at` |
+| `users` | **shipped v0.1**, `public_profile_enabled` added v0.9 | `id`, `email` (unique), `display_name`, `hashed_password`, `role`, `is_active`, `locale`, `timezone`, `units`, `seeded_at`, `public_profile_enabled`, `last_login_at`, `created_at`, `updated_at` — `seeded_at` was reserved-but-unused plumbing from v0.2 through v0.8; v0.9's `core/user_seed.py` is its first real consumer |
 | `api_keys` | **shipped v0.8** | `id`, `owner_id`, `name`, `key_prefix` (unique), `key_hash`, `scopes`, `expires_at`, `last_used_at`, `revoked_at`, `created_at` — `expires_at` added during v0.8 planning to resolve a doc inconsistency (`specs/006-public-api-vidfactory/research.md`): `revoked_at` always wins, regardless of expiry |
 | `regions` | **shipped v0.2** | `id`, `name`, `sort_order` — global reference data, not user-scoped |
 | `sites` | **shipped v0.2** | `id`, `owner_id` (nullable), `name`, `is_launch`, `is_landing`, `lat`, `lon`, `elevation_m`, `elevation_igc_m`, `region_id`, `coord_source`, `coord_accuracy_m` |
@@ -23,7 +23,7 @@ behind it. (v0.2's Core data + Excel import remains the foundation everything si
 | `harnesses` | **shipped v0.2** | `id`, `owner_id`, `brand`, `model`, `size`, `harness_type`, `reserve_next_repack`, `retired_at` |
 | `flight_categories` | **shipped v0.2** | `id`, `owner_id`, `name`, `slug`, `is_hike_fly`, `is_training`, `sort_order`, `archived_at` |
 | `buddies` | **shipped v0.2** | `id`, `owner_id`, `display_name`, `linked_user_id`, `link_state` |
-| `flights` | **shipped v0.2** | see below |
+| `flights` | **shipped v0.2**, `visibility` added v0.9 | see below |
 | `flight_buddies` | **shipped v0.2** | `(flight_id, buddy_id)` |
 | `media_links` | **not built — backlog** | `id`, `flight_id`, `owner_id`, `url`, `kind`, `provider` — photo-thumbnail idea (`features.md`'s Backlog); mislabeled "v0.3" in this doc since inception even though v0.3 shipped without it |
 | `flight_links` | **shipped v0.8** | `id`, `flight_id`, `kind`, `external_id`, `url`, `label`, `created_at`, `updated_at` — `UniqueConstraint(flight_id, kind, external_id)`; a `PUT` to that triple replaces, never duplicates. No `owner_id` — reached through the parent `flights` row, same reasoning as `igc_segments`. VidFactory pushes here via `PUT /api/integration/v1/flights/{id}/links/{kind}/{external_id}`; the pilot's own `GET /api/flights/{id}` (and the list endpoint, one small per-flight query each — same precedent as `buddy_ids`) surfaces them back as `FlightOut.links` with no action needed (FR-009) |
@@ -415,6 +415,108 @@ real workbook — every region name it can produce must already be seeded.
 
 ---
 
+## Sharing & public readiness
+
+**Shipped v0.9** (`specs/007-sharing-public-readiness/`). Two new columns
+(`flights.visibility`, `users.public_profile_enabled`), one new unauthenticated router
+(`api/routers/public.py`), and the deferred v0.2 starter-category seed
+(`core/user_seed.py`). This is the first genuinely public, unauthenticated, rate-limited
+data-serving surface in the app — `health.py` was already public but serves no pilot data
+at all; `/api/public/*` is its second and third consumer of the "absence of a dependency
+is what makes a route public" convention (`02-backend-conventions.md`), now extended into
+real data exposure for the first time.
+
+**`flights.visibility` is a plain string (`private`\|`unlisted`\|`public`, default
+`private`)** — matches every other enum-shaped column in this schema (`buddies.link_state`,
+`sites.coord_source`, ...), never a DB-level enum or lookup table. `PUT /api/flights/{id}`
+accepts it as one more field on the existing owner-scoped, JWT-gated update — no new route.
+
+**`users.public_profile_enabled` is a plain boolean, opt-in, default `False`.** No new
+"profile" table — a public profile is the user row plus a live query over that owner's
+`visibility = 'public'` flights, computed at request time, nothing separately stored or
+cached. The profile URL reuses the existing opaque `users.id` (a UUID) rather than a new
+slug/username column — non-enumerable by construction, with zero schema addition
+(`specs/007-.../research.md`). `PUT /api/auth/me` (existing route, v0.1) accepts it as one
+more field, the same generic `exclude_unset` update loop as every other profile field.
+
+**`GET /api/public/flights/{id}`** 404s unless `visibility` is `unlisted` or `public`; a
+private flight and a genuinely nonexistent id return the byte-for-byte identical
+`AppException(404, "ENTITY_NOT_FOUND", "Flight not found")` — one shared raise site
+(`public.py`'s `_not_found()`), not two independently-written branches that could drift
+apart over time. Same pattern for **`GET /api/public/profiles/{user_id}`**, which 404s
+unless `public_profile_enabled` is true, and which only ever lists that owner's
+`public`-visibility flights — an `unlisted` flight is reachable exclusively by its own
+direct link, never surfaced on its own owner's profile.
+
+**`PublicFlightOut`/`PublicProfileOut` (`models/public.py`) are an explicit field
+allowlist**, not inherited from or built on `FlightOut`/`UserOut` — the private schemas
+carry fields (email, `hashed_password`, `import_key`, ...) that must never reach this
+surface just because a future edit to the private schema happened to add one.
+
+**Rate limiting is `slowapi`** (0.1.10, verified current against PyPI at implementation
+time), wired as **per-route `@limiter.limit(...)` decorators inside `public.py` only** —
+deliberately not `app.add_middleware(SlowAPIMiddleware)`, which would also throttle every
+JWT/API-key-authenticated request and violate FR-008's "authenticated surface unaffected"
+requirement. The limit value is a **callable** (`_public_rate_limit()`, reading
+`config.api.public_rate_limit` fresh on every request), not a bare string — a literal
+string decorator argument freezes at module-import time, before `load_config()` has even
+run in the app lifespan, which would make the limit un-testable and un-reconfigurable.
+The limiter's `key_func` is `dependencies.client_ip` (X-Forwarded-For-aware, already
+trusted elsewhere in this app behind this deployment's Traefik) — not slowapi's own
+`get_remote_address` default, which would resolve every visitor to the proxy's own IP and
+put them all in one shared bucket. A `RateLimitExceeded` is caught by a dedicated handler
+in `main.py` and re-mapped to this app's own `{"error": {"code": "RATE_LIMITED", ...}}`
+envelope — never `slowapi`'s own default response shape. `slowapi`'s in-memory limiter
+storage does not survive a process restart or scale across multiple app instances; accepted
+as-is, matching this project's actual single-container deployment shape
+(`specs/007-.../plan.md`'s Risk section).
+
+**`core/user_seed.py` closes a gap open since v0.2's own planning.** `auth.py`'s
+`register()` handler had carried a comment since v0.1 saying per-user category defaults
+would be seeded from there, guarded by `users.seeded_at IS NULL` — never implemented,
+because a starter set only mattered once self-registration was actually live
+(`specs/001-core-data-import/research.md`). A self-registered account before v0.9 landed
+with zero flight categories and no way to log a flight (`flights.category_id` is `NOT
+NULL`). Five generic English categories are seeded — `Thermal`, `Soaring`, `XC`,
+`Hike&Fly`, `Sled run` — deliberately **not** the 12 legacy German categories
+(`core/aliases.py`'s `CANONICAL_CATEGORIES`), which are this specific pilot's own personal
+historical data and include jurisdiction-specific artifacts (`Schwarzflug`, `Prüfung`,
+`Startleiter`) that make no sense as a universal default for an arbitrary new pilot.
+Written through the exact same `FlightCategory` row shape a manual `POST /api/categories`
+creates — every existing validation and editability applies unchanged (FR-011). Idempotent
+on `user.seeded_at IS NULL`; never re-runs, and never runs for an admin-created or
+already-existing account.
+
+**Two research findings this milestone corrected against real code rather than the
+roadmap's stale wording**: the buddy invite/accept/decline flow was already shipped in
+v0.2 (`buddies.py`), and `auth.allow_self_registration` was already a working, flippable
+flag — neither was rebuilt here. The genuinely open gap was the starter-category seeding
+above.
+
+**`bootstrapPage({ anonymous: true })`, not just `{ requireAuth: false }`, for any unauthenticated
+page.** `static/public-flight.js`/`public-profile.js` are the first pages in this app that must stay
+viewable with zero session at all. `requireAuth: false` alone only skips the "redirect if logged
+out" check — it does not stop `bootstrap.js`'s nav rendering from calling `loadCurrentUser()` →
+`fetchAuth('/api/auth/me')` whenever `localStorage` happens to hold a token, and a stale/expired
+token's failed refresh inside `fetchAuth()` clears storage and redirects to `/login` — exactly wrong
+on a page a total stranger must be able to load. Found by a post-implementation review, not by curl
+(curl has no `localStorage`, so every curl-based check of a public page looks identical whether or
+not this redirect exists) and confirmed with a Node harness importing the real `bootstrap.js` under a
+stubbed DOM. `bootstrap.js`'s new `anonymous` option skips the token check and the authenticated
+`NAV_LINKS` block entirely, regardless of what a visitor's browser happens to be holding — the only
+way to satisfy FR-013's "no leak of whether the visitor is logged in as a different pilot entirely."
+
+**Not done in this milestone, by design**: the git-history scrub of
+`olddata/Flugbuch.xlsx` (600 flights of personal history, including free-text comments
+naming friends) required before the repository itself can go public. A destructive,
+hard-to-reverse repository operation — every existing clone/fork keeps the old blob
+reachable unless independently re-synced — kept as an explicitly pilot-confirmed action to
+perform at the moment the pilot actually decides to make the repo public, never bundled
+into a routine feature-implementation step (`04-constraints.md`,
+`specs/007-.../research.md`).
+
+---
+
 ## API Contracts
 
 Error envelope on every route — **not RFC 7807**:
@@ -430,7 +532,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. **v0.9:** `/public/flights/{flight_id}`, `/public/profiles/{user_id}` added — a distinct `/public/...` prefix from the existing authenticated `/flights/{id}`, no JWT, no redirect-to-login. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
 | `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
@@ -446,6 +548,9 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/stats` | `stats.py` | **shipped v0.7, extended v0.7.2–v0.7.5** — 10 `GET`-only, owner-scoped endpoints (`totals`, `time-breakdown`, `distribution`, `monthly-extremes`, `xc-progression`, `personal-bests`, `matrix/{dimension}`, `launch-technique`, `igc-rollup`, `progression`); no new tables, every figure a read-time aggregate over `core/stats.py`. `matrix/{dimension}` takes a plain `str` + allowlist, not `Literal[...]`, so an unknown dimension is `404 ENTITY_NOT_FOUND` rather than FastAPI's own `422`. All of `monthly-extremes`, `xc-progression`, `personal-bests.flight_date`, and `progression.days_since_last_flight`/`last_flight_date` were added post-ship, per direct pilot feedback against the deployed `fl.sdh.lol` instance rather than a new spec cycle — see this section's "Coaching-oriented additions" note below. **v0.7.5**: `ProgressionOut.cumulative_series` (and the `ProgressionPoint` schema, `core/stats.py`'s `cumulative_progression()`) were removed entirely — a running total by date is monotonically increasing by construction and the pilot correctly flagged the chart it fed as useless (a straight line, no information). Replaced by a frontend-only "monthly flights per year, overlaid" line chart built from `TimeBreakdownOut.year_month_matrix` (already fetched for the year×month table) — no new backend endpoint or field needed |
 | `/api/keys` | `api_keys.py` | **shipped v0.8** — JWT-authenticated (`get_current_user`), pilot's own browser session. CRUD-shaped: `GET`/`POST`, `POST /{id}/revoke`, `DELETE /{id}`. `POST` returns the full plaintext key exactly once, never again — no endpoint can retrieve it after creation. `DELETE` requires the key already revoked (`409 CONFLICT` otherwise) — a deliberate two-step precondition, unlike `gliders.py`'s independent retire/delete |
 | `/api/integration/v1` | `integration.py` | **shipped v0.8** — API-key-authenticated (`get_api_principal` + `require_scope`, `X-API-Key` header), for an external tool (VidFactory). `GET /flights/{id}` (`flights:read`) returns `FlightMetadataOut` — resolved **names** (site/glider/harness/category), not bare ids like the JWT-gated `FlightOut`, since an external caller has no other way to resolve them; also merges in `igc_summary` (the same `thermal_count`/`best_climb_ms`/`peak_climb_ms`/`glide_ratio`/`alt_gain_igc_m` already on `igc_tracks`, not in the original spec's metadata list but a deliberate v0.8 addition since a highlight video wants those numbers as captions) and any `links`. `GET /flights/{id}/segments` (`flights:read`) returns `igc_segments` verbatim — `kind` ∈ thermal\|glide\|takeoff\|landing\|max_alt\|top_of_climb; a "sink" moment is a `glide` segment with `alt_change_m < 0`, not a separate stored kind. `PUT /flights/{id}/links/{kind}/{external_id}` (`flight_links:write`) is the idempotent create-or-replace push-back. Every route 404s on a flight that doesn't exist or isn't owned by the key's pilot, 403s on a right-key-wrong-scope request — never a 404-that-would-leak-existence or a hint about what a correctly-scoped key would see. Frozen contract, versioned separately from the UI's models |
+| `/api/public` | `public.py` | **shipped v0.9** — **unauthenticated by design**, no auth dependency anywhere in the file, rate-limited via `slowapi` (independent of the authenticated surface). `GET /flights/{id}` 404s unless `visibility` is `unlisted`\|`public`; `GET /profiles/{user_id}` 404s unless `public_profile_enabled`. Both 404 byte-identically whether the row is missing or simply not public — never a distinguishing signal. `PublicFlightOut`/`PublicProfileOut` (`models/public.py`) are an explicit field allowlist, not derived from `FlightOut`/`UserOut`. See "Sharing & public readiness" above |
+| `/api/flights/{id}` visibility | `flights.py` | **v0.9**: `PUT` accepts one more field, `visibility` (`private`\|`unlisted`\|`public`) — no new route, no schema change beyond the field itself |
+| `/api/auth/me` public profile | `auth.py` | **v0.9**: `PUT` accepts one more field, `public_profile_enabled` — same generic update path every other profile field already uses |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**
 

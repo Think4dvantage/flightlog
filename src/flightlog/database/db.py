@@ -101,19 +101,32 @@ def _run_column_migrations(engine: Engine) -> None:
     """
     Add columns introduced after a table's initial schema. Safe to re-run.
 
-    Pattern for every future column:
-
-        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(flights)")).fetchall()}
-        if "rating" not in cols:
-            conn.execute(text("ALTER TABLE flights ADD COLUMN rating INTEGER"))
-            conn.commit()
-            logger.info("Migration: added flights.rating column")
-
     NEVER Alembic. NEVER .sql files. NEVER a _migrations table.
     """
-    # No post-initial columns yet — v0.1 ships the first schema. The `engine` parameter
-    # and this function's call site exist so the first real migration is a two-line diff.
     applied = 0
+    with engine.connect() as conn:
+        flight_cols = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(flights)")).fetchall()
+        }
+        if "visibility" not in flight_cols:
+            conn.execute(
+                text("ALTER TABLE flights ADD COLUMN visibility VARCHAR NOT NULL DEFAULT 'private'")
+            )
+            conn.commit()
+            logger.info("Migration: added flights.visibility column")
+            applied += 1
+
+        user_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
+        if "public_profile_enabled" not in user_cols:
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN public_profile_enabled BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+            conn.commit()
+            logger.info("Migration: added users.public_profile_enabled column")
+            applied += 1
+
     logger.info("Column migrations: %d applied, schema up to date", applied)
 
 

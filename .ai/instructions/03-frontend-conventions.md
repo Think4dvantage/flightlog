@@ -94,6 +94,19 @@ await bootstrapPage({ page: 'flights' });
 `bootstrapPage()` renders the nav, runs `initI18n()`, renders auth state and the language picker.
 `shared.css` owns **all** nav CSS — never duplicate nav styling in a page `<style>` block.
 
+**An unauthenticated-by-design page (v0.9: `public-flight.js`, `public-profile.js`) must pass
+`anonymous: true`, not just `requireAuth: false`:**
+
+```javascript
+await bootstrapPage({ page: 'public-flight', anonymous: true });
+```
+
+`requireAuth: false` alone still lets the nav-rendering path call `loadCurrentUser()` →
+`fetchAuth('/api/auth/me')` whenever `localStorage` holds a token, and a stale token's failed refresh
+redirects to `/login` — wrong on a page a stranger with zero session must be able to load. `anonymous:
+true` skips the token check and the authenticated nav links entirely, regardless of what a visitor's
+browser happens to hold. See `04-constraints.md`'s Security section for the full rationale.
+
 ---
 
 ## Dark Theme

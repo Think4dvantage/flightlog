@@ -26,6 +26,7 @@ from flightlog.api.errors import (
     AppException,
 )
 from flightlog.config import get_config
+from flightlog.core.user_seed import seed_starter_categories
 from flightlog.database.db import get_db
 from flightlog.database.models import User, utcnow
 from flightlog.models.auth import (
@@ -99,8 +100,11 @@ def register(body: UserCreate, db: Session = Depends(get_db)) -> Token:
     db.commit()
     db.refresh(user)
 
-    # Per-user defaults (flight categories) are seeded from here in v0.2, guarded by
-    # users.seeded_at IS NULL.
+    # Per-user defaults (flight categories), guarded by users.seeded_at IS NULL — see
+    # core/user_seed.py.
+    seed_starter_categories(db, user)
+    db.commit()
+
     logger.info("User registered: %s (%s)", user.email, user.id)
     return _issue_tokens(user)
 

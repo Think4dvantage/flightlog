@@ -121,6 +121,16 @@
     "links": "Linked resources",
     "notes": "Notes",
     "not_recorded": "Not recorded",
+    "visibility_title": "Sharing",
+    "visibility_label": "Visibility",
+    "visibility_private": "Private",
+    "visibility_unlisted": "Unlisted",
+    "visibility_public": "Public",
+    "visibility_hint_private": "Only you can see this flight.",
+    "visibility_hint_unlisted": "Anyone with the exact link below can view this flight, including your notes. It is never listed or discoverable anywhere.",
+    "visibility_hint_public": "Anyone with the link below can view this flight, including your notes, and it will appear on your public profile if you have one enabled.",
+    "visibility_link_label": "Shareable link",
+    "visibility_save": "Save",
     "track_title": "Track",
     "track_empty": "No track uploaded yet.",
     "track_upload_label": "IGC file",
@@ -527,6 +537,44 @@
       "prompt": "Permanently delete this key's record? Revoke it first if it's still active.",
       "yes": "Delete",
       "no": "Cancel"
+    }
+  },
+  "public_profile_settings": {
+    "title": "Public profile",
+    "intro": "Opt in to a durable, shareable page listing your public flights. Off by default.",
+    "toggle_label": "Enable public profile",
+    "link_label": "Your public profile link",
+    "hint_on": "Anyone with this link can see your display name and every flight you've marked Public. Unlisted flights never appear here.",
+    "hint_off": "Your profile is not visible to anyone without an account."
+  },
+  "public_flight": {
+    "launch": "Launch site",
+    "landing": "Landing site",
+    "category": "Category",
+    "duration": "Duration",
+    "distance": "Distance",
+    "max_alt": "Max altitude",
+    "alt_gain": "Altitude gain",
+    "total_descent": "Total descent",
+    "technique": "Launch technique",
+    "technique_forward": "Forward",
+    "technique_reverse": "Reverse",
+    "notes": "Notes",
+    "not_recorded": "Not recorded",
+    "shared_by": "Shared by {name}",
+    "view_profile": "View {name}'s public profile"
+  },
+  "public_profile": {
+    "flight_count": "{count} public flight(s)",
+    "empty": "No public flights yet.",
+    "not_recorded": "Not recorded",
+    "col": {
+      "date": "Date",
+      "launch": "Launch",
+      "category": "Category",
+      "duration": "Duration",
+      "distance": "Distance",
+      "max_alt": "Max altitude"
     }
   }
 }

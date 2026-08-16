@@ -108,6 +108,9 @@ class APIConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     reload: bool = False
+    # slowapi rate-string syntax ("<n>/<second|minute|hour|day>"). Applies only to
+    # /api/public/* (v0.9) — the authenticated surface is never limited by this.
+    public_rate_limit: str = "30/minute"
 
 
 class MainConfig(BaseModel):
@@ -188,3 +191,4 @@ def log_effective_config(cfg: MainConfig) -> None:
         "Config logging.level=%s file=%s", cfg.logging.level, cfg.logging.file or "<stdout>"
     )
     logger.info("Config api.host=%s port=%d", cfg.api.host, cfg.api.port)
+    logger.info("Config api.public_rate_limit=%s", cfg.api.public_rate_limit)

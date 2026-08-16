@@ -126,6 +126,10 @@ class User(Base):
     # Guards re-seeding without needing a separate flag table.
     seeded_at = Column(UtcDateTime, nullable=True)
 
+    # Opt-in only (v0.9). No separate "profile" table — the profile is this row plus the
+    # owner's public flights, computed at request time. See api/routers/public.py.
+    public_profile_enabled = Column(Boolean, nullable=False, default=False)
+
     last_login_at = Column(UtcDateTime, nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
@@ -343,6 +347,10 @@ class Flight(Base):
     launch_technique = Column(String, nullable=True)  # forward|reverse
     notes = Column(Text, nullable=True)
     import_key = Column(String, nullable=True)  # "xlsx:<row>"; NULL for API-created flights
+    # private | unlisted | public (v0.9). Plain application-validated string, matching every
+    # other enum-shaped column in this schema (buddies.link_state, sites.coord_source, ...) —
+    # never a DB-level enum or lookup table. See specs/007-sharing-public-readiness/research.md.
+    visibility = Column(String, nullable=False, default="private")
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 

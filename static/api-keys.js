@@ -5,12 +5,47 @@
  */
 
 import { bootstrapPage } from '/static/bootstrap.js';
-import { fetchAuth, errorMessage } from '/static/auth.js';
+import { fetchAuth, errorMessage, loadCurrentUser } from '/static/auth.js';
 
 const el = (id) => document.getElementById(id);
 
 let keys = [];
 let pendingAction = null; // { kind: 'revoke' | 'delete', keyId }
+
+// ---- public profile toggle (v0.9) ----
+
+function renderProfileSettings(user) {
+  el('publicProfileToggle').checked = user.public_profile_enabled;
+  el('profileHint').textContent = window.t(
+    user.public_profile_enabled
+      ? 'public_profile_settings.hint_on'
+      : 'public_profile_settings.hint_off',
+  );
+  el('profileLinkRow').hidden = !user.public_profile_enabled;
+  if (user.public_profile_enabled) {
+    el('profileLinkValue').textContent = `${window.location.origin}/public/profiles/${user.id}`;
+  }
+}
+
+async function togglePublicProfile(enabled) {
+  el('profileAlert').classList.remove('visible');
+  console.log(`[FL:api_keys] PUT /api/auth/me public_profile_enabled=${enabled}`);
+
+  const res = await fetchAuth('/api/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify({ public_profile_enabled: enabled }),
+  });
+  if (!res.ok) {
+    el('publicProfileToggle').checked = !enabled; // revert the optimistic click
+    el('profileAlert').textContent = await errorMessage(res);
+    el('profileAlert').classList.add('visible');
+    console.error(`[FL:api_keys] public profile toggle failed (${res.status})`);
+    return;
+  }
+
+  renderProfileSettings(await res.json());
+  console.log(`[FL:api_keys] public profile ${enabled ? 'enabled' : 'disabled'}`);
+}
 
 function showAlert(message) {
   el('alert').textContent = message;
@@ -276,11 +311,19 @@ function wireEvents() {
   el('confirmNo').addEventListener('click', closeConfirm);
   el('confirmOverlay').addEventListener('click', closeConfirm);
   el('confirmYes').addEventListener('click', runConfirmedAction);
+
+  el('publicProfileToggle').addEventListener('change', (event) => {
+    togglePublicProfile(event.target.checked);
+  });
 }
 
 async function init() {
   await bootstrapPage({ page: 'api-keys', requireAuth: true });
   wireEvents();
+
+  const user = await loadCurrentUser();
+  if (user) renderProfileSettings(user);
+
   keys = await loadKeys();
   render();
 }

@@ -10,6 +10,26 @@
   <div id="appNav"></div>
 
   <main class="container">
+    <div class="card" id="publicProfileCard">
+      <h2 data-i18n="public_profile_settings.title">Public profile</h2>
+      <p class="muted" data-i18n="public_profile_settings.intro">
+        Opt in to a durable, shareable page listing your public flights. Off by default.
+      </p>
+
+      <div id="profileAlert" class="alert alert-error"></div>
+
+      <label>
+        <input type="checkbox" id="publicProfileToggle">
+        <span data-i18n="public_profile_settings.toggle_label">Enable public profile</span>
+      </label>
+      <p class="muted" id="profileHint"></p>
+
+      <div id="profileLinkRow" hidden>
+        <p class="muted" data-i18n="public_profile_settings.link_label">Your public profile link</p>
+        <code id="profileLinkValue"></code>
+      </div>
+    </div>
+
     <div class="card">
       <div class="page-head">
         <h1 data-i18n="api_keys.title">API keys</h1>

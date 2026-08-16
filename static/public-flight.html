@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared flight — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div id="alert" class="alert alert-error"></div>
+
+      <div id="detailBody" hidden>
+        <h1 id="d_date"></h1>
+        <p class="muted" id="d_owner"></p>
+
+        <dl class="detail-grid">
+          <dt data-i18n="public_flight.launch">Launch site</dt>
+          <dd id="d_launch"></dd>
+
+          <dt data-i18n="public_flight.landing">Landing site</dt>
+          <dd id="d_landing"></dd>
+
+          <dt data-i18n="public_flight.category">Category</dt>
+          <dd id="d_category"></dd>
+
+          <dt data-i18n="public_flight.duration">Duration</dt>
+          <dd id="d_duration"></dd>
+
+          <dt data-i18n="public_flight.distance">Distance</dt>
+          <dd id="d_distance"></dd>
+
+          <dt data-i18n="public_flight.max_alt">Max altitude</dt>
+          <dd id="d_maxalt"></dd>
+
+          <dt data-i18n="public_flight.alt_gain">Altitude gain</dt>
+          <dd id="d_altgain"></dd>
+
+          <dt data-i18n="public_flight.total_descent">Total descent</dt>
+          <dd id="d_totaldescent"></dd>
+
+          <dt data-i18n="public_flight.technique">Launch technique</dt>
+          <dd id="d_technique"></dd>
+        </dl>
+
+        <h2 data-i18n="public_flight.notes">Notes</h2>
+        <p id="d_notes" class="muted"></p>
+
+        <p id="d_profile_link" hidden></p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/static/public-flight.js"></script>
+</body>
+</html>

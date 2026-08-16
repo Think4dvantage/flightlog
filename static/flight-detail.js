@@ -120,6 +120,60 @@ function renderLinks(links) {
   }
 }
 
+// ---- visibility (sharing, v0.9) ----
+
+function visibilityHint(value) {
+  return window.t(`flight_detail.visibility_hint_${value}`);
+}
+
+function renderVisibilityLink(flightId, visibility) {
+  const mount = el('visibilityLink');
+  if (visibility === 'private') {
+    mount.hidden = true;
+    return;
+  }
+  mount.hidden = false;
+  el('visibilityLinkValue').textContent = `${window.location.origin}/public/flights/${flightId}`;
+}
+
+function renderVisibility(flightId, visibility) {
+  el('visibilityCard').hidden = false;
+  el('visibilitySelect').value = visibility;
+  el('visibilityHint').textContent = visibilityHint(visibility);
+  renderVisibilityLink(flightId, visibility);
+}
+
+async function saveVisibility(flightId) {
+  const value = el('visibilitySelect').value;
+  el('visibilityAlert').classList.remove('visible');
+  console.log(`[FL:flight-detail] PUT /api/flights/${flightId} visibility=${value}`);
+
+  const res = await fetchAuth(`/api/flights/${flightId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ visibility: value }),
+  });
+  if (!res.ok) {
+    el('visibilityAlert').textContent = await errorMessage(res);
+    el('visibilityAlert').classList.add('visible');
+    console.error(`[FL:flight-detail] visibility update failed (${res.status})`);
+    return;
+  }
+
+  const flight = await res.json();
+  console.log(`[FL:flight-detail] visibility updated: ${flight.visibility}`);
+  renderVisibility(flightId, flight.visibility);
+}
+
+function wireVisibilityEvents(flightId) {
+  // Live-updates the hint text as soon as a new option is picked, before Save — makes the
+  // resulting exposure level unambiguous ahead of the confirming click (NFR-003), without
+  // requiring a second confirmation step.
+  el('visibilitySelect').addEventListener('change', () => {
+    el('visibilityHint').textContent = visibilityHint(el('visibilitySelect').value);
+  });
+  el('visibilitySaveBtn').addEventListener('click', () => saveVisibility(flightId));
+}
+
 // ---- track (IGC) ----
 
 const SEGMENT_KINDS_TO_SHADE = new Set(['thermal', 'glide']);
@@ -339,6 +393,9 @@ async function init() {
   const flight = await loadFlight(id);
   if (!flight) return;
   render(flight);
+
+  renderVisibility(id, flight.visibility);
+  wireVisibilityEvents(id);
 
   wireTrackEvents(id);
   const track = await loadTrack(id);

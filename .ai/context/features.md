@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.8.1 (bulk IGC upload removed + mis-imported track data reset) implemented, tested this session
+## Current Version: v0.9.0 (sharing & public readiness) implemented, tested, live-verified this session
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -383,25 +383,81 @@ Live-boot verified via `curl` against a local dev boot: `/igc` and every bulk/pe
 `/api/flights/{id}/igc` and its `segments`/`track.geojson` siblings still resolve, the nav no
 longer renders a Tracks link.
 
-### v0.9 — Sharing & public readiness
+### v0.9 — Sharing & public readiness (tag `v0.9.0`)
 
 Per-flight visibility (private / unlisted / public), public flight page, public pilot profile, rate
 limiting on the public surface.
 
-**Full spec/plan/tasks written** (`specs/007-sharing-public-readiness/`), not yet implemented. Two items
-in this entry's original wording were already stale by the time planning actually happened: the buddy
-invite/accept/decline flow has been **shipped since v0.2** (`architecture.md`'s API Contracts table
-already lists it), and `allow_self_registration` is **already a working, flippable config flag** — but
-self-registering today produces a broken account with zero flight categories, since the generic
-per-account starter-category seeding was explicitly deferred to "once self-registration is live"
-(`specs/001-core-data-import/research.md`, written under the pre-renumbering scheme where this milestone
-was "v0.8"). That real, still-open gap — not "make the flag flippable," which is already true — is what
-this feature's spec actually scopes for self-registration.
+**Implemented per `specs/007-sharing-public-readiness/tasks.md`'s all 5 phases, tested, live-verified
+this session.** Two items in this feature's original wording were already stale by the time planning
+happened: the buddy invite/accept/decline flow has been **shipped since v0.2**
+(`architecture.md`'s API Contracts table already lists it), and `allow_self_registration` was already a
+working, flippable config flag. The real, still-open gap this feature closed was the starter-category
+seeding self-registration had been missing since v0.2's own planning — see `architecture.md`'s "Sharing
+& public readiness" section for the full detail on every part of this milestone.
 
-**`olddata/Flugbuch.xlsx` must be removed from git history before this ships.** This is a genuinely
-destructive, hard-to-reverse repository operation (a history rewrite, not a plain `git rm` —
-`04-constraints.md`) and must be explicitly confirmed with the pilot at implementation time, not
-performed as a routine task step.
+1. **`flights.visibility`** (`private`\|`unlisted`\|`public`, default `private`) and
+   **`users.public_profile_enabled`** (boolean, default `False`) — two new columns via
+   `_run_column_migrations()`'s idempotent guard, no new tables. `PUT /api/flights/{id}` and
+   `PUT /api/auth/me` each accept one more field on their existing owner-scoped routes — no new routes
+   for the pilot's own write path.
+2. **`/api/public`** (`api/routers/public.py`) — unauthenticated by design, the second and third
+   consumer (after `health.py`) of this app's "absence of a dependency is what makes a route public"
+   convention. `GET /flights/{id}` and `GET /profiles/{user_id}`, both 404-byte-identical whether the
+   row is missing or simply not public. `models/public.py`'s `PublicFlightOut`/`PublicProfileOut` are an
+   explicit field allowlist, never inherited from the private `FlightOut`/`UserOut` schemas.
+3. **`slowapi` 0.1.10** (new dependency, re-verified current against PyPI at implementation time) —
+   per-route `@limiter.limit(...)` decorators inside `public.py` only, never a global middleware, so the
+   authenticated surface is never throttled by public-route traffic. The limit value is a callable
+   reading `config.api.public_rate_limit` (default `"30/minute"`) fresh per request, not a string frozen
+   at import time. Keyed on `dependencies.client_ip` (X-Forwarded-For-aware), not `slowapi`'s own
+   remote-address default, which would collapse every visitor behind this deployment's Traefik proxy
+   into one shared bucket. A dedicated `RateLimitExceeded` handler in `main.py` maps a 429 to this app's
+   own `{"error": {"code": "RATE_LIMITED", ...}}` envelope.
+4. **`core/user_seed.py`** — five starter categories (`Thermal`, `Soaring`, `XC`, `Hike&Fly`,
+   `Sled run`) seeded on `POST /api/auth/register`, guarded by `users.seeded_at IS NULL` — the first real
+   consumer of that column since it was reserved in v0.2. Deliberately generic English categories, not
+   this pilot's own 12 legacy German ones, several of which are personal/jurisdiction-specific
+   (`Schwarzflug`, `Prüfung`, `Startleiter`).
+5. **Frontend**: `static/public-flight.html`/`.js` and `static/public-profile.html`/`.js` — new,
+   unauthenticated-by-design pages (plain `fetch()` not `fetchAuth()`). A visibility `<select>` +
+   shareable-link display added to `flight-detail.html`/`.js`, live-updating its hint text on every
+   selection change before Save (NFR-003's "make the exposure level unambiguous" without a second
+   confirmation click) — the hint text explicitly names notes as part of what becomes visible, after a
+   live curl pass returned a real flight comment naming a friend. A "Public profile" card (toggle +
+   shareable link) added to `api-keys.html`/`.js` — the closest existing pilot-account-settings page,
+   reused rather than standing up a new settings page for one toggle.
+6. **A post-implementation advisor review caught a real bug curl could not**: the two public pages
+   originally called `bootstrapPage({ requireAuth: false })`, which still ran the authenticated-nav path
+   whenever any token happened to sit in `localStorage` — a visitor holding a stale/expired token got
+   silently redirected to `/login`, exactly the FR-013 leak this feature exists to prevent. Fixed by a
+   genuine `anonymous: true` option on `bootstrapPage()` (`static/bootstrap.js`) that skips the token
+   check and the authenticated nav links entirely. Mechanically proven with a Node harness importing the
+   real `bootstrap.js` under a stubbed DOM/localStorage — not just reasoned about — confirming both that
+   the fix works and that the harness itself reproduces the bug when `anonymous` is reverted to `false`.
+7. **14 new tests** (`test_public_routes.py`, `test_user_seed.py`): all three visibility states'
+   unauthenticated access, byte-for-byte identical private-vs-nonexistent and disabled-vs-nonexistent
+   404s (`response.content`, not `.json()` — `plan.md`'s Risk section specifically asks for this rigor),
+   opt-in/opt-out taking effect immediately, rate-limit 429 with the correct envelope, the authenticated
+   surface unaffected during a public-route burst, exactly-five-editable-categories on registration, and
+   the seed being a no-op on a second call. 225/225 passing project-wide, `ruff check`/`ruff format
+   --check` clean.
+
+**Live-boot verified via `curl` against the local dev server**, not just under pytest: set a real flight
+to public, confirmed the unauthenticated `GET` succeeded and a private flight 404'd byte-identically to a
+made-up id; opted the real dev account into a public profile, confirmed its `GET /api/public/profiles/
+{id}` listed exactly the one public flight; fired 33 quick requests at the default 30/minute limit and
+confirmed 429s kicked in while the authenticated `/api/flights` call succeeded throughout the same burst;
+registered a fresh account and confirmed exactly 5 editable categories. All test-only state (the public
+flight, the opted-in profile, the registered throwaway account) was reverted/deleted from the real dev DB
+afterward — the pilot's own real account and data were untouched by the end of the session.
+
+**`olddata/Flugbuch.xlsx` must still be removed from git history before the repository itself goes
+public.** Deliberately **not** performed as part of this feature's implementation — a genuinely
+destructive, hard-to-reverse repository operation (a history rewrite, not a plain `git rm`) that
+`specs/007-.../research.md` scoped as a separate, explicitly pilot-confirmed action to take at the moment
+the pilot actually decides to make the repo public, never bundled into a routine task list. **This
+feature ships the application-level readiness for that day — not the day itself.**
 
 ### v0.10 — Enrichment
 

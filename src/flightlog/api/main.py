@@ -21,6 +21,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi.errors import RateLimitExceeded
 
 # Starlette's HTTPException, not FastAPI's subclass. Unmatched routes and other
 # framework-level errors raise the parent class, so a handler registered against the
@@ -29,6 +30,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from flightlog.api.errors import (
     CODE_INTERNAL_ERROR,
+    CODE_RATE_LIMITED,
     CODE_VALIDATION_FAILED,
     AppException,
     code_for_status,
@@ -49,6 +51,7 @@ from flightlog.api.routers import igc as igc_router
 from flightlog.api.routers import import_report as import_report_router
 from flightlog.api.routers import integration as integration_router
 from flightlog.api.routers import pages as pages_router
+from flightlog.api.routers import public as public_router
 from flightlog.api.routers import regions as regions_router
 from flightlog.api.routers import sites as sites_router
 from flightlog.api.routers import stats as stats_router
@@ -179,6 +182,20 @@ def create_app() -> FastAPI:
 
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+    # ---- rate limiting: /api/public/* only (v0.9), never the authenticated surface ----
+    # Per-route @limiter.limit(...) decorators live in public.py itself, not a global
+    # middleware — a global limiter would also throttle every JWT/API-key-authenticated
+    # request, which FR-008 explicitly does not want.
+    app.state.limiter = public_router.limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        logger.warning("Rate limit exceeded: %s", exc.detail)
+        return JSONResponse(
+            status_code=429,
+            content=envelope(CODE_RATE_LIMITED, "Too many requests — please slow down"),
+        )
+
     # ---- error handlers: every error leaves as the typed envelope ----
 
     @app.exception_handler(AppException)
@@ -245,6 +262,7 @@ def create_app() -> FastAPI:
     app.include_router(api_keys_router.router)
     app.include_router(integration_router.router)
     app.include_router(stats_router.router)
+    app.include_router(public_router.router)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(pages_router.router)

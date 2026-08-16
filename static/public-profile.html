@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pilot profile — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div id="alert" class="alert alert-error"></div>
+
+      <div id="profileBody" hidden>
+        <h1 id="p_name"></h1>
+        <p class="muted" id="p_count"></p>
+
+        <div class="table-scroll">
+          <table id="flightsTable">
+            <thead>
+              <tr>
+                <th data-i18n="public_profile.col.date">Date</th>
+                <th data-i18n="public_profile.col.launch">Launch</th>
+                <th data-i18n="public_profile.col.category">Category</th>
+                <th data-i18n="public_profile.col.duration">Duration</th>
+                <th data-i18n="public_profile.col.distance">Distance</th>
+                <th data-i18n="public_profile.col.max_alt">Max altitude</th>
+              </tr>
+            </thead>
+            <tbody id="flightsBody"></tbody>
+          </table>
+        </div>
+
+        <div id="emptyState" class="empty-state" hidden>
+          <p data-i18n="public_profile.empty">No public flights yet.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/static/public-profile.js"></script>
+</body>
+</html>

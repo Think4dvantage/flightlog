@@ -52,6 +52,7 @@ class FlightUpdate(BaseModel):
     launch_technique: Literal["forward", "reverse"] | None = None
     notes: str | None = Field(None, max_length=3300)
     buddy_ids: list[str] | None = None
+    visibility: Literal["private", "unlisted", "public"] | None = None
 
 
 class FlightLinkOut(BaseModel):
@@ -90,6 +91,7 @@ class FlightOut(BaseModel):
     launch_technique: Literal["forward", "reverse"] | None
     notes: str | None
     import_key: str | None
+    visibility: Literal["private", "unlisted", "public"]
     buddy_ids: list[str] = Field(default_factory=list)
     alt_gain_m: float | None = None
     site_drop_m: float | None = None

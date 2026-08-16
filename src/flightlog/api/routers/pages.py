@@ -129,3 +129,17 @@ def stats_page(request: Request) -> Response:
 @router.get("/api-keys")
 def api_keys_page(request: Request) -> Response:
     return _page(request, "api-keys.html")
+
+
+# ---- public surface (v0.9) — distinct /public/... prefix so a shared link is unambiguous
+# about which surface it's hitting; no JWT, no redirect-to-login (contracts/endpoints.md) ----
+
+
+@router.get("/public/flights/{flight_id}")
+def public_flight_page(request: Request, flight_id: str) -> Response:
+    return _page(request, "public-flight.html")
+
+
+@router.get("/public/profiles/{user_id}")
+def public_profile_page(request: Request, user_id: str) -> Response:
+    return _page(request, "public-profile.html")

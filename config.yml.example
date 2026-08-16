@@ -52,3 +52,6 @@ api:
   host: 0.0.0.0
   port: 8000
   reload: false
+  # Rate limit applied to /api/public/* only (v0.9) — the authenticated surface is unaffected.
+  # slowapi rate-string syntax: "<n>/<second|minute|hour|day>".
+  public_rate_limit: "30/minute"

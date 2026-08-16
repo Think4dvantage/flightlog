@@ -50,6 +50,7 @@ class UserUpdate(BaseModel):
     locale: str | None = None
     timezone: str | None = None
     units: Literal["metric", "imperial"] | None = None
+    public_profile_enabled: bool | None = None
 
 
 class PasswordChange(_PasswordMixin):
@@ -67,6 +68,7 @@ class UserOut(BaseModel):
     locale: str
     timezone: str
     units: str
+    public_profile_enabled: bool
     last_login_at: datetime | None = None
     created_at: datetime
 

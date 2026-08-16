@@ -22,7 +22,7 @@ const NAV_LINKS = [
   { page: 'api-keys', href: '/api-keys', key: 'nav.api_keys' },
 ];
 
-export function renderNav(mount, activePage) {
+export function renderNav(mount, activePage, { anonymous = false } = {}) {
   if (!mount) return;
 
   const nav = document.createElement('nav');
@@ -36,7 +36,10 @@ export function renderNav(mount, activePage) {
 
   const links = document.createElement('div');
   links.className = 'nav-links';
-  if (isLoggedIn()) {
+  // anonymous pages never show the authenticated nav links, regardless of whether this
+  // browser happens to hold a (possibly stale) token — a public page's chrome must not
+  // depend on the visitor's own session state at all (FR-013).
+  if (!anonymous && isLoggedIn()) {
     for (const link of NAV_LINKS) {
       const a = document.createElement('a');
       a.href = link.href;
@@ -99,7 +102,33 @@ async function renderNavAuth() {
   mount.replaceChildren(controls, existing || document.createElement('div'));
 }
 
-export async function bootstrapPage({ page, requireAuth = false } = {}) {
+/**
+ * The anonymous-visitor nav: brand + Log in link only, never a token check. Used by the
+ * v0.9 public pages so a visitor's own (possibly stale) localStorage token can never
+ * trigger fetchAuth()'s refresh-then-redirect-to-/login path on a page that must stay
+ * viewable with zero session at all — and so a visitor who *is* logged in as some other
+ * pilot in this browser never has that identity surfaced on a page about someone else's
+ * shared flight (FR-013's "no leak of whether the visitor is logged in as a different
+ * pilot entirely").
+ */
+function renderAnonymousNavAuth() {
+  const mount = document.getElementById('navAuth');
+  if (!mount) return;
+
+  const existing = mount.querySelector('#navLangPicker');
+  const controls = document.createElement('span');
+  controls.className = 'nav-auth-controls';
+
+  const login = document.createElement('a');
+  login.href = '/login';
+  login.setAttribute('data-i18n', 'nav.login');
+  login.textContent = 'Log in';
+  controls.appendChild(login);
+
+  mount.replaceChildren(controls, existing || document.createElement('div'));
+}
+
+export async function bootstrapPage({ page, requireAuth = false, anonymous = false } = {}) {
   console.log(`[FL:${page}] bootstrap start`);
 
   if (requireAuth && !isLoggedIn()) {
@@ -108,9 +137,13 @@ export async function bootstrapPage({ page, requireAuth = false } = {}) {
     return;
   }
 
-  renderNav(document.getElementById('appNav'), page);
+  renderNav(document.getElementById('appNav'), page, { anonymous });
   await initI18n();
-  await renderNavAuth();
+  if (anonymous) {
+    renderAnonymousNavAuth();
+  } else {
+    await renderNavAuth();
+  }
   renderLangPicker(document.getElementById('navLangPicker'));
 
   console.log(`[FL:${page}] bootstrap complete`);

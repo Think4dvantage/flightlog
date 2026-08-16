@@ -67,7 +67,8 @@ src/flightlog/
 │   ├── errors.py            # AppException + _envelope()
 │   └── routers/             # One file per domain; pages.py holds ALL HTML routes
 │       ├── api_keys.py      # /api/keys — JWT-authenticated key management (pilot's own session)
-│       └── integration.py   # /api/integration/v1 — the frozen VidFactory contract (API-key auth)
+│       ├── integration.py   # /api/integration/v1 — the frozen VidFactory contract (API-key auth)
+│       └── public.py        # /api/public — unauthenticated by design, slowapi rate-limited (v0.9)
 ├── core/
 │   ├── aliases.py           # Excel dirty-value normalisation tables
 │   ├── importer.py          # python -m flightlog.core.importer (one-shot, --dry-run default)
@@ -77,6 +78,7 @@ src/flightlog/
 │   ├── site_backfill.py     # site coordinate backfill from IGC fixes
 │   ├── flights.py           # list / filter / sort / paginate
 │   ├── stats.py             # rollups
+│   ├── user_seed.py         # starter-category seed on self-registration (v0.9)
 │   └── xcontest.py          # XContest "My Flights" JSON import
 ├── database/
 │   ├── models.py            # SQLAlchemy ORM — source of truth for the schema
@@ -146,4 +148,6 @@ is a single user — retrofitting tenancy is the expensive kind of rewrite. `own
 from a request body; it always comes from `current_user.id`.
 
 Self-registration is gated by `auth.allow_self_registration` (default `false`). The endpoint, schemas,
-hashing and token pair all exist and are tested — only the flag is off.
+hashing and token pair all exist and are tested — only the flag is off. Since v0.9, a self-registered
+account is also seeded with five starter flight categories (`core/user_seed.py`), guarded by
+`users.seeded_at IS NULL` — before that it landed with zero categories and no way to log a flight.

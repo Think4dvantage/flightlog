@@ -53,6 +53,7 @@ When an error occurs, the API must return a standardized error object. This is l
 - `ENTITY_NOT_FOUND`: Resource with the given ID does not exist.
 - `VALIDATION_FAILED`: Request payload is invalid (Pydantic error).
 - `CONFLICT`: Resource already exists or version mismatch.
+- `RATE_LIMITED`: Request rejected by `slowapi` on `/api/public/*` (v0.9) — never a silent drop.
 - `INTERNAL_ERROR`: Unexpected server-side failure.
 
 ### Example: Validation Error

@@ -1,6 +1,6 @@
 [project]
 name = "flightlog"
-version = "0.8.1"
+version = "0.9.0"
 description = "Multiuser paragliding flight log with IGC analysis and an API-first design"
 authors = [{ name = "Raphael Eymann", email = "r+flightlog@eymanns.ch" }]
 license = { text = "MIT" }
@@ -20,6 +20,7 @@ dependencies = [
     "email-validator (>=2.3.0,<3.0.0)",
     "python-multipart (>=0.0.32,<0.1.0)",
     "httpx (>=0.28.1,<0.29.0)",
+    "slowapi (>=0.1.10,<0.2.0)",
 ]
 
 [project.optional-dependencies]

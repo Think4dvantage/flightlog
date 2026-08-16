@@ -172,7 +172,8 @@ Import from `flightlog.api.dependencies`:
 
 **There is no global auth middleware.** Auth is a per-endpoint `Depends(...)`, which means *the absence
 of a dependency is what makes a route public*. Any public route must be isolated in its own router and
-documented as such at the top of the file.
+documented as such at the top of the file. `health.py` (v0.1) is the first example; `api/routers/
+public.py` (v0.9 — real pilot data, rate-limited via `slowapi`, see `04-constraints.md`) is the second.
 
 Object-level authorization happens inside the handler via `_get_own_<x>()`. Row scoping is
 `.where(Model.owner_id == current_user.id)`.
