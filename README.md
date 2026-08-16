@@ -8,8 +8,8 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.6.0 tagged and deployed**. v0.7 (statistics) is next. See `.ai/context/features.md` for the
-roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
+Status: **v0.8.0 tagged and pushed**. v0.9 (sharing & public readiness) is next. See
+`.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
 
@@ -35,7 +35,22 @@ Shipped in v0.2:
 Shipped: the flight log UI (v0.3 — the point at which the spreadsheet is retired), IGC ingest with
 thermal and glide analysis, a track map, and a barogram (v0.5), and the secondary-sheet imports plus
 goals (v0.6, tag `v0.6.0`). XContest score import, originally scoped alongside v0.6, has moved to the
-backlog pending a real export sample. Coming, in order: statistics (v0.7), the public API (v0.8).
+backlog pending a real export sample.
+
+Shipped in v0.7 (statistics): totals, averages, per-year/month/site/glider/category/buddy breakdowns,
+personal bests, launch-technique split, an IGC-derived cumulative-thermal-climb figure the spreadsheet
+never could produce, streaks and year-to-date pace — plus a run of post-ship additions from live
+pilot feedback (contacts/buddy CRUD, full CRUD for hikes/groundhandling/tandem flights, a sortable
+IGC-track-present flag on the flights list).
+
+Shipped in v0.8 (public API): a pilot can mint scoped, revocable API keys from their own account and
+hand one to an external tool — VidFactory today — which then reads flight metadata and IGC-derived
+highlight timing (thermal/glide/launch/landing timestamps, offsets from takeoff) and can push a link
+back to a produced video, which shows up on the pilot's own flight page automatically. No shared login
+credentials, no VidFactory copy of the flight data.
+
+Coming next: sharing & public readiness (v0.9) — per-flight visibility, a public flight page, and rate
+limiting on that public surface.
 
 ## Getting started
 
