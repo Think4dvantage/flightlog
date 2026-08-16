@@ -461,7 +461,10 @@ was rewritten as a result (new SHAs throughout — an irreversible operation, no
 full-repo bundle backup (`git bundle create --all`) and a copy of the file itself were taken first,
 outside the repo, before the rewrite. The file is now `/olddata/`-gitignored and kept on disk
 **untracked** so the importer and the real-workbook regression tests (already `skipif`-gated on its
-presence) keep working locally. See `04-constraints.md`'s Personal Data section for the exact command
+presence) keep working locally. **Force-pushed to `origin`** (`main` + all 15 rewritten tags) after
+explicit confirmation, and independently verified against a fresh `git clone` of the real GitHub
+remote (not just local state) — zero commits, zero blob objects referencing the file anywhere in the
+server's own history. See `04-constraints.md`'s Personal Data section for the exact command
 and rationale.
 
 ### v0.10 — Enrichment

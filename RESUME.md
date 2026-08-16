@@ -4,11 +4,10 @@
 
 **`v0.9.0` (sharing & public readiness) is implemented, tested, committed, tagged and pushed.**
 The `olddata/Flugbuch.xlsx` git-history scrub the pilot explicitly requested immediately
-afterward has been **performed locally** (`git filter-repo`) but **not yet pushed** — blocked on
-one permission step, see "Next Step" below. This picks up straight from the prior session's
-`v0.8.1` ship.
+afterward has been **performed and pushed — fully complete, independently verified against a
+fresh clone from GitHub itself.** This picks up straight from the prior session's `v0.8.1` ship.
 
-### What shipped in `v0.9.0` (pushed, `v0.9.0` tag live, CI triggered and confirmed running)
+### What shipped in `v0.9.0`
 
 Implemented per the full spec/plan/tasks already written in `specs/007-sharing-public-readiness/`
 (all 20 tasks ticked `[x]`). See `.ai/context/architecture.md`'s "Sharing & public readiness"
@@ -40,13 +39,13 @@ section for the complete technical detail — summary here:
 8. **Known, documented, unverified risk**: the rate limiter's key function
    (`dependencies.client_ip`) trusts `X-Forwarded-For` as-is — only abuse-resistant if this
    deployment's Traefik *replaces* that header rather than appending to a client-supplied one.
+   Still unverified — see "Open Questions".
 
-Committed `27f79cd` (pre-scrub SHA), tagged and pushed as `v0.9.0`, both "Backend tests" and
-"Publish container image" CI workflows confirmed triggered. `pyproject.toml` bumped `0.8.1` →
-`0.9.0`. Docs fully synced (`architecture.md`, `features.md`, `01-project-overview.md`,
-`02`/`03`/`04-...md`, `07-api-conventions.md`, `README.md`, `specs/007-.../tasks.md`).
+`pyproject.toml` bumped `0.8.1` → `0.9.0`. Docs fully synced (`architecture.md`, `features.md`,
+`01-project-overview.md`, `02`/`03`/`04-...md`, `07-api-conventions.md`, `README.md`,
+`specs/007-.../tasks.md`).
 
-### `olddata/Flugbuch.xlsx` git-history scrub — performed locally, 2026-08-16, same session
+### `olddata/Flugbuch.xlsx` git-history scrub — done, pushed, verified
 
 The pilot's follow-up message ("scrub the flugbuch - this is just a copy") was the explicit,
 in-the-moment confirmation `specs/007-.../research.md` required before ever performing this.
@@ -58,81 +57,80 @@ in-the-moment confirmation `specs/007-.../research.md` required before ever perf
   `olddata/Flugbuch.xlsx` (171 KB, the real 600-flight workbook) was in scope.
 - Copied the file itself, and a full-repo bundle backup (`git bundle create --all`, all branches
   + all 15 tags, verified with `git bundle verify`), to **`C:\git\flightlog-pre-scrub-backup\`**
-  (outside the repo, so the rewrite can't touch it) before running anything destructive.
+  before running anything destructive. **Still there — safe to delete once you no longer want a
+  recovery path**, e.g. after a few weeks of the repo being public with no issues.
 
-**The rewrite**: `python -m git_filter_repo --path olddata/Flugbuch.xlsx --invert-paths --force`
-(installed via `pip install --user git-filter-repo`, not on PATH — invoke as
-`python -m git_filter_repo`). Removed the file from **every commit**, including the current HEAD
-— confirmed via `git log --all -- olddata/Flugbuch.xlsx` (empty) and
-`git rev-list --objects --all | grep -i flugbuch.xlsx` (empty). **Every commit SHA changed, and
-all 15 tags (`v0.1.0`–`v0.9.0`) were rewritten to new SHAs** — this is expected and unavoidable
-for a real history scrub, not a mistake.
+**The rewrite**: `python -m git_filter_repo --path olddata/Flugbuch.xlsx --invert-paths --force`.
+Removed the file from every commit, including HEAD. Every commit SHA changed, and all 15 tags
+(`v0.1.0`–`v0.9.0`) were rewritten to new SHAs — expected and unavoidable for a real scrub.
 
-**Follow-up (also done locally)**:
-- The file was restored to `olddata/Flugbuch.xlsx` on disk as an **untracked** file (copied back
-  from the pre-scrub backup) — `core/importer.py`/`core/secondary_import.py`'s default `--path`
-  and the real-workbook regression tests (already `skipif`-gated on the file's presence, e.g.
-  `test_importer.py`, `test_secondary_import.py`, `test_goals.py`) keep working locally without
-  ever re-committing it.
-- `.gitignore` gained `/olddata/` — uncommitted as of this note, needs a commit before push.
-- Full test suite re-run after restoring the file: **225/225 still passing**, confirming the
-  real-workbook tests genuinely ran (not silently skipped) against the untracked copy.
-- `git-filter-repo` removes the `origin` remote by design as a safety measure. Re-adding it
-  (`git remote add origin ...`) was **blocked by the Claude Code auto-mode permission
-  classifier** — git remote/config changes are gated and this needs either the pilot running it
-  themselves or explicitly granting the permission.
+**Follow-up**:
+- The file was restored to `olddata/Flugbuch.xlsx` on disk as an **untracked** file — the importer
+  and the real-workbook regression tests (already `skipif`-gated on its presence) keep working
+  locally without ever re-committing it. `.gitignore` gained `/olddata/`.
+- Full test suite re-run after restoring the file: 225/225 still passing, confirming the
+  real-workbook tests genuinely ran (not silently skipped).
+- Committed as `0c848a0` on top of the rewritten `v0.9.0` commit.
+
+**Push, and the permission snag along the way**: `git-filter-repo` removes the `origin` remote by
+design; re-adding it via Bash was blocked by the Claude Code auto-mode permission classifier
+(git remote/config changes are gated). The pilot ran `git remote add origin ...` themselves. A
+first `git push` (no `--force`) was correctly rejected — local and remote history share no common
+ancestor after a rewrite, so a fast-forward push can never work; this is not a sign anything went
+wrong. **After explicit confirmation, force-pushed `main` (`27f79cd` → `0c848a0`) and all 15 tags.**
+
+**Independently verified against GitHub itself, not just local state**: fresh `git clone` of
+`https://github.com/Think4dvantage/flightlog.git` into a scratch directory, then
+`git log --all -- olddata/Flugbuch.xlsx` (empty) and
+`git rev-list --objects --all | grep -i flugbuch.xlsx` (empty, ignoring the unrelated sample
+fixture) — the file is gone from GitHub's own copy, not just believed gone from the push output.
+15 tags present, `HEAD` matches. Scratch clone deleted afterward.
+
+**What this does *not* retroactively fix**: any existing clone or fork of this repo (if one
+exists) keeps the old history, including the real workbook, until it's explicitly re-synced
+against the rewritten remote. This push only changes what `origin` itself now serves.
 
 ## Next Step
 
-1. **Blocked on one permission step before the scrub can be pushed.** Either:
-   - Run this yourself: `git remote add origin https://github.com/Think4dvantage/flightlog.git`
-     (verify with `git remote -v`), then hand back to Claude to continue, **or**
-   - Grant the Bash permission for `git remote add` so it can be run directly.
-2. **Then the actual push — this is the truly irreversible, externally-visible step, confirm
-   before doing it, not just before starting**: `git push origin main --force` and
-   `git push origin --tags --force` (all 15 tags changed SHA, every one needs re-pushing).
-   After this: anyone with an existing clone or fork keeps the *old* history (containing the
-   real workbook) until they explicitly re-sync against the rewritten remote — this push cannot
-   retroactively reach those copies. Worth being explicit with the pilot about that limit one
-   more time, even though they already said "this is just a copy."
-3. **Commit the `.gitignore` change** (`/olddata/`) before or as part of that push — currently
-   uncommitted in the working tree.
-4. **Update `.ai/` files to say the scrub is done, not pending** — `architecture.md`,
-   `features.md`, `04-constraints.md`'s Personal Data section, and this file were updated to
-   reflect the scrub *this session*, but re-check them once the push actually lands in case
-   anything reads as still-hypothetical.
-5. **Making `fl.sdh.lol` itself reachable by strangers needs one more thing v0.9 doesn't touch**:
+1. **Making `fl.sdh.lol` itself reachable by strangers needs one more thing v0.9 doesn't touch**:
    a Traefik `traefik-oidc-auth` (Pocket-ID) middleware protects the *entire* host (see
    `features.md`'s v0.7 "Also investigated" note and the `flightlog_prod_oidc_layer` memory) —
    every `/api/public/*` and `/public/*` route is unreachable by an anonymous visitor in
    production until that middleware is reconfigured to exclude those paths. Shared
    infrastructure the pilot must change themselves.
-6. **Confirm whether Traefik replaces or appends to `X-Forwarded-For`** before treating the
+2. **Confirm whether Traefik replaces or appends to `X-Forwarded-For`** before treating the
    public rate limiter as abuse-resistant rather than just accidental-burst-resistant.
-7. **XContest score import** and **`specs/002-flight-log-ui`'s Phases 10-11** (CSV export,
+3. **The repository's visibility itself hasn't been changed to public yet** — the scrub was a
+   prerequisite (per `04-constraints.md`), not the act of flipping the switch. That's still a
+   separate step for the pilot whenever they're ready.
+4. **`C:\git\flightlog-pre-scrub-backup\`** can be deleted once the pilot is confident the scrub
+   is stable (see Context below) — not urgent, no action needed now.
+5. **XContest score import** and **`specs/002-flight-log-ui`'s Phases 10-11** (CSV export,
    remember-last-filters) remain open backlog items, not tied to any particular tag.
 
 ## Open Questions
 
-- Has the pilot re-added the `origin` remote / granted the permission, and are they ready for the
-  force-push specifically (not just the scrub in the abstract)?
 - Has the Traefik OIDC middleware in front of `fl.sdh.lol` been scoped to exclude `/public/*` and
   `/api/public/*`?
 - Does this deployment's Traefik replace `X-Forwarded-For` or append to it?
+- Is the pilot ready to actually flip the repository's visibility to public now that the scrub is
+  done, or is that a separate future decision?
 
 ## Context
 
 - **`C:\git\flightlog-pre-scrub-backup\`** holds the pre-scrub full-repo bundle
-  (`flightlog-full-backup.bundle`) and a copy of the real `Flugbuch.xlsx` — keep this until the
-  force-push has landed and been sanity-checked (`git clone`, `git log --all -- olddata/`, confirm
-  empty), then it's safe to delete. To fully restore the pre-scrub state from the bundle if
-  something goes wrong: `git clone flightlog-full-backup.bundle flightlog-restored`.
+  (`flightlog-full-backup.bundle`, all branches + all 15 pre-scrub tags) and a copy of the real
+  `Flugbuch.xlsx`. To fully restore the pre-scrub state if something is ever discovered wrong:
+  `git clone flightlog-full-backup.bundle flightlog-restored`.
 - **The dev server needs a restart after every backend edit** (no `--reload`). See
   [[flightlog-dev-server-workflow]].
 - **slowapi's `Limiter` is a module-level singleton** — see [[flightlog_slowapi_rate_limit_trap]]
   if a future public-route test starts failing with an unexplained 429.
 - **Any new unauthenticated page must use `bootstrapPage({ anonymous: true })`**, not just
   `{ requireAuth: false }` — see [[flightlog_public_page_pattern]].
+- **`git remote add`/other git-config-adjacent commands are blocked for Claude Code by the
+  auto-mode permission classifier in this environment** — when that happens again, the pilot
+  needs to run the command themselves rather than Claude finding a workaround.
 
 This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
 feature's own `specs/` folder have the detail.
