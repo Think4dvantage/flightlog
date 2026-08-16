@@ -452,12 +452,17 @@ registered a fresh account and confirmed exactly 5 editable categories. All test
 flight, the opted-in profile, the registered throwaway account) was reverted/deleted from the real dev DB
 afterward — the pilot's own real account and data were untouched by the end of the session.
 
-**`olddata/Flugbuch.xlsx` must still be removed from git history before the repository itself goes
-public.** Deliberately **not** performed as part of this feature's implementation — a genuinely
-destructive, hard-to-reverse repository operation (a history rewrite, not a plain `git rm`) that
-`specs/007-.../research.md` scoped as a separate, explicitly pilot-confirmed action to take at the moment
-the pilot actually decides to make the repo public, never bundled into a routine task list. **This
-feature ships the application-level readiness for that day — not the day itself.**
+**`olddata/Flugbuch.xlsx` was deliberately not scrubbed from git history as part of this feature's own
+implementation** — `specs/007-.../research.md` scoped that as a separate, explicitly pilot-confirmed
+action, never bundled into a routine task list. **The pilot explicitly requested it in a follow-up
+message the same session, and it was performed then**: `git filter-repo --path olddata/Flugbuch.xlsx
+--invert-paths` removed the file from every commit in history; every existing tag (`v0.1.0`–`v0.9.0`)
+was rewritten as a result (new SHAs throughout — an irreversible operation, not a revertible commit). A
+full-repo bundle backup (`git bundle create --all`) and a copy of the file itself were taken first,
+outside the repo, before the rewrite. The file is now `/olddata/`-gitignored and kept on disk
+**untracked** so the importer and the real-workbook regression tests (already `skipif`-gated on its
+presence) keep working locally. See `04-constraints.md`'s Personal Data section for the exact command
+and rationale.
 
 ### v0.10 — Enrichment
 

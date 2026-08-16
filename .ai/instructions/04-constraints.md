@@ -34,8 +34,13 @@ placeholder values is committed.
 ## Personal Data
 
 `olddata/Flugbuch.xlsx` contains 600 flights of personal history, including free-text comments naming
-friends. It is committed while the repo is private. **It must be removed from git history before the
-repository is made public** — a plain `git rm` is not enough, the blob stays reachable.
+friends. **Scrubbed from git history 2026-08-16 (v0.9)** via `git filter-repo --path
+olddata/Flugbuch.xlsx --invert-paths` — a plain `git rm` would not have been enough, since the blob
+stays reachable in every earlier commit. Every commit SHA and every tag (`v0.1.0`–`v0.9.0`) changed as
+a result — a hard, irreversible rewrite, not a revertible commit. The file is `/olddata/`-gitignored
+now and kept on disk **untracked** so `core/importer.py`/`core/secondary_import.py`'s default `--path`
+and the real-workbook regression tests (already `skipif`-gated on the file's presence) keep working
+locally — it is simply never committed again. **Never re-add it to git.**
 
 ---
 

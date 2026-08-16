@@ -3,6 +3,11 @@ config.yml
 .env
 *.pem
 
+# The real 600-flight personal workbook. Scrubbed from git history (v0.9) before the repo
+# went public — must never be re-committed. Kept on disk, untracked, so the importer and
+# the real-workbook regression tests (skipif-gated on its presence) still work locally.
+/olddata/
+
 # Runtime data: SQLite DB, WAL sidecars, uploaded IGC files
 /data/
 /logs/
