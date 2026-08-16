@@ -2,126 +2,135 @@
 
 ## In Progress
 
-**Nothing in progress — `v0.7.5` is implemented, tested, live-verified, committed, tagged, and pushed
-this session, closing out a live pilot-feedback pass against the deployed `fl.sdh.lol` instance.**
-`v0.7.0`–`v0.7.4` were already tagged/deployed from earlier in this session; `v0.7.5` continues straight
-on from there with the pilot's explicit go-ahead to decide any open design questions and ship
-autonomously (given at the point they went to sleep mid-session).
+**Nothing in progress — `v0.8.0` is implemented, tested, live-verified, doc-drift-cleaned,
+committed, tagged, and pushed this session.** All 21 tasks in
+`specs/006-public-api-vidfactory/tasks.md` are done. This picks up straight from the prior
+session's `v0.7.5` ship (see git log / the section below this one for that history).
 
-### What shipped in `v0.7.5`
+### What shipped in `v0.8.0`
 
-The pilot reviewed the live `fl.sdh.lol` deployment and reported four real gaps plus one bug report
-(the bug turned out to be infrastructure, not app code — see below). All four gaps are fixed:
+Triggered by the pilot asking whether the v0.5 IGC analysis (climb/sink timestamps,
+launch/landing) could be exposed via API for a highlight-video tool. Investigation found
+`architecture.md` had already committed to exactly this shape for `igc_segments` since v0.5
+("the VidFactory contract") — it just wasn't exposed under a scoped, machine-authenticated
+surface yet, which is what v0.8 already existed to build.
 
-1. **`/contacts` — full buddy CRUD.** Backend (`/api/buddies`) already had complete CRUD +
-   link/accept/decline since v0.2 (Phase 9 of `specs/002-flight-log-ui` spec'd this page since v0.3); it
-   was simply never built. This was also the actual root cause of "I can't tag buddies on flights" — the
-   flight drawer's buddy multi-select was always empty because nothing could create a buddy. Verified
-   live end-to-end: created a contact named "Tom," tagged it on a real flight via the existing flights
-   drawer, confirmed the contact's flight-count went 0→1 on `/contacts`. Both test records deleted after.
-2. **Full CRUD for hikes, groundhandling sessions, and tandem flights.** All three were deliberately
-   "import-and-view only" since v0.6 — reasonable until a pilot with a newborn on the way and less flying
-   time wants to log a ground-handling session or a solo hike going forward, with no way to. New
-   `HikeCreate`/`HikeUpdate`/`GroundhandlingSessionCreate`/`Update`/`TandemFlightCreate`/`Update` schemas,
-   `POST`/`PUT`/`DELETE` added to all three routers, matching `goals.py`'s existing CRUD pattern exactly
-   (including `import_key` staying server-only). `HikeCreate`/`Update` additionally accept an optional
-   `flight_id` so a pilot can link/unlink a hike to a flight by hand — never ownership-validated, matching
-   how `flights.py` already treats other cross-referenced ids (`launch_site_id`, `category_id`). New
-   `tests/backend/test_secondary_crud.py`, 8 tests, all three entities × create/get/update/delete +
-   ownership-scoping (404-not-403). Verified live: added a groundhandling session (9→10), edited a hike
-   (confirmed the flight-link dropdown pre-selects the real linked flight), added a tandem flight
-   (17→18) — all three deleted after.
-3. **"Import findings" page removed.** Pilot's own words: "outdated and not needed." Nav link and
-   `/import` route deleted, `static/import.html`/`import.js` deleted. `/api/import-report` and
-   `core/import_history.py`'s frozen snapshot are deliberately untouched — kept in case the historical
-   record is ever wanted again, just no longer surfaced in the UI. Confirmed `GET /import` now 404s
-   cleanly.
-4. **"Cumulative flights over time" chart replaced.** Pilot's own words: "just a straight line from
-   bottom left to top right — has no use at all," and they're right — a running total by date is
-   monotonically increasing by construction, so it could never show a slowdown or a comeback. Replaced
-   with "Monthly pace, by year" — one line per year across Jan–Dec, built entirely client-side from
-   `time-breakdown`'s already-fetched `year_month_matrix` (no new backend call). `ProgressionOut.
-   cumulative_series`, `ProgressionPoint`, and `core/stats.py`'s `cumulative_progression()` were deleted
-   outright, not left as dead code. Verified live: the new chart renders 9 distinctly-colored year lines
-   with a bottom legend, showing real month-to-month variation per year — including the daughter-related
-   2024+ slowdown as an honest dip rather than an invisible non-event.
+1. **`api_keys` / `flight_links` tables**, `services/apikeys.py` (mint/hash/verify,
+   SHA-256 not bcrypt — 256 bits of CSPRNG doesn't need a slow hash), `ApiPrincipal` /
+   `get_api_principal` / `require_scope(...)` in `dependencies.py` — genuinely new code,
+   confirmed via `research.md` that the docs describing this shape predated any real
+   implementation.
+2. **`/api/keys`** (JWT-auth) — create/list/revoke/delete, plaintext shown exactly once at
+   creation. `/api-keys` page with a deliberately non-accidentally-dismissible one-time
+   reveal state.
+3. **`/api/integration/v1`** (API-key-auth via `X-API-Key`) — `GET /flights/{id}` (resolved
+   names + `igc_summary`, a deliberate addition beyond the original spec's metadata list),
+   `GET /flights/{id}/segments` (verbatim `igc_segments`), `PUT .../links/{kind}/{external_id}`
+   (idempotent push-back).
+4. **`FlightOut.links`** — the pilot's own flight views now show any VidFactory-pushed link
+   automatically (FR-009), no separate endpoint needed.
+5. **21 new tests**, 211/211 passing project-wide, `ruff` clean.
+6. **Live-boot verified via `curl`** against the local dev server exactly as an external
+   tool would: minted a key, read real flight metadata (names resolved correctly against a
+   real glider/site), pushed a link then re-pushed it (confirmed idempotent replace),
+   confirmed the pilot's own flight view picked it up with zero action, revoked the key and
+   confirmed the very next call was rejected, deleted the revoked key. Test data cleaned up
+   after.
+7. **Docs synced**: `architecture.md` (SQLite Tables + API Contracts), `01-project-
+   overview.md`'s Repository Layout / Data Flow (added `api_keys.py` to the router list,
+   fixed the flight-link push-back path to the real `/api/integration/v1/...` prefix),
+   `features.md` (full v0.8 write-up), `specs/006-public-api-vidfactory/tasks.md` (all 21
+   boxes checked), `pyproject.toml` bumped `0.7.5` → `0.8.0` (`poetry install` re-run so
+   `APP_VERSION` isn't stale).
+8. **A genuine, pre-existing doc-drift bug found and fixed, not just flagged**: the pilot
+   asked for the drift to be fixed before shipping, no matter whose session introduced it.
+   `media_links`/`tracker_links`/site `webcam_url`/`rules_url` had been cited as existing
+   tables/columns and as URL-validation precedent in `architecture.md`, `04-constraints.md`,
+   and `03-frontend-conventions.md` since this project's first revision — none of them ever
+   existed in `database/models.py`, and no code validated a URL before this session's real
+   `flight_links.url`. See this file's Context section below for exactly what changed.
 
-### The "Add goal doesn't work" report — investigated, root-caused, deliberately not touched
+**Not touched**: `02-backend-conventions.md` needed no edit — the `ApiPrincipal`/
+`get_api_principal`/`require_scope` shape it already documented (aspirationally, per
+`research.md`) turned out to match exactly what got built, so it's simply accurate now.
 
-Tested locally against the exact `v0.7.4` build running in prod: worked perfectly, clean `201` on create.
-Traced the real cause via `ssh sdh` (the pilot's own offer): `fl.sdh.lol` sits behind a Traefik
-`traefik-oidc-auth` (Pocket-ID) middleware protecting the **entire host**, layered on top of flightlog's
-own independent JWT login. Confirmed by hitting the live site unauthenticated from outside the network —
-got a 401 in that proxy's own RFC9110-style error shape, and the flightlog container's own logs show zero
-trace of that request ever arriving. Two independent session lifetimes stacked on one host is almost
-certainly why writes (POST) silently fail for the pilot while reads (page loads, GETs) keep working.
-**Deliberately not touched**: this is shared infrastructure fronting other public services on the same
-host, the config file has live credentials in it, and the pilot chose to self-test (re-login to the SSO,
-retry) before deciding whether an actual config change is warranted. See Open Questions below.
+### The Chrome extension was not connected this session
 
-### Tests, lint, verification
-
-190/190 passing project-wide (24 new: 8 in `test_secondary_crud.py`, plus `test_stats.py` updates for
-the removed `cumulative_series` field). `ruff check`/`ruff format --check` clean. Every change verified
-in a real connected browser against the local dev server (Claude in Chrome connected successfully again
-this session) — screenshots plus direct `javascript_tool`/console introspection where CDP screenshot
-capture hit its now-familiar transient flakiness. `pyproject.toml` bumped `0.7.4` → `0.7.5`.
-
-### Committed, tagged, pushed
-
-The pilot explicitly authorized finishing autonomously (deciding any open design questions themselves)
-and shipping via commit/tag/push before going to sleep mid-session — done. `v0.7.5` is live in the
-`docker-publish.yml` pipeline same as every prior tag.
+See `env-no-browser-extension` memory — tried `tabs_context_mcp` first per that memory's own
+guidance, got the "not connected" error. Fell back to: `curl` against the live dev server for
+every backend behavior (see above), plus for the two new/changed frontend files
+(`api-keys.html`/`.js`, `flight-detail.html`/`.js`) — cross-checked every DOM id referenced in
+JS against the HTML, every `data-i18n` key against `en.json`, and ran `node --check` on the
+JS. **This is not the same as an actual rendered screenshot** — the `/api-keys` page and the
+flight-detail "Linked resources" row have not been visually confirmed in a real browser.
 
 ## Next Step
 
-1. **Confirm with the pilot whether re-logging into the SSO fixed "Add goal"** on `fl.sdh.lol` — they
-   were going to self-test this. If it didn't help, the next step is proposing an actual `traefik-
-   oidc-auth` config change (e.g., excluding API POST/PUT/DELETE paths from the OIDC session requirement,
-   or extending its session lifetime) — get explicit sign-off before touching shared infra with live
-   credentials in it.
-2. **v0.8 (public API + VidFactory) or v0.9 (sharing) are both fully planned** (`specs/006-public-api-
-   vidfactory/`, `specs/007-sharing-public-readiness/`) and ready to implement next, in either order.
-3. **XContest score import remains a backlog item** — see `features.md`'s Backlog entry.
-4. **Config tuning on `v0.5`'s IGC parsing may still need iteration** — still unconfirmed whether the
-   pilot's real thermal/glide figures looked right against what they remember of those flights.
-5. **Decide on `specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters) — Phase 9
-   (contacts) is now done; these two remain open, not tied to any particular tag.
+1. **If a browser is available next session, actually look at `/api-keys` and the
+   flight-detail "Linked resources" row** — the create-drawer, scope checkboxes, one-time
+   reveal panel, and revoke/delete confirm drawer have only been checked structurally (ids
+   match, JS parses, i18n keys resolve), never visually.
+2. **Confirm with the pilot whether re-logging into the SSO fixed "Add goal"** on
+   `fl.sdh.lol` (carried over from last session — still open, see Open Questions).
+3. **v0.9 (sharing & public readiness)** is fully planned (`specs/007-sharing-public-
+   readiness/`) and ready next.
+4. **XContest score import** remains a backlog item.
+5. **Decide on `specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters)
+   — still open, not tied to any particular tag.
+6. **`v0.8.0` itself is not yet deployed** — tagging/pushing to `main` triggers
+   `docker-publish.yml` the same as every prior tag, but confirming it's actually live at
+   `fl.sdh.lol` (and that the pilot can mint a real key against production) is still worth a
+   follow-up check, same pattern as every prior tagged release in this file's history.
 
 ## Open Questions
 
-- Whether the OIDC/Traefik layer in front of `fl.sdh.lol` needs an actual config change, or whether
-  re-authenticating to the SSO resolves the write-failure symptom on its own — pilot is self-testing.
-- None blocking v0.8/v0.9 — both are ready to implement as planned, in either order.
-- `features.md`'s backlog, unchanged this session: grant the deploy `gh` token `read:packages`, the
-  `bootstrap_admin_email`/`bootstrap_admin_password` `set=%s`-style logging gap.
+- Whether the OIDC/Traefik layer in front of `fl.sdh.lol` needs an actual config change, or
+  whether re-authenticating to the SSO resolves the "Add goal" write-failure symptom on its
+  own — pilot was self-testing as of last session, no update yet.
+- Whether VidFactory's own team is ready to consume `/api/integration/v1` yet, or whether
+  this ships and sits unused for a while — doesn't block shipping either way
+  (`spec.md`'s Assumptions: this service is authoritative, not blocked on VidFactory).
 
 ## Context
 
-- **`specs/002-flight-log-ui/tasks.md`'s Phase 9 (contacts)** is now implemented — its own checkboxes
-  aren't marked (implemented directly from live pilot feedback, not by walking that task list), but the
-  delivered scope matches what T037–T041 originally specified.
-- **`specs/005-statistics/`** holds the complete spec/research/data-model/contracts/plan/tasks set for
-  the original v0.7 scope. Every post-ship enhancement since (v0.7.1 through v0.7.5) was implemented
-  directly from pilot chat feedback, not through new spec cycles — deliberately, given their size; if
-  `/stats` or the secondary-sheet pages keep growing like this, a lightweight addendum spec might be worth
-  writing rather than continuing to fold everything into `architecture.md`/`features.md` prose only.
-- **`specs/006-public-api-vidfactory/` and `specs/007-sharing-public-readiness/`** hold complete spec sets
-  for v0.8/v0.9 — ready whenever picked up.
-- **This session's SSH access to the prod host (`ssh sdh`) was pilot-offered**, used only for read-only
-  diagnosis (docker logs/inspect, reading — never editing — the Traefik dynamic config). No config was
-  changed, no container was restarted, no secret was echoed back to the pilot in chat.
-- **A running theme worth remembering for whichever milestone comes next**: prior sessions repeatedly
-  found that an existing doc or an old spec's prose had drifted from reality — this session's "Add goal"
-  investigation is the sharpest example yet: the app-level bug report was real (writes fail) but the root
-  cause was one layer below the application entirely. When a pilot reports something "not working" on a
-  live deployment, reproduce against the exact same build locally before assuming the app code is at
-  fault — it wasn't, here.
+- **`FlightOut.links` (pilot-facing) and `FlightMetadataOut`/`SegmentOut` (`/api/integration/v1`,
+  frozen) deliberately use separate Pydantic types**, even though `flight_links` is one table.
+  A first pass had `models/flights.py` importing `FlightLinkOut` straight from
+  `models/integration.py` — caught before commit (advisor review): that would mean a change
+  made for an integration-contract reason silently changes the pilot-facing `/api/flights`
+  shape, the exact thing "frozen, versioned separately from the UI's models" is supposed to
+  prevent. Now `models/flights.py` defines its own minimal `FlightLinkOut` (`kind`,
+  `external_id`, `url`, `label` — no `created_at`/`updated_at`, which nothing in the UI reads).
+- **`media_links`/`tracker_links`/site `webcam_url`/`rules_url` doc drift is now fixed**, not just
+  flagged. These were cited by `architecture.md`, `04-constraints.md`, and
+  `03-frontend-conventions.md` as existing tables/columns and as URL-validation precedent since this
+  project's first revision — none of them ever existed in `database/models.py`, and no code validated
+  a URL before this session's real `flight_links.url`. `architecture.md`'s `media_links` row now reads
+  "not built — backlog" and points at `features.md`'s real backlog entry; `tracker_links` and the two
+  site columns moved to "Tables that do NOT exist," explicitly marked as forgotten blueprint leftovers
+  (not a deliberate design rejection like `igc_fixes`/`outings`/`lookups`/`stats_cache`); both
+  instruction files now point to `flight_links.url`'s `field_validator` as the one real example to
+  follow. `specs/004-secondary-sheets-xcontest/`'s two mentions were left as-is — that folder is a
+  frozen planning-session record, same convention this project already applies elsewhere (see e.g.
+  `features.md`'s v0.7 entry, "left as a visible historical trace rather than silently rewritten").
+- **`specs/006-public-api-vidfactory/`** now has all 21 tasks checked — the full spec/plan/
+  data-model/contracts/research/tasks set matches what's actually implemented.
+- **The DELETE-requires-revoke-first precondition on `/api/keys/{id}`** (`409` if not yet
+  revoked) was a judgment call, not explicit in `spec.md` — `contracts/endpoints.md`'s
+  wording ("Hard delete... once already revoked") read as a precondition, unlike `gliders.py`'s
+  independent retire/delete split it's compared against. Worth confirming with the pilot if
+  it ever feels like unnecessary friction.
+- **`igc_summary` on `FlightMetadataOut`** (the `igc_tracks` aggregate — thermal count, best/
+  peak climb, glide ratio, alt gain) was not in `contracts/endpoints.md`'s original field
+  list for that endpoint — added after confirming with the pilot (asked via `AskUserQuestion`
+  before building) that a highlight video wants those numbers as captions, not just the raw
+  segment timeline.
 - **The dev server needs a restart after every backend edit** (no `--reload`). See
   [[flightlog-dev-server-workflow]].
-- **The Windows-only WAL gotcha**: `data/flightlog.db`'s main file is often stale on its own — real,
-  current data lives in the accompanying `.db-wal`/`.db-shm` sidecar files until SQLite checkpoints them.
-  Copy all three together, or better, just point directly at the real path.
+- **The Windows-only WAL gotcha**: `data/flightlog.db`'s main file is often stale on its own
+  — real, current data lives in the accompanying `.db-wal`/`.db-shm` sidecar files until
+  SQLite checkpoints them. Copy all three together, or better, just point directly at the
+  real path.
 
-This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
-feature's own `specs/` folder have the detail.
+This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and
+each feature's own `specs/` folder have the detail.

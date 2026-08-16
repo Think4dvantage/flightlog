@@ -131,9 +131,9 @@ cell.textContent = flight.comment;
 
 Where markup genuinely is required, pipe it through a per-page `sanitizeHTML()` allowlist.
 
-URLs are equally untrusted: `media_links` and `tracker_links` are user-supplied. Validate `http(s)`
-scheme **server-side in the Pydantic model** and never interpolate a raw URL into an `href` without it —
-`javascript:` and `data:` URLs are the attack.
+URLs are equally untrusted: any user-supplied URL (e.g. `flight_links.url`, v0.8) must have its `http(s)`
+scheme validated **server-side in the Pydantic model** (see `04-constraints.md`) before it's ever
+interpolated into an `href` — `javascript:` and `data:` URLs are the attack.
 
 ---
 

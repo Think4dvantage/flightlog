@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { page: 'contacts', href: '/contacts', key: 'nav.contacts' },
   { page: 'igc', href: '/igc', key: 'nav.tracks' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },
+  { page: 'api-keys', href: '/api-keys', key: 'nav.api_keys' },
 ];
 
 export function renderNav(mount, activePage) {

@@ -91,7 +91,33 @@ function render(flight) {
 
   el('d_notes').textContent = flight.notes || notRecorded();
 
+  renderLinks(flight.links || []);
+
   el('detailBody').hidden = false;
+}
+
+function renderLinks(links) {
+  const dt = el('d_links_dt');
+  const dd = el('d_links');
+  dd.textContent = '';
+
+  if (links.length === 0) {
+    dt.hidden = true;
+    dd.hidden = true;
+    return;
+  }
+
+  dt.hidden = false;
+  dd.hidden = false;
+  for (const link of links) {
+    const a = document.createElement('a');
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = link.label || link.url;
+    dd.appendChild(a);
+    dd.appendChild(document.createElement('br'));
+  }
 }
 
 // ---- track (IGC) ----

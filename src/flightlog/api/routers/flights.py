@@ -19,8 +19,8 @@ from flightlog.api.dependencies import get_current_user
 from flightlog.api.errors import AppException
 from flightlog.core.flights import compute_altitude_figures, list_flights
 from flightlog.database.db import get_db
-from flightlog.database.models import Flight, FlightBuddy, IgcTrack, User
-from flightlog.models.flights import FlightCreate, FlightOut, FlightUpdate
+from flightlog.database.models import Flight, FlightBuddy, FlightLink, IgcTrack, User
+from flightlog.models.flights import FlightCreate, FlightLinkOut, FlightOut, FlightUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +41,16 @@ def _to_out(db: Session, flight: Flight, has_igc_track: bool | None = None) -> F
     `list_flights_route`) — a batched query, not one `IgcTrack` lookup per flight, which
     would be the exact N+1 `04-constraints.md` warns against. Single-flight callers
     (create/get/update) look it up directly here since that's a single row, not a loop.
+    `links` follows `buddy_ids`'s existing precedent of one small per-flight query even in
+    a list response — flight-links (v0.8) are typically zero or one row per flight.
     """
     buddy_ids = [
         fb.buddy_id for fb in db.query(FlightBuddy).filter(FlightBuddy.flight_id == flight.id)
     ]
+    links = db.query(FlightLink).filter(FlightLink.flight_id == flight.id).all()
     out = FlightOut.model_validate(flight, from_attributes=True)
     out.buddy_ids = buddy_ids
+    out.links = [FlightLinkOut.model_validate(link) for link in links]
     figures = compute_altitude_figures(db, flight)
     out.alt_gain_m = figures["alt_gain_m"]
     out.site_drop_m = figures["site_drop_m"]

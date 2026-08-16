@@ -34,6 +34,7 @@ from flightlog.api.errors import (
     code_for_status,
     envelope,
 )
+from flightlog.api.routers import api_keys as api_keys_router
 from flightlog.api.routers import auth as auth_router
 from flightlog.api.routers import buddies as buddies_router
 from flightlog.api.routers import categories as categories_router
@@ -46,6 +47,7 @@ from flightlog.api.routers import health as health_router
 from flightlog.api.routers import hikes as hikes_router
 from flightlog.api.routers import igc as igc_router
 from flightlog.api.routers import import_report as import_report_router
+from flightlog.api.routers import integration as integration_router
 from flightlog.api.routers import pages as pages_router
 from flightlog.api.routers import regions as regions_router
 from flightlog.api.routers import sites as sites_router
@@ -240,6 +242,8 @@ def create_app() -> FastAPI:
     app.include_router(groundhandling_router.router)
     app.include_router(tandem_flights_router.router)
     app.include_router(goals_router.router)
+    app.include_router(api_keys_router.router)
+    app.include_router(integration_router.router)
     app.include_router(stats_router.router)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

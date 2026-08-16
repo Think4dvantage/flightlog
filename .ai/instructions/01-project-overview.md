@@ -66,7 +66,8 @@ src/flightlog/
 │   ├── dependencies.py      # get_db, get_current_user, require_admin, require_scope
 │   ├── errors.py            # AppException + _envelope()
 │   └── routers/             # One file per domain; pages.py holds ALL HTML routes
-│       └── integration.py   # /api/integration/v1 — the frozen VidFactory contract
+│       ├── api_keys.py      # /api/keys — JWT-authenticated key management (pilot's own session)
+│       └── integration.py   # /api/integration/v1 — the frozen VidFactory contract (API-key auth)
 ├── core/
 │   ├── aliases.py           # Excel dirty-value normalisation tables
 │   ├── importer.py          # python -m flightlog.core.importer (one-shot, --dry-run default)
@@ -110,7 +111,7 @@ IGC   → core/igc_store.py (sha256, content-addressed on disk, never a BLOB)
 Browser    → fetchAuth() → JSON API (JWT bearer)
 
 VidFactory → X-API-Key → /api/integration/v1 → flight metadata + highlight offsets
-           → PUT /api/flights/{id}/links/video/{project_id} → flight_links (push-back)
+           → PUT /api/integration/v1/flights/{id}/links/video/{project_id} → flight_links (push-back)
 ```
 
 ---

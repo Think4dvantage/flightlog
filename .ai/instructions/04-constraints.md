@@ -125,8 +125,17 @@ which is one reason it was chosen.
 
 ### Validate URL schemes server-side
 
-`media_links.url`, `tracker_links.url` and any site `webcam_url` / `rules_url` are user-supplied.
-Reject anything that is not `http://` or `https://` **in the Pydantic model**, not in the template.
+Any user-supplied URL that gets stored and shown back to a pilot must be rejected unless it's
+`http://` or `https://`, **in the Pydantic model**, not in the template — `javascript:`/`data:` URLs
+are the attack. `flight_links.url` (v0.8, `models/integration.py`'s `FlightLinkIn.url` `field_validator`)
+is the first real implementation of this rule in the codebase; follow its pattern.
+
+Earlier revisions of this file cited `media_links.url`, `tracker_links.url`, and site `webcam_url` /
+`rules_url` as though they were existing precedent for this rule. They were not: none of those columns
+or tables exist anywhere in `database/models.py`, and no code ever validated a URL before v0.8. See
+`architecture.md`'s SQLite Tables section — `media_links` is a real, unbuilt backlog item
+(`features.md`); `tracker_links`/site `webcam_url`/`rules_url` have no plan behind them at all and are
+listed under "Tables that do NOT exist."
 
 ### Never leak account existence
 

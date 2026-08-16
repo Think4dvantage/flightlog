@@ -14,6 +14,7 @@
     "contacts": "Contacts",
     "tracks": "Tracks",
     "stats": "Statistics",
+    "api_keys": "API keys",
     "login": "Log in",
     "logout": "Log out"
   },
@@ -118,6 +119,7 @@
     "technique_forward": "Forward",
     "technique_reverse": "Reverse",
     "buddies": "Buddies",
+    "links": "Linked resources",
     "notes": "Notes",
     "not_recorded": "Not recorded",
     "track_title": "Track",
@@ -501,6 +503,58 @@
       "ytd_prior_year": "Same point last year",
       "chart_title": "Monthly pace, by year",
       "chart_hint": "One line per year — compare this year's monthly flight count against past years."
+    }
+  },
+  "api_keys": {
+    "title": "API keys",
+    "intro": "Grant an external tool (e.g. VidFactory) scoped, revocable access to your own flight data — never your login credentials.",
+    "add": "Create key",
+    "empty": "No API keys yet.",
+    "result_count": "{count} keys",
+    "col": {
+      "name": "Name",
+      "scopes": "Scopes",
+      "created": "Created",
+      "last_used": "Last used",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status_active": "Active",
+    "status_revoked": "Revoked",
+    "status_expired": "Expired",
+    "never": "Never",
+    "revoke": "Revoke",
+    "delete": "Delete",
+    "scope": {
+      "flights_read": "Read flight data",
+      "flights_read_hint": "Flight metadata and IGC-derived highlight timing (thermals, glides, launch, landing).",
+      "flight_links_write": "Attach video links",
+      "flight_links_write_hint": "Push a link back onto a flight (e.g. a produced video)."
+    },
+    "drawer": {
+      "add_title": "Create API key",
+      "name_label": "Name",
+      "name_placeholder": "e.g. VidFactory",
+      "scopes_label": "Scopes",
+      "expiry_label": "Expires (optional)",
+      "save": "Create key"
+    },
+    "reveal": {
+      "title": "Copy this key now",
+      "warning": "This is the only time this key's value is shown. It cannot be retrieved again — if you lose it, revoke it and create a new one.",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "done": "I've copied this key"
+    },
+    "revoke_confirm": {
+      "prompt": "Revoke this key? Any tool using it will stop working immediately.",
+      "yes": "Revoke",
+      "no": "Cancel"
+    },
+    "delete_confirm": {
+      "prompt": "Permanently delete this key's record? Revoke it first if it's still active.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   }
 }

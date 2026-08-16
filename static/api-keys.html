@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API keys — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="api_keys.title">API keys</h1>
+        <button type="button" id="addKeyBtn" data-i18n="api_keys.add">Create key</button>
+      </div>
+
+      <p class="muted" data-i18n="api_keys.intro">
+        Grant an external tool (e.g. VidFactory) scoped, revocable access to your own flight data —
+        never your login credentials.
+      </p>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <div id="resultCount" class="muted"></div>
+
+      <div class="table-scroll">
+        <table id="keysTable">
+          <thead>
+            <tr>
+              <th data-i18n="api_keys.col.name">Name</th>
+              <th data-i18n="api_keys.col.scopes">Scopes</th>
+              <th data-i18n="api_keys.col.created">Created</th>
+              <th data-i18n="api_keys.col.last_used">Last used</th>
+              <th data-i18n="api_keys.col.status">Status</th>
+              <th data-i18n="api_keys.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="keysBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" hidden>
+        <p data-i18n="api_keys.empty">No API keys yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="keyDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 data-i18n="api_keys.drawer.add_title">Create API key</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="keyForm" novalidate>
+      <div class="field">
+        <label for="k_name" data-i18n="api_keys.drawer.name_label">Name</label>
+        <input type="text" id="k_name" required maxlength="100" data-i18n-placeholder="api_keys.drawer.name_placeholder">
+        <p class="field-error" data-field="name"></p>
+      </div>
+
+      <div class="field">
+        <span data-i18n="api_keys.drawer.scopes_label">Scopes</span>
+        <div class="checkbox-row">
+          <label>
+            <input type="checkbox" id="k_scope_flights_read" value="flights:read">
+            <span>
+              <span data-i18n="api_keys.scope.flights_read">Read flight data</span>
+              <span class="muted" data-i18n="api_keys.scope.flights_read_hint">Flight metadata and IGC-derived highlight timing (thermals, glides, launch, landing).</span>
+            </span>
+          </label>
+          <label>
+            <input type="checkbox" id="k_scope_flight_links_write" value="flight_links:write">
+            <span>
+              <span data-i18n="api_keys.scope.flight_links_write">Attach video links</span>
+              <span class="muted" data-i18n="api_keys.scope.flight_links_write_hint">Push a link back onto a flight (e.g. a produced video).</span>
+            </span>
+          </label>
+        </div>
+        <p class="field-error" data-field="scopes"></p>
+      </div>
+
+      <div class="field">
+        <label for="k_expiry" data-i18n="api_keys.drawer.expiry_label">Expires (optional)</label>
+        <input type="date" id="k_expiry">
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="api_keys.drawer.save">Create key</button>
+      </div>
+
+      <div id="keyReveal" class="key-reveal" hidden>
+        <p><strong data-i18n="api_keys.reveal.title">Copy this key now</strong></p>
+        <p class="muted" data-i18n="api_keys.reveal.warning">
+          This is the only time this key's value is shown. It cannot be retrieved again — if you
+          lose it, revoke it and create a new one.
+        </p>
+        <code id="revealKeyValue"></code>
+        <div class="drawer-actions">
+          <button type="button" id="revealCopyBtn" data-i18n="api_keys.reveal.copy">Copy</button>
+          <button type="button" id="revealDoneBtn" class="btn-ghost" data-i18n="api_keys.reveal.done">I've copied this key</button>
+        </div>
+      </div>
+    </form>
+  </aside>
+
+  <div id="confirmOverlay" class="drawer-overlay" hidden></div>
+  <aside id="confirmDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="confirmTitle"></h2>
+      <button type="button" id="confirmClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+    <p id="confirmPrompt"></p>
+    <div class="drawer-actions">
+      <button type="button" id="confirmYes" class="btn-danger"></button>
+      <button type="button" id="confirmNo" class="btn-ghost" data-i18n="api_keys.revoke_confirm.no">Cancel</button>
+    </div>
+  </aside>
+
+  <script type="module" src="/static/api-keys.js"></script>
+</body>
+</html>

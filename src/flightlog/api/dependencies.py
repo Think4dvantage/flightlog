@@ -12,13 +12,17 @@ why tests must use `poolclass=StaticPool`; see .ai/instructions/06-testing-conve
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from flightlog.database.db import get_db
-from flightlog.database.models import User
+from flightlog.database.models import ApiKey, User
+from flightlog.database.models import utcnow as db_utcnow
+from flightlog.services.apikeys import parse_key_prefix, verify_key
 from flightlog.services.auth import TokenError, decode_token
 
 logger = logging.getLogger(__name__)
@@ -80,3 +84,64 @@ def client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+@dataclass
+class ApiPrincipal:
+    """Resolved by `get_api_principal` from a valid `X-API-Key` header. `scopes` is the
+    key's own granted set — never the owning user's full access."""
+
+    user: User
+    key: ApiKey
+    scopes: set[str]
+
+
+def get_api_principal(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    db: Session = Depends(get_db),
+) -> ApiPrincipal:
+    """
+    Resolves a valid, unrevoked, unexpired API key to its owning pilot and granted scopes.
+
+    Every rejection reason (missing header, malformed key, unknown prefix, hash mismatch,
+    revoked, expired, inactive owner) collapses to the same 401 — never a hint about which
+    of those it was, matching this app's existing "never leak" discipline.
+    """
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="API key required")
+
+    prefix = parse_key_prefix(x_api_key)
+    if prefix is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    row = db.execute(select(ApiKey).where(ApiKey.key_prefix == prefix)).scalar_one_or_none()
+    if row is None or not verify_key(x_api_key, row.key_hash):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # revoked_at always wins over expires_at — there is no scenario where a revoked-but-
+    # not-yet-expired key still works (spec.md's Edge Cases).
+    if row.revoked_at is not None:
+        raise HTTPException(status_code=401, detail="API key revoked")
+    if row.expires_at is not None and row.expires_at < db_utcnow():
+        raise HTTPException(status_code=401, detail="API key expired")
+
+    user = db.get(User, row.owner_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Account is disabled")
+
+    row.last_used_at = db_utcnow()
+    db.commit()
+
+    return ApiPrincipal(user=user, key=row, scopes=set(row.scopes.split()))
+
+
+def require_scope(scope: str):
+    """Factory: resolves the principal, then checks the scope. 403, never 404 — this is a
+    capability check, not an ownership check."""
+
+    def _check(principal: ApiPrincipal = Depends(get_api_principal)) -> ApiPrincipal:
+        if scope not in principal.scopes:
+            raise HTTPException(status_code=403, detail=f"Missing required scope: {scope}")
+        return principal
+
+    return _check

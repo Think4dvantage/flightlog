@@ -24,6 +24,8 @@ hikes              — Fitnessprogramm sheet; optionally linked to a Hike&Fly fl
 groundhandling_sessions — Groundhandling sheet; standalone, never linked to a flight
 tandem_flights     — Tandemflüge sheet; the pilot as passenger, deliberately not in flights
 goals              — Ziele sheet; the one imported type that stays editable afterward
+api_keys           — pilot-minted, scoped machine credentials (v0.8); plaintext never stored
+flight_links       — external resources (e.g. VidFactory videos) pushed back onto a flight
 
 Tables arriving in later milestones are listed in .ai/context/architecture.md.
 """
@@ -158,6 +160,7 @@ class User(Base):
         "TandemFlight", back_populates="owner", cascade="all, delete-orphan"
     )
     goals = relationship("Goal", back_populates="owner", cascade="all, delete-orphan")
+    api_keys = relationship("ApiKey", back_populates="owner", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<User {self.email} role={self.role}>"
@@ -351,6 +354,7 @@ class Flight(Base):
     igc_track = relationship(
         "IgcTrack", back_populates="flight", uselist=False, cascade="all, delete-orphan"
     )
+    links = relationship("FlightLink", cascade="all, delete-orphan")
 
 
 class FlightBuddy(Base):
@@ -595,3 +599,51 @@ class Goal(Base):
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
     owner = relationship("User", back_populates="goals")
+
+
+class ApiKey(Base):
+    """
+    A pilot-minted, scoped machine credential (v0.8 — 02-backend-conventions.md's
+    "API Keys — hash with SHA-256, not bcrypt"). The plaintext exists only in the creation
+    response, never stored — `key_hash` is a one-way SHA-256 digest, `key_prefix` is the
+    unique lookup key handed back on every subsequent request via `X-API-Key`.
+    """
+
+    __tablename__ = "api_keys"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name = Column(String, nullable=False)
+    key_prefix = Column(String, nullable=False, unique=True, index=True)
+    key_hash = Column(String, nullable=False)
+    scopes = Column(String, nullable=False)  # space-separated, e.g. "flights:read"
+    expires_at = Column(UtcDateTime, nullable=True)  # NULL = never expires
+    last_used_at = Column(UtcDateTime, nullable=True)
+    revoked_at = Column(UtcDateTime, nullable=True)  # immediate kill switch; wins over expiry
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+
+    owner = relationship("User", back_populates="api_keys")
+
+
+class FlightLink(Base):
+    """
+    An external resource (e.g. a VidFactory video) an API key pushed back onto a flight it
+    could read. Reached only through its parent `flights` row — no `owner_id` of its own,
+    same reasoning already applied to `igc_segments` (specs/003-igc-ingest-analysis).
+    """
+
+    __tablename__ = "flight_links"
+    __table_args__ = (
+        UniqueConstraint("flight_id", "kind", "external_id", name="uq_flight_links_identity"),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    flight_id = Column(String, ForeignKey("flights.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String, nullable=False)  # e.g. "video" — open-ended, not an enum column
+    external_id = Column(String, nullable=False)
+    url = Column(String, nullable=False)  # http(s):// only, validated in the Pydantic model
+    label = Column(String, nullable=True)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)

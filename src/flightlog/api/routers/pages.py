@@ -129,3 +129,8 @@ def contacts_page(request: Request) -> Response:
 @router.get("/stats")
 def stats_page(request: Request) -> Response:
     return _page(request, "stats.html")
+
+
+@router.get("/api-keys")
+def api_keys_page(request: Request) -> Response:
+    return _page(request, "api-keys.html")

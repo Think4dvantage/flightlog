@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.7.4 tagged and deployed to `fl.sdh.lol`; v0.7.5 (contacts/secondary CRUD/import removal/progression fix) implemented, tagged, deployed this session
+## Current Version: v0.8.0 (API keys + `/api/integration/v1` + flight-link push-back) implemented, tested, doc-drift-cleaned, tagged and pushed this session
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -277,13 +277,68 @@ touched — shared infrastructure serving other public services on the same host
 live credentials, and the pilot chose to self-test (re-login to the SSO) before deciding whether it needs
 a config change at all. See `RESUME.md`'s Open Questions for the follow-up.
 
-### v0.8 — Public API + VidFactory integration
+### v0.8 — Public API + VidFactory integration (tag `v0.8.0`)
 
 API keys with scopes, `/api/integration/v1`, `flight_links` push-back. VidFactory switches to the API
 and drops its own flight tables.
 
 **No data migration** — this service already holds the authoritative 600 flights. VidFactory's copy is
 discarded, not reconciled.
+
+**Implemented per `specs/006-public-api-vidfactory/tasks.md`'s all 5 phases**, prompted directly by the
+pilot asking whether the v0.5 IGC analysis (thermals, glides, launch/landing) could be exposed via API
+for a highlight-video tool — it already was the exact `igc_segments` shape `architecture.md` had committed
+to for this consumer since v0.5, just never exposed under a scoped, machine-authenticated surface:
+
+1. **`api_keys` / `flight_links` tables**, `services/apikeys.py` (mint `flg_<prefix:8>_<secret:43>`,
+   SHA-256 hash of the *full* key, `hmac.compare_digest` verify), and `ApiPrincipal` /
+   `get_api_principal` / `require_scope(...)` in `dependencies.py` — all genuinely new code; `research.md`
+   confirmed `01-project-overview.md`/`02-backend-conventions.md` had documented this shape since v0.1
+   as though it already existed, when it didn't (both docs corrected this session).
+2. **`/api/keys`** (JWT-authenticated) — create/list/revoke/delete. The plaintext key is returned exactly
+   once, at creation, and is never retrievable again — the key-management UI (`/api-keys`) has a dedicated
+   non-accidentally-dismissible reveal state for this, a genuinely new pattern for this app. `DELETE`
+   requires the key already revoked (`409` otherwise).
+3. **`/api/integration/v1`** (API-key-authenticated via `X-API-Key`) — `GET /flights/{id}` and
+   `.../segments`, gated by `flights:read`; `PUT /flights/{id}/links/{kind}/{external_id}`, gated by
+   `flight_links:write`, idempotent create-or-replace on `UniqueConstraint(flight_id, kind, external_id)`.
+   `FlightMetadataOut` resolves site/glider/harness/category **names** server-side (unlike the pilot-facing
+   `FlightOut`, which returns bare ids for the browser's own refdata cache to resolve) and merges in the
+   `igc_tracks` summary (`thermal_count`, `best_climb_ms`, `peak_climb_ms`, `glide_ratio`,
+   `alt_gain_igc_m`) — a deliberate addition beyond the original spec's metadata list, since a highlight
+   video wants those numbers as captions, not just the segment timeline. A "sink" moment (part of the
+   pilot's original ask) is a `glide` segment with `alt_change_m < 0`, not a new stored kind — the existing
+   `igc_segments.kind` enum (thermal\|glide\|takeoff\|landing\|max_alt\|top_of_climb) already covers
+   launch/landing/climb/sink/highest-point/best-climb-peak without a schema change.
+4. **`FlightOut.links`** — the pilot's own `/api/flights` (list and single) now includes any
+   VidFactory-pushed link, one small per-flight query, same precedent as `buddy_ids`; `flight-detail.js`
+   renders it as a clickable "Linked resources" row, only when non-empty (FR-009).
+5. **22 new tests** (`test_api_keys.py`, `test_integration_v1.py`) — mint/verify round-trip, tampered-key
+   rejection, revoke-wins-over-expiry, cross-owner 404-not-403, wrong-scope 403, segment-shape parity
+   against the JWT-gated equivalent, idempotent link replace, invalid URL scheme rejected, expiry
+   round-trips through create and list. 212/212 passing project-wide, `ruff check`/`ruff format --check`
+   clean. `FlightOut.links` uses its own minimal Pydantic type in `models/flights.py`, deliberately
+   **not** the frozen `models/integration.py` one — a first pass imported the latter directly, coupling
+   the pilot-facing shape to the versioned-separately integration contract; caught before commit.
+
+**Live-boot verified via `curl` against the local dev server**, exactly as an external tool would use it:
+minted a real key, read a real flight's metadata (resolved names confirmed correct against a real glider/
+site), pushed a video link then re-pushed it to confirm the idempotent replace, confirmed the pilot's own
+`GET /api/flights/{id}` immediately showed the link with no action taken, revoked the key and confirmed
+the very next call was rejected, deleted the now-revoked key. Test artifacts cleaned up afterward. The
+Chrome extension was not connected this session (see `env-no-browser-extension` memory) — the `/api-keys`
+and flight-detail UI were verified by cross-checking every DOM id referenced in JS against the HTML and
+every `data-i18n` key against `en.json`, plus `node --check` on the new/changed JS, rather than an actual
+rendered screenshot.
+
+**Doc drift fixed before shipping, not just flagged**: `media_links`/`tracker_links`/site `webcam_url`/
+`rules_url` had been cited in `architecture.md`, `04-constraints.md`, and `03-frontend-conventions.md`
+as existing tables/columns and as URL-validation precedent since this project's first revision — none
+of them ever existed in `database/models.py`, and no code validated a URL before this session's real
+`flight_links.url`. Corrected in all three files; see `RESUME.md`'s Context section for the detail.
+
+`pyproject.toml` bumped `0.7.5` → `0.8.0` (`poetry install` re-run so `APP_VERSION` isn't stale),
+committed, tagged `v0.8.0`, and pushed this session.
 
 ### v0.9 — Sharing & public readiness
 
