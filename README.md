@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.8.0 tagged and pushed**. v0.9 (sharing & public readiness) is next. See
+Status: **v0.8.1 tagged and pushed**. v0.9 (sharing & public readiness) is next. See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features

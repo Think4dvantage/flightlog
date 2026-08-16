@@ -2,9 +2,9 @@
 
 ## In Progress
 
-**`v0.8.1` is implemented, tested, live-verified, docs-synced, and version-bumped this
-session — not yet committed, tagged, or pushed.** This picks up straight from the prior
-session's `v0.8.0` ship (see git log / the section below this one for that history).
+**`v0.8.1` is implemented, tested, live-verified, docs-synced, version-bumped, committed,
+tagged, and pushed this session.** This picks up straight from the prior session's `v0.8.0`
+ship (see git log / the section below this one for that history).
 
 ### What shipped in `v0.8.1`
 
@@ -52,17 +52,16 @@ as one release.
 
 ## Next Step
 
-1. **Commit, tag `v0.8.1`, and push** — held back pending the pilot's go-ahead in this
-   session, since pushing triggers `docker-publish.yml` the same as every prior tag.
-2. **Run the reset against prod once the new image is live**: `docker exec <container>
-   python -m flightlog.core.reset_igc --write` against the real `fl.sdh.lol` container — this
-   was deliberately not done from here; `04-constraints.md` forbids direct SSH/
-   `docker-compose` on the prod host, so the pilot runs it themselves, or it goes through
-   whatever deploy-pipeline mechanism is used for one-off container commands.
-3. **v0.9 (sharing & public readiness)** is fully planned (`specs/007-sharing-public-
+1. **Run the reset against prod once the new `v0.8.1` image is live**: `docker exec
+   <container> python -m flightlog.core.reset_igc --write` against the real `fl.sdh.lol`
+   container — this was deliberately not done from here; `04-constraints.md` forbids direct
+   SSH/`docker-compose` on the prod host, so the pilot runs it themselves once
+   `docker-publish.yml` has finished and the new image is deployed. Dry-run (no `--write`)
+   first to sanity-check the counts before committing to `--write`.
+2. **v0.9 (sharing & public readiness)** is fully planned (`specs/007-sharing-public-
    readiness/`) and ready whenever picked back up.
-4. **XContest score import** remains a backlog item.
-5. **`specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters) — still
+3. **XContest score import** remains a backlog item.
+4. **`specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters) — still
    open, not tied to any particular tag.
 
 ## Open Questions
