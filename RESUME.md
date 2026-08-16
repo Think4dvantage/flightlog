@@ -70,23 +70,22 @@ flight-detail "Linked resources" row have not been visually confirmed in a real 
    flight-detail "Linked resources" row** — the create-drawer, scope checkboxes, one-time
    reveal panel, and revoke/delete confirm drawer have only been checked structurally (ids
    match, JS parses, i18n keys resolve), never visually.
-2. **Confirm with the pilot whether re-logging into the SSO fixed "Add goal"** on
-   `fl.sdh.lol` (carried over from last session — still open, see Open Questions).
-3. **v0.9 (sharing & public readiness)** is fully planned (`specs/007-sharing-public-
+2. **v0.9 (sharing & public readiness)** is fully planned (`specs/007-sharing-public-
    readiness/`) and ready next.
-4. **XContest score import** remains a backlog item.
-5. **Decide on `specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters)
+3. **XContest score import** remains a backlog item.
+4. **Decide on `specs/002-flight-log-ui`'s Phases 10-11** (CSV export, remember-last-filters)
    — still open, not tied to any particular tag.
-6. **`v0.8.0` itself is not yet deployed** — tagging/pushing to `main` triggers
+5. **`v0.8.0` itself is not yet confirmed deployed** — tagging/pushing to `main` triggers
    `docker-publish.yml` the same as every prior tag, but confirming it's actually live at
    `fl.sdh.lol` (and that the pilot can mint a real key against production) is still worth a
    follow-up check, same pattern as every prior tagged release in this file's history.
 
 ## Open Questions
 
-- Whether the OIDC/Traefik layer in front of `fl.sdh.lol` needs an actual config change, or
-  whether re-authenticating to the SSO resolves the "Add goal" write-failure symptom on its
-  own — pilot was self-testing as of last session, no update yet.
+- ~~Whether the OIDC/Traefik layer in front of `fl.sdh.lol` needs an actual config
+  change~~ — **resolved 2026-08-16**: the pilot confirmed "Add goal" now works. Re-
+  authenticating to the SSO was sufficient; no `traefik-oidc-auth` config change was
+  needed. No further action.
 - Whether VidFactory's own team is ready to consume `/api/integration/v1` yet, or whether
   this ships and sits unused for a while — doesn't block shipping either way
   (`spec.md`'s Assumptions: this service is authoritative, not blocked on VidFactory).

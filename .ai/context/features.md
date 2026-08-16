@@ -275,7 +275,9 @@ container's own logs. This is almost certainly why writes silently fail for the 
 loads) keep working — two separate session lifetimes stacked on the same host. Deliberately **not**
 touched — shared infrastructure serving other public services on the same host, config file contains
 live credentials, and the pilot chose to self-test (re-login to the SSO) before deciding whether it needs
-a config change at all. See `RESUME.md`'s Open Questions for the follow-up.
+a config change at all. **Resolved 2026-08-16**: the pilot confirmed re-authenticating to the SSO fixed
+it — "Add goal" works now. No `traefik-oidc-auth` config change was needed; the diagnosis (two stacked
+session lifetimes, not an app bug) was correct.
 
 ### v0.8 — Public API + VidFactory integration (tag `v0.8.0`)
 
