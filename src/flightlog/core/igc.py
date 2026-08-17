@@ -147,6 +147,18 @@ def _build_track_simplified_json(fixes: list, takeoff_ts: float) -> str:
     return json.dumps(points)
 
 
+def parse_simplified_track(
+    track_simplified_json: str | None,
+) -> tuple[list[list[float]], list[int]]:
+    """[[lon, lat, alt_m], ...] geometry + parallel offsets_s, from the stored
+    [offset_s, lat, lon, alt_m] points (see _build_track_simplified_json). Shared by the
+    authenticated and public GeoJSON responses so both stay in sync."""
+    points = json.loads(track_simplified_json or "[]")
+    coordinates = [[lon, lat, alt] for _offset, lat, lon, alt in points]
+    offsets_s = [offset for offset, _lat, _lon, _alt in points]
+    return coordinates, offsets_s
+
+
 def analyze(path: str, parsing_config: IgcParsingConfig) -> AnalysisResult:
     """Parse and analyze an IGC file already written to disk. CPU-bound — see module
     docstring; callers must run this via `asyncio.to_thread`."""

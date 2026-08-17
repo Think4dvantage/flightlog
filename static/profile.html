@@ -88,6 +88,28 @@
         <code id="profileLinkValue"></code>
       </div>
     </div>
+
+    <div class="card" id="publicStatsCard">
+      <h2 data-i18n="public_stats_settings.title">Public statistics</h2>
+      <p class="muted" data-i18n="public_stats_settings.intro">
+        Opt in to a durable, shareable page showing your full flight statistics — totals,
+        distributions, personal bests and more, across your entire flight history. Off by
+        default, independent of your public profile.
+      </p>
+
+      <div id="statsAlert" class="alert alert-error"></div>
+
+      <label>
+        <input type="checkbox" id="publicStatsToggle">
+        <span data-i18n="public_stats_settings.toggle_label">Enable public statistics</span>
+      </label>
+      <p class="muted" id="statsHint"></p>
+
+      <div id="statsLinkRow" hidden>
+        <p class="muted" data-i18n="public_stats_settings.link_label">Your public statistics link</p>
+        <code id="statsLinkValue"></code>
+      </div>
+    </div>
   </main>
 
   <script type="module" src="/static/profile.js"></script>

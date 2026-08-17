@@ -130,6 +130,10 @@ class User(Base):
     # owner's public flights, computed at request time. See api/routers/public.py.
     public_profile_enabled = Column(Boolean, nullable=False, default=False)
 
+    # Opt-in only (v0.9.5), independent of public_profile_enabled — sharing your flight list
+    # and sharing your lifetime aggregate numbers are different disclosure decisions.
+    public_stats_enabled = Column(Boolean, nullable=False, default=False)
+
     last_login_at = Column(UtcDateTime, nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)

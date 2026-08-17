@@ -5,10 +5,15 @@ never-leak-existence 404 shape, public-profile opt-in/opt-out, and rate limiting
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from flightlog.api.routers.public import limiter
 from flightlog.database.models import FlightCategory, Site
+
+FIXTURES = Path(__file__).parent / "fixtures"
+VALID_IGC = (FIXTURES / "valid_flight.igc").read_bytes()
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +106,50 @@ async def test_public_flight_includes_nickname_when_set(client, make_token, base
     res = await client.get(f"/api/public/flights/{flight_id}")
     assert res.status_code == 200
     assert res.json()["nickname"] == "Bruchlandung special"
+
+
+async def test_public_flight_without_a_track_has_null_igc(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, landing, category, "public")
+
+    res = await client.get(f"/api/public/flights/{flight_id}")
+    assert res.status_code == 200
+    assert res.json()["igc"] is None
+
+
+async def test_public_flight_with_a_track_includes_igc_data(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, landing, category, "public")
+
+    upload = await client.post(
+        f"/api/flights/{flight_id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert upload.status_code == 200
+
+    res = await client.get(f"/api/public/flights/{flight_id}")
+    assert res.status_code == 200
+    igc = res.json()["igc"]
+
+    assert igc["duration_s"] == 602
+    assert igc["thermal_count"] == 1
+    assert igc["glide_ratio"] > 0
+    assert len(igc["geometry"]["coordinates"]) == len(igc["offsets_s"])
+    assert len(igc["geometry"]["coordinates"]) > 0
+    kinds = {s["kind"] for s in igc["segments"]}
+    assert {"takeoff", "landing", "thermal", "glide"} <= kinds
+
+    # Explicit allowlist — the private IgcTrackOut/IgcSegmentOut's internal ids, owner_id,
+    # filename and timestamps never leak onto this surface.
+    assert "id" not in igc
+    assert "owner_id" not in igc
+    assert "original_filename" not in igc
+    for seg in igc["segments"]:
+        assert "id" not in seg
+        assert "start_at" not in seg
 
 
 async def test_unlisted_flight_visible_by_direct_url(client, make_token, base_entities):

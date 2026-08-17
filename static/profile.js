@@ -190,11 +190,47 @@ async function togglePublicProfile(enabled) {
   console.log(`[FL:profile] public profile ${enabled ? 'enabled' : 'disabled'}`);
 }
 
+// ---- public stats toggle (v0.9.5) ----
+
+function renderPublicStats(user) {
+  el('publicStatsToggle').checked = user.public_stats_enabled;
+  el('statsHint').textContent = window.t(
+    user.public_stats_enabled ? 'public_stats_settings.hint_on' : 'public_stats_settings.hint_off',
+  );
+  el('statsLinkRow').hidden = !user.public_stats_enabled;
+  if (user.public_stats_enabled) {
+    el('statsLinkValue').textContent = `${window.location.origin}/public/stats/${user.id}`;
+  }
+}
+
+async function togglePublicStats(enabled) {
+  el('statsAlert').classList.remove('visible');
+  console.log(`[FL:profile] PUT /api/auth/me public_stats_enabled=${enabled}`);
+
+  const res = await fetchAuth('/api/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify({ public_stats_enabled: enabled }),
+  });
+  if (!res.ok) {
+    el('publicStatsToggle').checked = !enabled; // revert the optimistic click
+    el('statsAlert').textContent = await errorMessage(res);
+    el('statsAlert').classList.add('visible');
+    console.error(`[FL:profile] public stats toggle failed (${res.status})`);
+    return;
+  }
+
+  renderPublicStats(await res.json());
+  console.log(`[FL:profile] public stats ${enabled ? 'enabled' : 'disabled'}`);
+}
+
 function wireEvents() {
   el('accountForm').addEventListener('submit', submitAccount);
   el('passwordForm').addEventListener('submit', submitPassword);
   el('publicProfileToggle').addEventListener('change', (event) => {
     togglePublicProfile(event.target.checked);
+  });
+  el('publicStatsToggle').addEventListener('change', (event) => {
+    togglePublicStats(event.target.checked);
   });
 }
 
@@ -206,6 +242,7 @@ async function init() {
   if (user) {
     renderAccount(user);
     renderPublicProfile(user);
+    renderPublicStats(user);
   }
 }
 

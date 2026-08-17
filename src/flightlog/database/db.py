@@ -133,6 +133,14 @@ def _run_column_migrations(engine: Engine) -> None:
             logger.info("Migration: added users.public_profile_enabled column")
             applied += 1
 
+        if "public_stats_enabled" not in user_cols:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN public_stats_enabled BOOLEAN NOT NULL DEFAULT 0")
+            )
+            conn.commit()
+            logger.info("Migration: added users.public_stats_enabled column")
+            applied += 1
+
     logger.info("Column migrations: %d applied, schema up to date", applied)
 
 

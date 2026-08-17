@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shared flight — Flightlog</title>
   <link rel="stylesheet" href="/static/shared.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
 </head>
 <body>
   <div id="appNav"></div>
@@ -52,8 +53,50 @@
         <p id="d_profile_link" hidden></p>
       </div>
     </div>
+
+    <div class="card" id="trackCard" hidden>
+      <h2 data-i18n="flight_detail.track_title">Track</h2>
+
+      <dl class="detail-grid">
+        <dt data-i18n="flight_detail.track_duration">Duration</dt>
+        <dd id="t_duration"></dd>
+
+        <dt data-i18n="flight_detail.track_distance">Distance</dt>
+        <dd id="t_distance"></dd>
+
+        <dt data-i18n="flight_detail.track_max_alt">Max altitude</dt>
+        <dd id="t_maxalt"></dd>
+
+        <dt data-i18n="flight_detail.track_alt_gain">Altitude gain</dt>
+        <dd id="t_altgain"></dd>
+
+        <dt data-i18n="flight_detail.track_thermals">Thermals</dt>
+        <dd id="t_thermals"></dd>
+
+        <dt data-i18n="flight_detail.track_best_climb">Best climb</dt>
+        <dd id="t_bestclimb"></dd>
+
+        <dt data-i18n="flight_detail.track_peak_climb">Peak climb</dt>
+        <dd id="t_peakclimb"></dd>
+
+        <dt data-i18n="flight_detail.track_glide_ratio">Glide ratio</dt>
+        <dd id="t_glideratio"></dd>
+
+        <dt data-i18n="flight_detail.track_alt_source">Altitude source</dt>
+        <dd id="t_altsource"></dd>
+      </dl>
+
+      <div id="trackMap" class="track-map"></div>
+
+      <p class="muted" data-i18n="flight_detail.track_chart_legend">
+        Orange marks climbing (thermal), blue marks gliding.
+      </p>
+      <div class="barogram-container"><canvas id="barogram"></canvas></div>
+    </div>
   </main>
 
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script src="/static/vendor/chartjs/chart.umd.js"></script>
   <script type="module" src="/static/public-flight.js"></script>
 </body>
 </html>

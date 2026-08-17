@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.4 — Profile page (password reset, account settings) + Categories management page
+## Current Version: v0.9.5 — public flights include their IGC track data + public statistics sharing
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -545,6 +545,110 @@ of the new Profile page.
 `en.json` and every DOM id referenced in the new JS cross-checked against the new HTML
 programmatically, matching v0.8's fallback method for sessions without a connected browser.
 `pyproject.toml` bumped `0.9.3` → `0.9.4` (`poetry install` re-run so `APP_VERSION` isn't stale).
+
+### v0.9.5 — public flights include their IGC track data + public statistics sharing
+
+**Part 1: public flights include their IGC track data.** The pilot's own ask: "Flights that are public should include the igc data as well." Before this,
+`GET /api/public/flights/{id}` returned only manually-entered figures — never the map/barogram/
+IGC-derived summary a flight's own owner sees on `/flights/{id}`, even when a track was attached.
+The flight's own `visibility` (`unlisted`\|`public`) is already the pilot's chosen consent
+boundary for notes/nickname on this surface — this closes the gap rather than adding a new one.
+
+1. **`PublicFlightOut.igc`** (`models/public.py`) — a new nullable `PublicIgcTrackOut`, `null`
+   when the flight has no track. Embedded in the existing single-flight response rather than new
+   `/api/public/flights/{id}/igc*` endpoints mirroring the authenticated three-route shape: this
+   surface is `slowapi`-rate-limited per request, and three round trips per page view would have
+   cut an anonymous visitor's effective budget to a third for no benefit. `PublicIgcTrackOut`/
+   `PublicIgcSegmentOut` are fresh explicit allowlists, not the private `IgcTrackOut`/
+   `IgcSegmentOut` — `id`/`owner_id`/`original_filename`/`analyzer_version`/timestamps never
+   reach this surface, and `PublicIgcSegmentOut` keeps only the three fields the barogram's
+   shading actually reads (`kind`/`start_offset_s`/`duration_s`).
+2. **`core/igc.py`'s `parse_simplified_track()`** — the point-unpacking logic that used to live
+   only inside the authenticated `.../igc/track.geojson` handler is now a shared pure function,
+   used by both that route and the new public path, so the two can't drift apart.
+3. **`/public/flights/{id}`** (`public-flight.html`/`.js`) gains a track card — the same Leaflet
+   map + Chart.js barogram + summary-figures `<dl>` the pilot's own `/flights/{id}` shows, minus
+   every write control (upload/replace/detach — an anonymous visitor can't write) and minus the
+   pilot page's empty state (a public flight with no track simply shows no track card at all,
+   since there's nothing actionable for a visitor to do about it). Reuses every
+   `flight_detail.track_*`/`track_chart_*` i18n key as-is — zero new locale keys, since this is
+   generic UI chrome already translated.
+
+Two new tests in `test_public_routes.py`: a public flight with a real uploaded track (the actual
+`tests/backend/fixtures/valid_flight.igc`, same fixture and real analyzer `test_igc_upload.py`
+uses — no stubbing) returns matching `geometry.coordinates`/`offsets_s` lengths and the expected
+segment kinds, with the private-field allowlist asserted explicitly (`"id" not in igc`, etc.); a
+public flight with no track returns `"igc": null`. 231/231 passing project-wide, `ruff check`/
+`ruff format --check` clean. Live-verified against a local dev boot: registered a throwaway
+account, created a site/flight, uploaded the real fixture, set the flight public, confirmed the
+nested `igc` object via `curl` (302 track points, segment kinds including
+`thermal`/`glide`/`takeoff`/`landing`, coordinates/offsets length-matched), and confirmed the
+rendered page serves with cache-busted vendor asset references. All test-only state (account,
+site, flight, uploaded `.igc` file on disk) removed from the real dev DB/filesystem afterward. The
+Chrome extension was not connected this session — DOM ids and `data-i18n` keys were cross-checked
+programmatically instead, same fallback as prior sessions without a browser.
+
+**Part 2: public statistics sharing.** The pilot asked, in the same session, to add public sharing
+of `/stats` to this same release. `AskUserQuestion` resolved three real privacy branches before any
+code was written — every `/api/stats` endpoint aggregates a pilot's **entire** flight history
+regardless of `visibility`, and `matrix/buddy` shows real buddy display names, neither of which the
+existing per-flight `visibility` consent model was built to answer on its own:
+
+1. **Data scope: entire lifetime history**, not scoped down to public-visibility flights — the
+   public stats page mirrors `/stats`'s numbers exactly, the pilot's explicit choice.
+2. **Buddy names: included** — `matrix.buddy` ships on the public surface as-is, also explicit.
+3. **A new, independent `users.public_stats_enabled` flag** (`_run_column_migrations()`, mirroring
+   `public_profile_enabled`'s own guard) — sharing your flight list and sharing your lifetime
+   aggregate numbers are different disclosure decisions, matching this app's existing
+   per-surface-consent pattern.
+
+One implementation-level refinement that isn't a scope change: `personal_bests` can point to a
+`flight_id` that's itself private under "entire lifetime" scope. `PublicPersonalBestOut.flight_id`
+is `null` unless that specific flight is itself public/unlisted (checked via one `db.get(Flight,
+...)` per record in `_stats_to_public_out()`) — the number stays visible either way, only the link
+disappears when it would 404.
+
+**`GET /api/public/stats/{user_id}`** (`api/routers/public.py`) bundles all ten `/api/stats/*`
+aggregates plus every `matrix/{dimension}` into one `PublicStatsOut` response, not ten-plus public
+endpoints mirroring the authenticated shape — the authenticated `/stats` page alone makes 10
+requests per load (`stats.js`'s own `Promise.all`), and this surface shares one `slowapi` budget
+per visitor IP; bundling costs exactly one request no matter how many matrix tabs a visitor clicks
+through afterward. `PublicStatsOut` reuses `models/stats.py`'s response shapes directly for every
+sub-object except personal bests — a deliberate, explained departure from "never reuse the private
+schema," since none of `TotalsOut`/`TimeBreakdownOut`/`DistributionOut`/etc. carry or could
+plausibly grow an owner-identifying or credential field the way `FlightOut`/`UserOut` do.
+
+**Frontend**: `static/stats.js`'s chart/table-building logic (`statTile`, `barChart`,
+`renderYearMonthMatrix`, `renderMonthlyByYearChart`, `formatPersonalBestValue`, `daysAgoText`,
+`renderSiteDiversityNote`, `renderMatrixTable`, plus the `MONTH_LABELS`/`MONTH_NUMS`/
+`MATRIX_DIMENSIONS` constants) was extracted into a new `static/stats-render.js`, imported by both
+the authenticated page and the new `static/public-stats.html`/`.js` — mechanical, behavior-
+preserving extraction (same element ids, same reliance on the global `window.t`), done specifically
+to avoid the two pages silently drifting apart the way this codebase's region-name-spelling bug
+already did once for a different pair of lists (`architecture.md`'s Statistics section). `/stats`
+itself was re-verified endpoint-by-endpoint and page-load after the refactor to catch any
+regression. `/profile` gained a second, independent "Public statistics" toggle card (mirrors the
+existing "Public profile" card exactly); `/public/profiles/{id}` and the new `/public/stats/{id}`
+cross-link to each other whenever both are enabled for the same pilot.
+
+Five new tests in `test_public_stats.py`: disabled/nonexistent → byte-identical 404s; enabled →
+full-lifetime totals and a real buddy name present in `matrices.buddy`; a personal best on a
+private flight has `flight_id: null` while one on a public flight has it set, both asserted in the
+same test; opt-out takes effect immediately; rate limiting reuses the existing `limiter`/
+`_reset_rate_limiter` pattern. 238/238 passing project-wide (231 after Part 1, +7 for Part 2's own
+file — one more than "five new tests" because two cross-cutting checks (allowlist, cross-link)
+ride along in the "enabled" test rather than needing their own), `ruff check`/`ruff format --check`
+clean. Live-verified against a local dev boot: registered a throwaway account with three flights
+(one later marked public), a real buddy, and varied durations/altitudes/distances; confirmed the
+bundled endpoint's shape, the buddy name, the personal-best `flight_id` nulling **and** un-nulling
+(marked the longest-airtime flight public mid-session and confirmed the link appeared), both
+cross-links, and that every authenticated `/api/stats/*` endpoint plus the `/stats` page itself
+still return 200 after the `stats.js` refactor. All test-only state removed from the real dev DB
+afterward. Chrome extension unavailable this session, same as Part 1 — DOM ids and `data-i18n`
+keys cross-checked programmatically for both new pages.
+
+No `pyproject.toml` bump for Part 2 — both parts ship together in the same `0.9.5` release
+(`poetry install` already re-run after Part 1's bump).
 
 ### v0.10 — Enrichment
 

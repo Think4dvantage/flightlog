@@ -52,6 +52,18 @@ function render(profile) {
   el('p_name').textContent = profile.display_name;
   el('p_count').textContent = window.t('public_profile.flight_count', { count: profile.flights.length });
 
+  const statsLink = el('p_stats_link');
+  if (profile.public_stats_enabled) {
+    statsLink.hidden = false;
+    statsLink.textContent = '';
+    const a = document.createElement('a');
+    a.href = `/public/stats/${profile.user_id}`;
+    a.textContent = window.t('public_profile.view_stats', { name: profile.display_name });
+    statsLink.appendChild(a);
+  } else {
+    statsLink.hidden = true;
+  }
+
   const tbody = el('flightsBody');
   tbody.innerHTML = '';
   for (const flight of profile.flights) {

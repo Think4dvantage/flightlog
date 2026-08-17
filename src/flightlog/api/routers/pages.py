@@ -153,3 +153,8 @@ def public_flight_page(request: Request, flight_id: str) -> Response:
 @router.get("/public/profiles/{user_id}")
 def public_profile_page(request: Request, user_id: str) -> Response:
     return _page(request, "public-profile.html")
+
+
+@router.get("/public/stats/{user_id}")
+def public_stats_page(request: Request, user_id: str) -> Response:
+    return _page(request, "public-stats.html")

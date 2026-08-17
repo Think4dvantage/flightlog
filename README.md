@@ -77,6 +77,18 @@ had been owner-scoped since v0.2, but no page ever managed it. `/profile` is the
 home that never existed: display name, password change, and the "Public profile" toggle moved here
 from `/api-keys`, which had only ever hosted it as a stand-in.
 
+`v0.9.5` closes a gap on the public/unlisted flight page: `/public/flights/{id}` now shows the
+same track map, barogram and IGC-derived summary figures the pilot's own flight-detail page shows,
+when the flight has an uploaded track. A flight's `visibility` is already the consent boundary for
+its notes and nickname on this surface — this was simply missing, not a new exposure decision.
+
+`v0.9.5` also adds public statistics sharing: a new, independent "Public statistics" toggle (off
+by default, separate from the public-profile toggle) publishes a read-only `/public/stats/{id}`
+page mirroring the pilot's own `/stats` dashboard — same totals, distributions, personal bests,
+and per-dimension matrices (including buddy names), computed over the pilot's entire flight
+history rather than only public-visibility flights. A personal best whose underlying flight isn't
+itself public shows the number without a link, so a shared page never points to a 404.
+
 ## Getting started
 
 Requires Python 3.13+ and Poetry, or Docker.

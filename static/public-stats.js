@@ -1,14 +1,17 @@
 /**
- * /stats — read-only statistics dashboard. Every section is fetched and rendered
- * independently (contracts/endpoints.md's "8 small endpoints" rationale) so the page
- * renders incrementally instead of blocking on the slowest aggregate.
+ * /public/stats/{id} — anonymous-visitor view of a pilot's full statistics dashboard (v0.9.5).
+ * One bundled `GET /api/public/stats/{id}` fetch, not the ten-plus requests the authenticated
+ * `/stats` page makes — this surface is `slowapi`-rate-limited per request, and a visitor
+ * clicking through matrix tabs must not burn through that budget for data already in hand.
  *
- * Rendering (chart/table builders) lives in `stats-render.js`, shared with `public-stats.js` —
- * this file owns only fetching and the per-page state (active matrix tab, chart instances).
+ * Rendering reuses `stats-render.js` — the same chart/table builders `/stats` uses, so the two
+ * pages can't silently drift apart. `bootstrapPage` runs with `anonymous: true`, same as
+ * `public-flight.js`/`public-profile.js`: a visitor's own (possibly stale) localStorage token
+ * must never trigger a redirect-to-/login on a page anyone must be able to load.
  */
 
 import { bootstrapPage } from '/static/bootstrap.js';
-import { fetchAuth, errorMessage } from '/static/auth.js';
+import { errorMessage } from '/static/auth.js';
 import {
   barChart,
   daysAgoText,
@@ -29,9 +32,7 @@ import {
 const el = (id) => document.getElementById(id);
 
 let activeDimension = 'site';
-const matrixCache = {};
-
-let totalFlights = null;
+let stats = null;
 
 let chartByYear;
 let chartByMonth;
@@ -45,78 +46,59 @@ let chartXcProgression;
 let chartMonthlyByYear;
 let chartMonthlyThermals;
 
-function showAlert(message) {
-  const box = el('alert');
-  box.textContent = message;
-  box.classList.add('visible');
+function userIdFromUrl() {
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  return parts[parts.length - 1];
 }
 
-async function getJson(path) {
+function showAlert(message) {
+  el('alert').textContent = message;
+  el('alert').classList.add('visible');
+  console.error(`[FL:public-stats] ${message}`);
+}
+
+async function loadStats(id) {
   const started = performance.now();
-  const res = await fetchAuth(path);
-  const elapsed = (performance.now() - started).toFixed(0);
+  const res = await fetch(`/api/public/stats/${id}`);
+  console.log(`[FL:public-stats] GET /api/public/stats/${id} → ${res.status} (${(performance.now() - started).toFixed(0)}ms)`);
   if (!res.ok) {
-    console.error(`[FL:stats] GET ${path} → ${res.status} (${elapsed}ms)`);
     showAlert(await errorMessage(res));
     return null;
   }
-  console.log(`[FL:stats] GET ${path} → ${res.status} (${elapsed}ms)`);
   return res.json();
 }
 
 // ---- totals ----
 
-async function loadTotals() {
-  // igc-rollup is fetched here (and again in loadIgcRollup() below) so the IGC-derived total
-  // airtime can render directly beside the self-reported one — a pilot-requested side-by-side
-  // comparison, since the two numbers routinely disagree. A small duplicate GET, accepted rather
-  // than threading shared state between the two independently-owned render functions.
-  const [data, igc] = await Promise.all([
-    getJson('/api/stats/totals'),
-    getJson('/api/stats/igc-rollup'),
-  ]);
-  if (!data) return;
-
-  totalFlights = data.total_flights;
-
+function renderTotals() {
+  const { totals, igc_rollup: igc } = stats;
   const mount = el('totalsGrid');
   mount.textContent = '';
-  statTile(mount, window.t('stats.totals.total_flights'), String(data.total_flights));
-  statTile(mount, window.t('stats.totals.total_airtime'), fmtDuration(data.total_airtime_min));
-  if (igc && igc.tracks_uploaded > 0) {
-    statTile(
-      mount,
-      window.t('stats.totals.total_airtime_igc'),
-      fmtDuration(igc.total_igc_airtime_min),
-    );
+  statTile(mount, window.t('stats.totals.total_flights'), String(totals.total_flights));
+  statTile(mount, window.t('stats.totals.total_airtime'), fmtDuration(totals.total_airtime_min));
+  if (igc.tracks_uploaded > 0) {
+    statTile(mount, window.t('stats.totals.total_airtime_igc'), fmtDuration(igc.total_igc_airtime_min));
   }
-  statTile(mount, window.t('stats.totals.total_distance'), `${fmtNum(data.total_distance_km)} km`);
-  statTile(mount, window.t('stats.totals.total_alt_gain'), `${data.total_alt_gain_m} m`);
-  statTile(mount, window.t('stats.totals.avg_airtime'), fmtDuration(data.avg_airtime_min));
+  statTile(mount, window.t('stats.totals.total_distance'), `${fmtNum(totals.total_distance_km)} km`);
+  statTile(mount, window.t('stats.totals.total_alt_gain'), `${totals.total_alt_gain_m} m`);
+  statTile(mount, window.t('stats.totals.avg_airtime'), fmtDuration(totals.avg_airtime_min));
   statTile(
     mount,
     window.t('stats.totals.avg_airtime_excl_training'),
-    fmtDuration(data.avg_airtime_min_excl_training),
+    fmtDuration(totals.avg_airtime_min_excl_training),
   );
-  statTile(mount, window.t('stats.totals.avg_distance'), `${fmtNum(data.avg_distance_km)} km`);
-  console.log(`[FL:stats] totals rendered: ${data.total_flights} flights`);
+  statTile(mount, window.t('stats.totals.avg_distance'), `${fmtNum(totals.avg_distance_km)} km`);
 }
 
 // ---- time breakdown ----
 
-async function loadTimeBreakdown() {
-  const data = await getJson('/api/stats/time-breakdown');
-  if (!data) return;
+function renderTimeBreakdown() {
+  const data = stats.time_breakdown;
 
   const years = Object.keys(data.by_year)
     .map(Number)
     .sort((a, b) => a - b);
-  chartByYear = barChart(
-    'chartByYear',
-    years,
-    years.map((y) => data.by_year[y]),
-    chartByYear,
-  );
+  chartByYear = barChart('chartByYear', years, years.map((y) => data.by_year[y]), chartByYear);
 
   const months = Object.keys(data.by_month)
     .map(Number)
@@ -130,18 +112,15 @@ async function loadTimeBreakdown() {
 
   renderYearMonthMatrix(data.year_month_matrix, years);
   chartMonthlyByYear = renderMonthlyByYearChart(data.year_month_matrix, years, chartMonthlyByYear);
-  console.log(`[FL:stats] time breakdown rendered: ${years.length} years`);
 }
 
 // ---- XC progression ----
 
-async function loadXcProgression() {
-  const data = await getJson('/api/stats/xc-progression');
-  if (!data) return;
-
-  const threshold = data.threshold_km;
-  el('xcProgressionHint').textContent = window.t('stats.xc_progression.hint', { threshold });
-
+function renderXcProgression() {
+  const data = stats.xc_progression;
+  el('xcProgressionHint').textContent = window.t('stats.xc_progression.hint', {
+    threshold: data.threshold_km,
+  });
   chartXcProgression = barChart(
     'chartXcProgression',
     data.rows.map((r) => String(r.year)),
@@ -149,15 +128,12 @@ async function loadXcProgression() {
     chartXcProgression,
     (v) => `${Math.round(v)}%`,
   );
-  console.log(`[FL:stats] XC progression rendered: ${data.rows.length} years, threshold=${threshold}km`);
 }
 
 // ---- distributions ----
 
-async function loadDistribution() {
-  const data = await getJson('/api/stats/distribution');
-  if (!data) return;
-
+function renderDistribution() {
+  const data = stats.distribution;
   chartDurationDist = barChart(
     'chartDurationDist',
     Object.keys(data.duration_buckets),
@@ -176,15 +152,12 @@ async function loadDistribution() {
     Object.values(data.altitude_buckets),
     chartAltitudeDist,
   );
-  console.log('[FL:stats] distributions rendered');
 }
 
 // ---- monthly extremes ----
 
-async function loadMonthlyExtremes() {
-  const data = await getJson('/api/stats/monthly-extremes');
-  if (!data) return;
-
+function renderMonthlyExtremes() {
+  const data = stats.monthly_extremes;
   chartMonthlyDuration = barChart(
     'chartMonthlyDuration',
     MONTH_LABELS,
@@ -206,15 +179,12 @@ async function loadMonthlyExtremes() {
     chartMonthlyAltitude,
     (v) => `${Math.round(v)} m`,
   );
-  console.log('[FL:stats] monthly extremes rendered');
 }
 
 // ---- personal bests ----
 
-async function loadPersonalBests() {
-  const data = await getJson('/api/stats/personal-bests');
-  if (!data) return;
-
+function renderPersonalBests() {
+  const data = stats.personal_bests;
   const body = el('personalBestsBody');
   body.textContent = '';
   el('personalBestsEmpty').hidden = data.length > 0;
@@ -235,16 +205,19 @@ async function loadPersonalBests() {
     setTd.textContent = daysAgoText(best.flight_date);
     tr.appendChild(setTd);
 
+    // Only a public/unlisted flight gets a link — a private one that still won the record
+    // has no flight_id here at all (never a link that would 404), see api/routers/public.py.
     const linkTd = document.createElement('td');
-    const a = document.createElement('a');
-    a.href = `/flights/${best.flight_id}`;
-    a.textContent = window.t('stats.personal_bests.view_flight');
-    linkTd.appendChild(a);
+    if (best.flight_id) {
+      const a = document.createElement('a');
+      a.href = `/public/flights/${best.flight_id}`;
+      a.textContent = window.t('stats.personal_bests.view_flight');
+      linkTd.appendChild(a);
+    }
     tr.appendChild(linkTd);
 
     body.appendChild(tr);
   }
-  console.log(`[FL:stats] personal bests rendered: ${data.length}`);
 }
 
 // ---- dimension matrices ----
@@ -260,7 +233,7 @@ function renderMatrixTabs() {
     btn.addEventListener('click', () => {
       if (dim === activeDimension) return;
       activeDimension = dim;
-      console.log(`[FL:stats] matrix tab switched to ${dim}`);
+      console.log(`[FL:public-stats] matrix tab switched to ${dim}`);
       renderMatrixTabs();
       renderMatrix();
     });
@@ -273,45 +246,29 @@ function renderMatrixTabs() {
   if (activeDimension === 'buddy') hint.textContent = window.t('stats.matrix.buddy_hint');
 }
 
-async function loadMatrix(dimension) {
-  if (matrixCache[dimension]) return matrixCache[dimension];
-  const data = await getJson(`/api/stats/matrix/${dimension}`);
-  matrixCache[dimension] = data;
-  return data;
-}
-
-async function renderMatrix() {
-  const data = await loadMatrix(activeDimension);
+function renderMatrix() {
+  const data = stats.matrices[activeDimension];
   renderSiteDiversityNote(activeDimension, data?.rows);
   renderMatrixTable(data);
-  console.log(
-    data && data.rows.length > 0
-      ? `[FL:stats] matrix rendered: ${activeDimension}, ${data.rows.length} rows`
-      : `[FL:stats] matrix empty: ${activeDimension}`,
-  );
 }
 
 // ---- launch technique ----
 
-async function loadLaunchTechnique() {
-  const data = await getJson('/api/stats/launch-technique');
-  if (!data) return;
-
+function renderLaunchTechnique() {
+  const data = stats.launch_technique;
   const mount = el('launchTechniqueGrid');
   mount.textContent = '';
   statTile(mount, window.t('stats.launch_technique.forward'), String(data.forward));
   statTile(mount, window.t('stats.launch_technique.reverse'), String(data.reverse));
   statTile(mount, window.t('stats.launch_technique.reverse_pct'), `${fmtNum(data.reverse_pct)}%`);
   statTile(mount, window.t('stats.launch_technique.hike_fly_total'), String(data.hike_fly_total));
-  console.log(`[FL:stats] launch technique rendered: reverse_pct=${data.reverse_pct}`);
 }
 
 // ---- IGC rollup ----
 
-async function loadIgcRollup() {
-  const data = await getJson('/api/stats/igc-rollup');
-  if (!data) return;
-
+function renderIgcRollup() {
+  const data = stats.igc_rollup;
+  const totalFlights = stats.totals.total_flights;
   const mount = el('igcRollupGrid');
   mount.textContent = '';
 
@@ -326,7 +283,6 @@ async function loadIgcRollup() {
 
   if (data.tracks_uploaded === 0) {
     el('igcRollupEmpty').hidden = false;
-    console.log('[FL:stats] igc rollup: no tracks uploaded yet');
     return;
   }
   el('igcRollupEmpty').hidden = true;
@@ -346,18 +302,12 @@ async function loadIgcRollup() {
     chartMonthlyThermals,
     (v) => fmtNum(v, 1),
   );
-
-  console.log(
-    `[FL:stats] igc rollup rendered: ${data.cumulative_thermal_climb_m}m, ${data.total_thermals} thermals over ${data.tracks_uploaded} tracks`,
-  );
 }
 
-// ---- streak, YTD pace, progression ----
+// ---- progression ----
 
-async function loadProgression() {
-  const data = await getJson('/api/stats/progression');
-  if (!data) return;
-
+function renderProgression() {
+  const data = stats.progression;
   const mount = el('progressionGrid');
   mount.textContent = '';
 
@@ -382,33 +332,54 @@ async function loadProgression() {
     window.t('stats.progression.ytd_prior_year'),
     String(data.ytd_pace.same_point_prior_year),
   );
+}
 
-  // The monthly-by-year chart under this section is rendered by loadTimeBreakdown()
-  // (it's built from year_month_matrix, already fetched there — no separate call here).
-  console.log(
-    `[FL:stats] progression rendered: streak=${data.current_streak.count}${data.current_streak.unit}, days_since_last_flight=${data.days_since_last_flight}`,
-  );
+// ---- header ----
+
+function renderHeader() {
+  // owner_display_name is user data — textContent only, never innerHTML.
+  el('s_title').textContent = window.t('public_stats.title_for', {
+    name: stats.owner_display_name,
+  });
+
+  const profileLink = el('s_profile_link');
+  if (stats.owner_has_public_profile) {
+    profileLink.hidden = false;
+    profileLink.textContent = '';
+    const a = document.createElement('a');
+    a.href = `/public/profiles/${stats.owner_id}`;
+    a.textContent = window.t('public_stats.view_profile', { name: stats.owner_display_name });
+    profileLink.appendChild(a);
+  } else {
+    profileLink.hidden = true;
+  }
+}
+
+function render() {
+  renderHeader();
+  renderTotals();
+  renderTimeBreakdown();
+  renderXcProgression();
+  renderDistribution();
+  renderMonthlyExtremes();
+  renderPersonalBests();
+  renderMatrixTabs();
+  renderMatrix();
+  renderLaunchTechnique();
+  renderIgcRollup();
+  renderProgression();
+  el('statsBody').hidden = false;
+  console.log('[FL:public-stats] rendered');
 }
 
 async function init() {
-  await bootstrapPage({ page: 'stats', requireAuth: true });
-  renderMatrixTabs();
+  await bootstrapPage({ page: 'public-stats', anonymous: true });
 
-  // totalFlights (module-level) must be known before loadIgcRollup()'s coverage nudge —
-  // awaited alone rather than folded into the Promise.all below.
-  await loadTotals();
-
-  await Promise.all([
-    loadTimeBreakdown(),
-    loadXcProgression(),
-    loadDistribution(),
-    loadMonthlyExtremes(),
-    loadPersonalBests(),
-    renderMatrix(),
-    loadLaunchTechnique(),
-    loadIgcRollup(),
-    loadProgression(),
-  ]);
+  const id = userIdFromUrl();
+  console.log(`[FL:public-stats] loading stats for ${id}`);
+  stats = await loadStats(id);
+  if (!stats) return;
+  render();
 }
 
 init();

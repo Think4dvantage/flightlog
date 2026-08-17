@@ -613,6 +613,14 @@
     "hint_on": "Anyone with this link can see your display name and every flight you've marked Public. Unlisted flights never appear here.",
     "hint_off": "Your profile is not visible to anyone without an account."
   },
+  "public_stats_settings": {
+    "title": "Public statistics",
+    "intro": "Opt in to a durable, shareable page showing your full flight statistics — totals, distributions, personal bests and more, across your entire flight history. Off by default, independent of your public profile.",
+    "toggle_label": "Enable public statistics",
+    "link_label": "Your public statistics link",
+    "hint_on": "Anyone with this link can see your full statistics dashboard, computed over your entire flight history — not just flights you've marked public.",
+    "hint_off": "Your statistics are not visible to anyone without an account."
+  },
   "public_flight": {
     "launch": "Launch site",
     "landing": "Landing site",
@@ -634,6 +642,7 @@
     "flight_count": "{count} public flight(s)",
     "empty": "No public flights yet.",
     "not_recorded": "Not recorded",
+    "view_stats": "View {name}'s public statistics",
     "col": {
       "date": "Date",
       "nickname": "Nickname",
@@ -643,5 +652,9 @@
       "distance": "Distance",
       "max_alt": "Max altitude"
     }
+  },
+  "public_stats": {
+    "title_for": "{name}'s statistics",
+    "view_profile": "View {name}'s public profile"
   }
 }

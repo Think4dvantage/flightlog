@@ -30,18 +30,26 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from slowapi import Limiter
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from flightlog.api.dependencies import client_ip
 from flightlog.api.errors import CODE_ENTITY_NOT_FOUND, AppException
 from flightlog.config import get_config
+from flightlog.core import igc as igc_core
+from flightlog.core import stats as stats_core
 from flightlog.core.flights import compute_altitude_figures
 from flightlog.database.db import get_db
-from flightlog.database.models import Flight, FlightCategory, Site, User
+from flightlog.database.models import Flight, FlightCategory, IgcSegment, IgcTrack, Site, User
+from flightlog.models.igc import IgcTrackGeometryOut
 from flightlog.models.public import (
     PublicFlightOut,
+    PublicIgcSegmentOut,
+    PublicIgcTrackOut,
+    PublicPersonalBestOut,
     PublicProfileFlightOut,
     PublicProfileOut,
+    PublicStatsOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +84,79 @@ def _category_name(db: Session, category_id: str | None) -> str | None:
     return category.name if category is not None else None
 
 
+def _igc_to_public_out(db: Session, flight_id: str) -> PublicIgcTrackOut | None:
+    track = db.execute(select(IgcTrack).where(IgcTrack.flight_id == flight_id)).scalar_one_or_none()
+    if track is None:
+        return None
+
+    segments = (
+        db.execute(
+            select(IgcSegment)
+            .where(IgcSegment.track_id == track.id)
+            .order_by(IgcSegment.start_offset_s)
+        )
+        .scalars()
+        .all()
+    )
+    coordinates, offsets_s = igc_core.parse_simplified_track(track.track_simplified_json)
+
+    return PublicIgcTrackOut(
+        duration_s=track.duration_s,
+        distance_km=track.distance_km,
+        max_alt_igc_m=track.max_alt_igc_m,
+        alt_gain_igc_m=track.alt_gain_igc_m,
+        thermal_count=track.thermal_count,
+        best_climb_ms=track.best_climb_ms,
+        peak_climb_ms=track.peak_climb_ms,
+        glide_ratio=track.glide_ratio,
+        alt_source=track.alt_source,
+        geometry=IgcTrackGeometryOut(coordinates=coordinates),
+        offsets_s=offsets_s,
+        segments=[
+            PublicIgcSegmentOut(
+                kind=seg.kind, start_offset_s=seg.start_offset_s, duration_s=seg.duration_s
+            )
+            for seg in segments
+        ],
+    )
+
+
+def _stats_to_public_out(db: Session, owner: User) -> PublicStatsOut:
+    public_bests = []
+    for best in stats_core.personal_bests(db, owner.id):
+        flight = db.get(Flight, best.flight_id)
+        linkable = flight is not None and flight.visibility in ("unlisted", "public")
+        public_bests.append(
+            PublicPersonalBestOut(
+                label=best.label,
+                value=best.value,
+                flight_date=best.flight_date,
+                flight_id=best.flight_id if linkable else None,
+            )
+        )
+
+    matrices = {
+        dimension: stats_core.year_matrix(db, owner.id, dimension)
+        for dimension in stats_core.DIMENSIONS
+    }
+
+    return PublicStatsOut(
+        owner_id=owner.id,
+        owner_display_name=owner.display_name,
+        owner_has_public_profile=owner.public_profile_enabled,
+        totals=stats_core.totals(db, owner.id),
+        time_breakdown=stats_core.time_breakdown(db, owner.id),
+        distribution=stats_core.distribution(db, owner.id),
+        monthly_extremes=stats_core.monthly_extremes(db, owner.id),
+        xc_progression=stats_core.xc_progression(db, owner.id),
+        personal_bests=public_bests,
+        matrices=matrices,
+        launch_technique=stats_core.launch_technique(db, owner.id),
+        igc_rollup=stats_core.igc_rollup(db, owner.id),
+        progression=stats_core.progression(db, owner.id),
+    )
+
+
 def _flight_to_public_out(db: Session, flight: Flight, owner: User) -> PublicFlightOut:
     figures = compute_altitude_figures(db, flight)
 
@@ -98,6 +179,7 @@ def _flight_to_public_out(db: Session, flight: Flight, owner: User) -> PublicFli
         owner_display_name=owner.display_name,
         owner_id=owner.id,
         owner_has_public_profile=owner.public_profile_enabled,
+        igc=_igc_to_public_out(db, flight.id),
     )
 
 
@@ -119,6 +201,22 @@ def get_public_flight(
 
     logger.info("Public flight served: %s (visibility=%s)", flight_id, flight.visibility)
     return _flight_to_public_out(db, flight, owner)
+
+
+@router.get("/stats/{user_id}", response_model=PublicStatsOut)
+@limiter.limit(_public_rate_limit)
+def get_public_stats(
+    request: Request,  # required by slowapi's decorator, not read directly
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> PublicStatsOut:
+    owner = db.get(User, user_id)
+    if owner is None or not owner.public_stats_enabled:
+        logger.info("Public stats request rejected: %s", user_id)
+        raise _not_found("Stats")
+
+    logger.info("Public stats served: %s", user_id)
+    return _stats_to_public_out(db, owner)
 
 
 @router.get("/profiles/{user_id}", response_model=PublicProfileOut)
@@ -146,6 +244,7 @@ def get_public_profile(
     return PublicProfileOut(
         user_id=owner.id,
         display_name=owner.display_name,
+        public_stats_enabled=owner.public_stats_enabled,
         flights=[
             PublicProfileFlightOut(
                 id=f.id,

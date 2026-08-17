@@ -38,6 +38,28 @@ function fmtNumber(value, unit) {
   return value == null ? notRecorded() : `${value} ${unit}`;
 }
 
+function fmtTrackDuration(seconds) {
+  if (seconds == null) return notRecorded();
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}min` : `${m} min`;
+}
+
+function fmtRate(value) {
+  return value == null ? notRecorded() : `${value.toFixed(1)} m/s`;
+}
+
+const SEGMENT_KINDS_TO_SHADE = new Set(['thermal', 'glide']);
+
+function trackColors() {
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    thermal: styles.getPropertyValue('--warm').trim() || '#f6ad55',
+    glide: styles.getPropertyValue('--accent-strong').trim() || '#63b3ed',
+    neutral: styles.getPropertyValue('--text-dim').trim() || '#94a3b8',
+  };
+}
+
 async function loadFlight(id) {
   const started = performance.now();
   const res = await fetch(`/api/public/flights/${id}`);
@@ -48,6 +70,90 @@ async function loadFlight(id) {
     return null;
   }
   return res.json();
+}
+
+function renderTrackFigures(igc) {
+  el('t_duration').textContent = fmtTrackDuration(igc.duration_s);
+  el('t_distance').textContent = fmtNumber(igc.distance_km, 'km');
+  el('t_maxalt').textContent = fmtNumber(igc.max_alt_igc_m, 'm');
+  el('t_altgain').textContent = fmtNumber(igc.alt_gain_igc_m, 'm');
+  el('t_thermals').textContent = igc.thermal_count ?? notRecorded();
+  el('t_bestclimb').textContent = fmtRate(igc.best_climb_ms);
+  el('t_peakclimb').textContent = fmtRate(igc.peak_climb_ms);
+  el('t_glideratio').textContent = igc.glide_ratio != null ? igc.glide_ratio.toFixed(1) : notRecorded();
+  el('t_altsource').textContent =
+    igc.alt_source === 'PRESS'
+      ? window.t('flight_detail.track_alt_source_press')
+      : igc.alt_source === 'GNSS'
+        ? window.t('flight_detail.track_alt_source_gnss')
+        : notRecorded();
+}
+
+function renderTrackMap(igc) {
+  const trackMap = L.map('trackMap');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(trackMap);
+
+  const latlngs = igc.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+  const polyline = L.polyline(latlngs, { color: trackColors().glide, weight: 3 }).addTo(trackMap);
+  trackMap.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+}
+
+function renderBarogram(igc) {
+  const shaded = igc.segments.filter((s) => SEGMENT_KINDS_TO_SHADE.has(s.kind));
+  const colors = trackColors();
+
+  const offsets = igc.offsets_s;
+  const altitudes = igc.geometry.coordinates.map((c) => c[2]);
+  const pointColors = offsets.map((offset) => {
+    const seg = shaded.find(
+      (s) => offset >= s.start_offset_s && offset <= s.start_offset_s + (s.duration_s || 0),
+    );
+    return seg ? colors[seg.kind] : colors.neutral;
+  });
+
+  new Chart(el('barogram').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: offsets,
+      datasets: [
+        {
+          data: altitudes,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0,
+          fill: false,
+          segment: {
+            borderColor: (ctx) => pointColors[ctx.p0DataIndex] || colors.neutral,
+          },
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: window.t('flight_detail.track_chart_x') } },
+        y: { title: { display: true, text: window.t('flight_detail.track_chart_y') } },
+      },
+    },
+  });
+  console.log(`[FL:public-flight] barogram rendered: ${offsets.length} points, ${shaded.length} shaded segments`);
+}
+
+function renderTrack(igc) {
+  if (!igc) {
+    el('trackCard').hidden = true;
+    return;
+  }
+  el('trackCard').hidden = false;
+  renderTrackFigures(igc);
+  renderTrackMap(igc);
+  renderBarogram(igc);
+  console.log(`[FL:public-flight] track rendered: ${igc.offsets_s.length} points, ${igc.segments.length} segments`);
 }
 
 function render(flight) {
@@ -87,6 +193,7 @@ function render(flight) {
   }
 
   el('detailBody').hidden = false;
+  renderTrack(flight.igc);
 }
 
 async function init() {

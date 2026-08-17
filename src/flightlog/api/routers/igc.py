@@ -20,7 +20,6 @@ just hidden. Per-flight upload above (unambiguous by construction) is the only a
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -263,9 +262,7 @@ def get_igc_geojson(
 ) -> IgcTrackGeoJsonOut:
     flight = _get_own_flight(flight_id, current_user, db)
     track = _get_track_for_flight(flight, db)
-    points = json.loads(track.track_simplified_json or "[]")
-    coordinates = [[lon, lat, alt] for _offset, lat, lon, alt in points]
-    offsets_s = [offset for offset, _lat, _lon, _alt in points]
+    coordinates, offsets_s = igc_core.parse_simplified_track(track.track_simplified_json)
     return IgcTrackGeoJsonOut(
         geometry=IgcTrackGeometryOut(coordinates=coordinates),
         properties=IgcTrackGeoJsonPropertiesOut(offsets_s=offsets_s),
