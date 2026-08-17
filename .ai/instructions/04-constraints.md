@@ -175,6 +175,27 @@ real `bootstrap.js` under a stubbed DOM/localStorage/fetch.
 Use bound parameters. For any identifier that must be interpolated (a table or column name in a
 `PRAGMA`), validate it against `^[\w\-]{1,64}$` at the router, before it reaches the data layer.
 
+### Each public disclosure surface gets its own independent opt-in flag
+
+`flights.visibility`, `users.public_profile_enabled`, `users.public_stats_enabled` (v0.9.5) are
+three separately-gated decisions, not one master switch — a pilot can share a flight without a
+public profile, have a public profile without public stats, or any other combination. Never
+collapse two of these into "if the first is on, the second follows" — sharing your flight list and
+sharing your lifetime aggregate numbers (or your flight data at all) are genuinely different
+disclosure decisions the pilot must make separately. When a new public surface is added, it gets
+its own new flag, not a reused one.
+
+### Bundle a rate-limited anonymous surface into one response, not N mirrored endpoints
+
+`GET /api/public/flights/{id}`'s `igc` field (v0.9.5) and `GET /api/public/stats/{user_id}`
+(v0.9.5) both embed what would otherwise be several authenticated-surface endpoints
+(`.../igc`, `.../igc/segments`, `.../igc/track.geojson`; ten separate `/api/stats/*` routes) into
+one nested response. `/api/public/*` shares one `slowapi` rate-limit budget per visitor IP
+(`config.api.public_rate_limit`, default 30/minute) — mirroring the authenticated surface's
+endpoint-per-concern shape would let one page load burn through a third or more of that budget for
+no benefit to the visitor. Any new public surface exposing what's normally several pilot-facing
+endpoints should bundle them into one response the same way.
+
 ---
 
 ## Error Handling — Rules That Must Not Recur

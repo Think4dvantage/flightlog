@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.9.3**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
+Status: **v0.9.6**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features

@@ -107,6 +107,17 @@ redirects to `/login` — wrong on a page a stranger with zero session must be a
 true` skips the token check and the authenticated nav links entirely, regardless of what a visitor's
 browser happens to hold. See `04-constraints.md`'s Security section for the full rationale.
 
+**When an authenticated page and its public counterpart both need the same rendering logic
+(charts, tables), extract the stateless chart/table-building functions into a shared module and
+import it from both pages — never duplicate them.** `static/stats-render.js` (v0.9.5) is the first
+example: `stats.js` (`/stats`, fetches per-section) and `public-stats.js` (`/public/stats/{id}`,
+one bundled fetch) both import the same `barChart()`, `renderMatrixTable()`, etc. Duplicating that
+logic across two files risks the exact silent-drift bug this project has already hit once for a
+different pair of lists (`architecture.md`'s region-name-spelling note) — a future tweak to one
+page's chart formatting would otherwise need to be remembered and repeated in the other by hand.
+Keep fetching/state (which endpoint, which tab is active, chart instance handles) in each page's
+own file; only the pure `data → DOM` functions belong in the shared module.
+
 ---
 
 ## Dark Theme

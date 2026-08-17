@@ -717,7 +717,9 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 
 ## Backlog (unordered)
 
-- **XContest "My Flights" score import** (moved here from v0.6, 2026-08-15) — attach an
+- **XContest "My Flights" score import** (moved here from v0.6, 2026-08-15) — not to be confused
+  with v0.9.6's manual `flight_links` `kind="xcontest"` (a pilot-pasted link, no parsing). This
+  item is the independently-verified, auto-matched **score** — attach an
   independently-verified `xc_official_score`/`_type`/`_url` to matched flights, per
   `specs/004-secondary-sheets-xcontest/` (Phase 5, T018–T024) and its `research.md`/`spec.md`/
   `data-model.md`/`contracts/endpoints.md`, all already written. Blocked on obtaining one real XContest

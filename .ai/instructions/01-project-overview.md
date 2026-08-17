@@ -78,8 +78,7 @@ src/flightlog/
 │   ├── site_backfill.py     # site coordinate backfill from IGC fixes
 │   ├── flights.py           # list / filter / sort / paginate
 │   ├── stats.py             # rollups
-│   ├── user_seed.py         # starter-category seed on self-registration (v0.9)
-│   └── xcontest.py          # XContest "My Flights" JSON import
+│   └── user_seed.py         # starter-category seed on self-registration (v0.9)
 ├── database/
 │   ├── models.py            # SQLAlchemy ORM — source of truth for the schema
 │   └── db.py                # init_db(), get_db(), _run_column_migrations(), seeders
@@ -124,7 +123,6 @@ VidFactory → X-API-Key → /api/integration/v1 → flight metadata + highlight
 |---|---|---|---|
 | `olddata/Flugbuch.xlsx` | none (local file) | 600 flights, 34 launches, 30 landings, 12 categories, 10 gliders, 8 harnesses | One-shot |
 | Uploaded IGC files | user session | Track, thermals, glides, real clock times, site coordinates | Per flight |
-| XContest JSON export | none (user-supplied file) | Official score, type, URL | Optional, ad hoc |
 
 Two properties of the legacy data that shape everything downstream:
 - **There is no time-of-day on any flight.** IGC attachment is what backfills it.
