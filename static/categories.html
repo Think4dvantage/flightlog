@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Categories — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="categories.title">Categories</h1>
+        <button type="button" id="addCategoryBtn" data-i18n="categories.add">Add category</button>
+      </div>
+
+      <p class="muted" data-i18n="categories.intro">
+        Your own flight categories — reorder, rename or archive them. Categories still referenced
+        by a flight can't be permanently deleted; archive them instead.
+      </p>
+
+      <div id="alert" class="alert alert-error"></div>
+      <div id="resultCount" class="muted"></div>
+
+      <div class="table-scroll">
+        <table id="categoriesTable">
+          <thead>
+            <tr>
+              <th data-i18n="categories.col.name">Name</th>
+              <th data-i18n="categories.col.flags">Flags</th>
+              <th data-i18n="categories.col.status">Status</th>
+              <th data-i18n="categories.col.order">Order</th>
+              <th data-i18n="categories.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="categoriesBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" hidden>
+        <p data-i18n="categories.empty">No categories yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="drawerOverlay" class="drawer-overlay" hidden></div>
+  <aside id="categoryDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle" data-i18n="categories.drawer.add_title">Add category</h2>
+      <button type="button" id="drawerClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+
+    <div id="drawerAlert" class="alert alert-error"></div>
+
+    <form id="categoryForm" novalidate>
+      <input type="hidden" id="c_id">
+
+      <div class="field">
+        <label for="c_name" data-i18n="categories.drawer.name_label">Name</label>
+        <input type="text" id="c_name" required maxlength="80">
+        <p class="field-error" data-field="name"></p>
+      </div>
+
+      <div class="checkbox-row">
+        <label>
+          <input type="checkbox" id="c_hike_fly">
+          <span data-i18n="categories.drawer.is_hike_fly_label">Hike&amp;Fly</span>
+        </label>
+        <label>
+          <input type="checkbox" id="c_training">
+          <span data-i18n="categories.drawer.is_training_label">Training</span>
+        </label>
+      </div>
+
+      <div class="drawer-actions">
+        <button type="submit" id="drawerSave" data-i18n="categories.drawer.save">Save</button>
+        <button type="button" id="drawerArchive" class="btn-ghost" data-i18n="categories.drawer.archive" hidden>Archive</button>
+        <button type="button" id="drawerDelete" class="btn-ghost" data-i18n="categories.drawer.delete" hidden>Delete</button>
+      </div>
+
+      <div id="archiveConfirm" class="delete-confirm" hidden>
+        <p data-i18n="categories.archive_confirm.prompt">Archive this category? It stays on past flights but drops out of the picker for new ones. This can't be undone.</p>
+        <button type="button" id="archiveConfirmYes" class="btn-danger" data-i18n="categories.archive_confirm.yes">Archive</button>
+        <button type="button" id="archiveConfirmNo" class="btn-ghost" data-i18n="categories.archive_confirm.no">Cancel</button>
+      </div>
+
+      <div id="deleteConfirm" class="delete-confirm" hidden>
+        <p data-i18n="categories.delete_confirm.prompt">Permanently delete this category? This can't be undone.</p>
+        <button type="button" id="deleteConfirmYes" class="btn-danger" data-i18n="categories.delete_confirm.yes">Delete</button>
+        <button type="button" id="deleteConfirmNo" class="btn-ghost" data-i18n="categories.delete_confirm.no">Cancel</button>
+      </div>
+    </form>
+  </aside>
+
+  <script type="module" src="/static/categories.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container-narrow">
+    <h1 data-i18n="profile.title">Profile</h1>
+
+    <div class="card">
+      <h2 data-i18n="profile.account.title">Account details</h2>
+
+      <div id="accountAlert" class="alert alert-error"></div>
+      <div id="accountSuccess" class="alert alert-success"></div>
+
+      <form id="accountForm" novalidate>
+        <div class="field">
+          <label for="p_display_name" data-i18n="profile.account.display_name_label">Display name</label>
+          <input type="text" id="p_display_name" required maxlength="80">
+          <p class="field-error" data-field="display_name"></p>
+        </div>
+
+        <div class="field">
+          <label for="p_email" data-i18n="profile.account.email_label">Email</label>
+          <input type="email" id="p_email" disabled>
+          <p class="muted" data-i18n="profile.account.email_hint">Email can't be changed here.</p>
+        </div>
+
+        <div class="drawer-actions">
+          <button type="submit" id="accountSave" data-i18n="profile.account.save">Save</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="profile.password.title">Change password</h2>
+
+      <div id="passwordAlert" class="alert alert-error"></div>
+      <div id="passwordSuccess" class="alert alert-success"></div>
+
+      <form id="passwordForm" novalidate>
+        <div class="field">
+          <label for="p_current_password" data-i18n="profile.password.current_label">Current password</label>
+          <input type="password" id="p_current_password" autocomplete="current-password" required>
+          <p class="field-error" data-field="current_password"></p>
+        </div>
+
+        <div class="field">
+          <label for="p_new_password" data-i18n="profile.password.new_label">New password</label>
+          <input type="password" id="p_new_password" autocomplete="new-password" minlength="10"
+                 data-i18n-placeholder="auth.password_placeholder" required>
+          <p class="field-error" data-field="password"></p>
+        </div>
+
+        <div class="field">
+          <label for="p_confirm_password" data-i18n="profile.password.confirm_label">Confirm new password</label>
+          <input type="password" id="p_confirm_password" autocomplete="new-password" minlength="10" required>
+          <p class="field-error" data-field="confirm_password"></p>
+        </div>
+
+        <div class="drawer-actions">
+          <button type="submit" id="passwordSave" data-i18n="profile.password.save">Change password</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" id="publicProfileCard">
+      <h2 data-i18n="public_profile_settings.title">Public profile</h2>
+      <p class="muted" data-i18n="public_profile_settings.intro">
+        Opt in to a durable, shareable page listing your public flights. Off by default.
+      </p>
+
+      <div id="profileAlert" class="alert alert-error"></div>
+
+      <label>
+        <input type="checkbox" id="publicProfileToggle">
+        <span data-i18n="public_profile_settings.toggle_label">Enable public profile</span>
+      </label>
+      <p class="muted" id="profileHint"></p>
+
+      <div id="profileLinkRow" hidden>
+        <p class="muted" data-i18n="public_profile_settings.link_label">Your public profile link</p>
+        <code id="profileLinkValue"></code>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/static/profile.js"></script>
+</body>
+</html>

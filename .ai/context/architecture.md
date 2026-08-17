@@ -532,7 +532,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. **v0.9:** `/public/flights/{flight_id}`, `/public/profiles/{user_id}` added — a distinct `/public/...` prefix from the existing authenticated `/flights/{id}`, no JWT, no redirect-to-login. All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. **v0.9:** `/public/flights/{flight_id}`, `/public/profiles/{user_id}` added — a distinct `/public/...` prefix from the existing authenticated `/flights/{id}`, no JWT, no redirect-to-login. **v0.9.4:** `/categories` (owner-scoped category CRUD/reorder/archive UI — `/api/categories` had been owner-scoped since v0.2 with no page ever built against it) and `/profile` (the real account-settings home: display name, password change, the public-profile toggle moved off `/api-keys`) added. All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
 | `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
@@ -563,7 +563,15 @@ Routes are not enumerated here beyond the prefix — **read the router file, whi
 | Environment | Host | Port |
 |---|---|---|
 | dev | `fl-dev.sdh.lol` | 8002 → 8000 |
-| prod | `fl.sdh.lol` | via Traefik |
+| prod | `fl.lenti.cloud`, `flightlog.lenti.cloud` | via Traefik |
+
+**Prod moved off `sdh.lol` (2026-08-17)**: `fl.sdh.lol` is retired — prod now answers on two
+`lenti.cloud` hostnames instead. The whole-host Traefik `traefik-oidc-auth` (Pocket-ID) SSO layer
+that previously fronted `fl.sdh.lol` (see `flightlog_prod_oidc_layer` memory) was removed as part
+of this move — the service is now genuinely reachable by anonymous strangers with no SSO
+challenge, which is what makes v0.9's `/public/*` surface actually usable in production rather
+than just shipped. This was a pilot-owned change to shared homelab infrastructure, performed
+outside this repo (`04-constraints.md`: never touch prod directly).
 
 Port 8002 avoids VidFactory (8000) and Lenticularis dev (8001) on the same box.
 

@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { page: 'flights', href: '/flights', key: 'nav.flights' },
   { page: 'sites', href: '/sites', key: 'nav.sites' },
   { page: 'equipment', href: '/equipment', key: 'nav.equipment' },
+  { page: 'categories', href: '/categories', key: 'nav.categories' },
   { page: 'hikes', href: '/hikes', key: 'nav.hikes' },
   { page: 'groundhandling', href: '/groundhandling', key: 'nav.groundhandling' },
   { page: 'tandem-flights', href: '/tandem-flights', key: 'nav.tandem_flights' },
@@ -63,7 +64,7 @@ export function renderNav(mount, activePage, { anonymous = false } = {}) {
   mount.replaceChildren(nav);
 }
 
-async function renderNavAuth() {
+export async function renderNavAuth() {
   const mount = document.getElementById('navAuth');
   if (!mount) return;
 
@@ -75,8 +76,9 @@ async function renderNavAuth() {
   if (isLoggedIn()) {
     const user = await loadCurrentUser();
     if (user) {
-      const name = document.createElement('span');
+      const name = document.createElement('a');
       name.className = 'muted';
+      name.href = '/profile';
       // Display name is user data — never translated.
       name.textContent = user.display_name;
       controls.appendChild(name);

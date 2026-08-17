@@ -71,6 +71,12 @@ shown on the flight and public-flight pages, subject to the same visibility rule
 `/stats` gained IGC-derived thermal and airtime totals — including total airtime measured from the
 track, shown beside the self-reported figure, since the two routinely disagree.
 
+`v0.9.4` adds two frontend pages that closed real UI gaps rather than backend ones: `/categories`
+is a full create/rename/reorder/archive/delete page for a pilot's own flight categories — the API
+had been owner-scoped since v0.2, but no page ever managed it. `/profile` is the account-settings
+home that never existed: display name, password change, and the "Public profile" toggle moved here
+from `/api-keys`, which had only ever hosted it as a stand-in.
+
 ## Getting started
 
 Requires Python 3.13+ and Poetry, or Docker.

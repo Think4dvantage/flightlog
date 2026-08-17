@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.3 — three small pilot-requested additions on top of v0.9.0 (sharing & public readiness)
+## Current Version: v0.9.4 — Profile page (password reset, account settings) + Categories management page
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -508,6 +508,43 @@ All three: `pytest`/`ruff` clean, live-verified via `curl` against a local dev b
 test-only state cleaned up afterward. The Chrome extension was not connected in the sessions that
 shipped them, so the actual rendered UI (pin colors, the nickname column/title, the new stat tiles
 and chart) is unconfirmed visually — first thing to check next time a browser is connected.
+
+### v0.9.4 — Profile page + Categories management page
+
+The pilot asked for two things: a page to reset their password, and per-user flight categories.
+Investigation found the second was already true — `flight_categories.owner_id` has been on the
+schema since v0.2, every route in `categories.py` filters by it, and v0.9's starter-category seed
+already writes rows per new user. **The real gap was UI, not data model**: there was never a page
+to create/rename/reorder/archive a category, only the v0.9 seed and a read-only dropdown in the
+flight form (`refdata.js`). Confirmed with the pilot before building anything, along with the scope
+of the new Profile page.
+
+1. **`/categories`** (`static/categories.html`/`.js`, new) — full management UI against the
+   existing `/api/categories`: create/rename, toggle `is_hike_fly`/`is_training`, reorder via ▲/▼
+   buttons (`PUT /api/categories/reorder`), archive (soft, `POST .../archive`), and delete (hard,
+   `DELETE`, surfaces the existing `409 CONFLICT` message inline when a flight still references the
+   category rather than pre-computing reference counts client-side). Modeled on `contacts.js`'s
+   CRUD-drawer shape with `equipment.js`'s `include_archived=true` / dimmed-row pattern for
+   archived rows layered in. No backend changes — the API has supported all of this since v0.2.
+2. **`/profile`** (`static/profile.html`/`.js`, new) — the account-settings page that never
+   existed: display name (`PUT /api/auth/me`), password change (`POST /api/auth/me/password`, both
+   backends live since v0.1 with no UI ever calling them), and the "Public profile" toggle **moved
+   here from `/api-keys`**, which had only ever hosted it as an explicitly-documented stand-in
+   ("the closest existing pilot-account-settings page, reused rather than standing up a new
+   settings page for one toggle" — see this file's v0.9 entry above). `api-keys.html`/`.js` go back
+   to being just API-key management. The nav's display-name text (`bootstrap.js`) is now a link to
+   `/profile` — the click-your-name-for-settings convention — instead of a plain span.
+3. **Deliberately skipped**: editors for `locale`/`timezone`/`units` on the new Profile page, even
+   though `UserOut` carries all three. Nothing in the app reads any of them yet — `i18n.js` only
+   ever supports `en`, and every stat/flight figure is hardcoded metric with no timezone-aware
+   rendering anywhere in the frontend. Building selectors for fields nothing consumes would be UI
+   that changes a value with no visible effect; confirmed with the pilot rather than assumed.
+
+`pytest`/`ruff check`/`ruff format --check` all clean (229 passing, no backend logic touched —
+`pages.py` only gained two route registrations). Every new `data-i18n` key cross-checked against
+`en.json` and every DOM id referenced in the new JS cross-checked against the new HTML
+programmatically, matching v0.8's fallback method for sessions without a connected browser.
+`pyproject.toml` bumped `0.9.3` → `0.9.4` (`poetry install` re-run so `APP_VERSION` isn't stale).
 
 ### v0.10 — Enrichment
 

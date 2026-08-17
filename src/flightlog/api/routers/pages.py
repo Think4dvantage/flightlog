@@ -96,6 +96,11 @@ def equipment_page(request: Request) -> Response:
     return _page(request, "equipment.html")
 
 
+@router.get("/categories")
+def categories_page(request: Request) -> Response:
+    return _page(request, "categories.html")
+
+
 @router.get("/hikes")
 def hikes_page(request: Request) -> Response:
     return _page(request, "hikes.html")
@@ -129,6 +134,11 @@ def stats_page(request: Request) -> Response:
 @router.get("/api-keys")
 def api_keys_page(request: Request) -> Response:
     return _page(request, "api-keys.html")
+
+
+@router.get("/profile")
+def profile_page(request: Request) -> Response:
+    return _page(request, "profile.html")
 
 
 # ---- public surface (v0.9) — distinct /public/... prefix so a shared link is unambiguous

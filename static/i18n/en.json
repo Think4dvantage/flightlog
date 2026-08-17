@@ -7,6 +7,7 @@
     "flights": "Flights",
     "sites": "Sites",
     "equipment": "Equipment",
+    "categories": "Categories",
     "hikes": "Hikes",
     "groundhandling": "Groundhandling",
     "tandem_flights": "Tandem flights",
@@ -227,6 +228,45 @@
       "harness_type": "Type",
       "save": "Save",
       "retire": "Retire"
+    }
+  },
+  "categories": {
+    "title": "Categories",
+    "intro": "Your own flight categories — reorder, rename or archive them. Categories still referenced by a flight can't be permanently deleted; archive them instead.",
+    "add": "Add category",
+    "edit": "Edit",
+    "empty": "No categories yet.",
+    "result_count": "{count} categories",
+    "status_active": "Active",
+    "status_archived": "Archived",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "col": {
+      "name": "Name",
+      "flags": "Flags",
+      "status": "Status",
+      "order": "Order",
+      "actions": "Actions"
+    },
+    "drawer": {
+      "add_title": "Add category",
+      "edit_title": "Edit category",
+      "name_label": "Name",
+      "is_hike_fly_label": "Hike&Fly",
+      "is_training_label": "Training",
+      "save": "Save",
+      "archive": "Archive",
+      "delete": "Delete"
+    },
+    "archive_confirm": {
+      "prompt": "Archive this category? It stays on past flights but drops out of the picker for new ones. This can't be undone.",
+      "yes": "Archive",
+      "no": "Cancel"
+    },
+    "delete_confirm": {
+      "prompt": "Permanently delete this category? This can't be undone.",
+      "yes": "Delete",
+      "no": "Cancel"
     }
   },
   "hikes": {
@@ -543,6 +583,26 @@
       "prompt": "Permanently delete this key's record? Revoke it first if it's still active.",
       "yes": "Delete",
       "no": "Cancel"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "account": {
+      "title": "Account details",
+      "display_name_label": "Display name",
+      "email_label": "Email",
+      "email_hint": "Email can't be changed here.",
+      "save": "Save",
+      "success": "Profile updated."
+    },
+    "password": {
+      "title": "Change password",
+      "current_label": "Current password",
+      "new_label": "New password",
+      "confirm_label": "Confirm new password",
+      "save": "Change password",
+      "mismatch": "New password and confirmation don't match.",
+      "success": "Password changed."
     }
   },
   "public_profile_settings": {

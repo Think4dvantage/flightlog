@@ -43,7 +43,7 @@ The user does not write code manually. All code changes go through AI. This mean
 
 - **No public cloud** (AWS, GCP, Azure, etc.) — ever, for private projects
 - **Design cloud-native** — 12-factor apps, stateless services, environment-based config, health endpoints, container-first
-- **Run on local Docker cluster** — Docker Compose, Traefik reverse proxy, homelab (`lg4.ch`, `sdh.lol`)
+- **Run on local Docker cluster** — Docker Compose, Traefik reverse proxy, homelab (`lg4.ch`, `sdh.lol`, `lenti.cloud`)
 - **IaC always** — every service must be deployable and reproducible via code; no manual server state
 - **Pipeline deployment** — all services should be deployable through CI/CD pipelines (GitHub Actions on self-hosted runner)
 - **Operability is goal #1** — prefer boring, observable, easy-to-restart over clever

@@ -45,14 +45,14 @@ available.
 
 ## Next Step
 
-Carried forward from the `v0.9.0` RESUME — none of these were touched this session:
+Carried forward from the `v0.9.0` RESUME, updated this session:
 
-1. **Making `fl.sdh.lol` reachable by anonymous strangers needs one more thing v0.9 doesn't
-   touch**: a Traefik `traefik-oidc-auth` (Pocket-ID) middleware protects the *entire* host (see
-   `flightlog_prod_oidc_layer` memory) — every `/api/public/*` and `/public/*` route is
-   unreachable by an anonymous visitor in production until that middleware is reconfigured to
-   exclude those paths. Shared infrastructure the pilot must change themselves, not something
-   Claude Code touches directly (`04-constraints.md`: never touch prod directly).
+1. ~~Making `fl.sdh.lol` reachable by anonymous strangers needs the Traefik OIDC layer excluded~~
+   — **resolved 2026-08-17, outside this repo.** The pilot moved prod off `sdh.lol` entirely: it
+   now answers on `fl.lenti.cloud` and `flightlog.lenti.cloud`, and the whole-host
+   `traefik-oidc-auth` (Pocket-ID) SSO layer that gated `fl.sdh.lol` is gone. `/api/public/*` and
+   `/public/*` are now genuinely reachable by an anonymous stranger in production — see
+   `architecture.md`'s Deployment section and the updated `flightlog_prod_oidc_layer` memory.
 2. **Confirm whether Traefik replaces or appends to `X-Forwarded-For`** before treating the public
    rate limiter's `client_ip` key as abuse-resistant rather than just accidental-burst-resistant.
 3. **The repository's visibility itself is still private** — the `Flugbuch.xlsx` scrub was the
