@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.9.0 implemented, tested and live-verified**, not yet tagged or deployed. See
+Status: **v0.9.3**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
@@ -62,8 +62,14 @@ public profile page — both off/private by default. The public surface is a new
 rate-limited router (`/api/public`) with its own explicit response schemas, never the pilot-facing ones.
 Self-registration also seeds five starter flight categories now, closing a gap where a newly
 self-registered account previously had none. `olddata/Flugbuch.xlsx`'s git-history scrub — required
-before this repository itself can go public — is still a separate, manually-confirmed step, not yet
-performed.
+before this repository itself can go public — has been performed; the file is gitignored and kept
+on disk untracked so the importer and its regression tests keep working locally.
+
+`v0.9.1`–`v0.9.3` are three small pilot-requested additions on top of v0.9.0: landing sites get a
+distinct green map pin on `/sites`, flights can carry an optional free-text nickname (searchable,
+shown on the flight and public-flight pages, subject to the same visibility rule as notes), and
+`/stats` gained IGC-derived thermal and airtime totals — including total airtime measured from the
+track, shown beside the self-reported figure, since the two routinely disagree.
 
 ## Getting started
 

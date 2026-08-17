@@ -95,7 +95,7 @@ static/
 └── *.html + *.js
 tests/backend/               # conftest.py + test modules
 tests/fixtures/igc/          # small real IGC tracks, committed, `-text` in .gitattributes
-olddata/Flugbuch.xlsx        # legacy workbook — REMOVE FROM GIT HISTORY BEFORE GOING PUBLIC
+olddata/Flugbuch.xlsx        # legacy workbook — gitignored, untracked; scrubbed from git history in v0.9
 ```
 
 ---
