@@ -317,10 +317,19 @@ async def test_matrix_buddy_starts_sparse_then_reflects_a_new_tag(
     ]
 
 
+_EMPTY_MONTHS = {str(m): None for m in range(1, 13)}
+
+
 async def test_igc_rollup_zero_state(client, make_token, stats_setup):
     headers = make_token(user=stats_setup.user)
     body = (await client.get("/api/stats/igc-rollup", headers=headers)).json()
-    assert body == {"cumulative_thermal_climb_m": 0.0, "tracks_uploaded": 0}
+    assert body == {
+        "cumulative_thermal_climb_m": 0.0,
+        "tracks_uploaded": 0,
+        "total_thermals": 0,
+        "total_igc_airtime_min": 0.0,
+        "avg_thermals_by_month": _EMPTY_MONTHS,
+    }
 
 
 async def test_igc_rollup_sums_thermal_segments_only(client, make_token, stats_setup, db_session):
@@ -360,7 +369,61 @@ async def test_igc_rollup_sums_thermal_segments_only(client, make_token, stats_s
     db_session.commit()
 
     body = (await client.get("/api/stats/igc-rollup", headers=headers)).json()
-    assert body == {"cumulative_thermal_climb_m": 300.0, "tracks_uploaded": 1}
+    assert body == {
+        "cumulative_thermal_climb_m": 300.0,
+        "tracks_uploaded": 1,
+        "total_thermals": 0,
+        "total_igc_airtime_min": 0.0,
+        "avg_thermals_by_month": _EMPTY_MONTHS,
+    }
+
+
+async def test_igc_rollup_total_thermals_and_airtime(client, make_token, stats_setup, db_session):
+    """`total_thermals`/`total_igc_airtime_min` are plain SUMs over igc_tracks; the
+    per-calendar-month average must average across flights within the same month, not just
+    sum them (two May tracks: 4 and 2 thermals -> avg 3.0), and leave months with no
+    IGC-analyzed flight as null, not zero."""
+    from flightlog.database.models import Flight, IgcTrack
+
+    headers = make_token(user=stats_setup.user)
+
+    extra_may_flight = Flight(
+        owner_id=stats_setup.user.id,
+        launch_site_id=stats_setup.launch_a.id,
+        category_id=stats_setup.category.id,
+        flight_date=date(2023, 5, 15),
+    )
+    db_session.add(extra_may_flight)
+    db_session.commit()
+
+    def make_track(flight, thermal_count, duration_s, sha):
+        return IgcTrack(
+            owner_id=stats_setup.user.id,
+            flight_id=flight.id,
+            original_filename="track.igc",
+            sha256=sha * 64,
+            file_path="irrelevant",
+            analyzer_version="test",
+            analyzed_at=utcnow(),
+            thermal_count=thermal_count,
+            duration_s=duration_s,
+        )
+
+    db_session.add_all(
+        [
+            make_track(stats_setup.flights[0], 4, 3600, "a"),  # May
+            make_track(extra_may_flight, 2, 1800, "b"),  # May
+            make_track(stats_setup.flights[1], 6, 5400, "c"),  # June
+        ]
+    )
+    db_session.commit()
+
+    body = (await client.get("/api/stats/igc-rollup", headers=headers)).json()
+    assert body["total_thermals"] == 12
+    assert body["total_igc_airtime_min"] == 180.0
+    assert body["avg_thermals_by_month"]["5"] == 3.0
+    assert body["avg_thermals_by_month"]["6"] == 6.0
+    assert body["avg_thermals_by_month"]["1"] is None
 
 
 async def test_launch_technique_and_hike_fly(client, make_token, stats_setup):
@@ -391,7 +454,13 @@ async def test_zero_state_for_a_brand_new_account(client, make_token):
     assert (await client.get("/api/stats/personal-bests", headers=headers)).json() == []
     assert (await client.get("/api/stats/matrix/site", headers=headers)).json()["rows"] == []
     igc = (await client.get("/api/stats/igc-rollup", headers=headers)).json()
-    assert igc == {"cumulative_thermal_climb_m": 0.0, "tracks_uploaded": 0}
+    assert igc == {
+        "cumulative_thermal_climb_m": 0.0,
+        "tracks_uploaded": 0,
+        "total_thermals": 0,
+        "total_igc_airtime_min": 0.0,
+        "avg_thermals_by_month": _EMPTY_MONTHS,
+    }
 
     monthly = (await client.get("/api/stats/monthly-extremes", headers=headers)).json()
     assert all(v is None for v in monthly["max_duration_min_by_month"].values())

@@ -74,6 +74,9 @@ class LaunchTechniqueOut(BaseModel):
 class IgcRollupOut(BaseModel):
     cumulative_thermal_climb_m: float
     tracks_uploaded: int
+    total_thermals: int
+    total_igc_airtime_min: float
+    avg_thermals_by_month: dict[int, float | None]
 
 
 class CurrentStreakOut(BaseModel):

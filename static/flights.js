@@ -124,7 +124,14 @@ function writeFiltersToUrl() {
 
 function matchesSearch(flight, term) {
   if (!term) return true;
-  const haystack = [flight._launch, flight._landing, flight._category, flight._glider, flight.notes]
+  const haystack = [
+    flight._launch,
+    flight._landing,
+    flight._category,
+    flight._glider,
+    flight.nickname,
+    flight.notes,
+  ]
     .join(' ')
     .toLowerCase();
   return haystack.includes(term);
@@ -213,6 +220,7 @@ function render() {
 
     const cells = [
       f.flight_date,
+      f.nickname || '—',
       f._launch,
       f._landing || '—',
       f._category,
@@ -348,6 +356,7 @@ function openDrawer(flight) {
 
   el('f_id').value = flight?.id || '';
   el('f_date').value = flight?.flight_date || '';
+  el('f_nickname').value = flight?.nickname || '';
   el('f_launch').value = flight?.launch_site_id || '';
   el('f_landing').value = flight?.landing_site_id || '';
   el('f_category').value = flight?.category_id || '';
@@ -381,6 +390,7 @@ function readFormPayload() {
   const buddy_ids = [...el('f_buddies').selectedOptions].map((o) => o.value);
   return {
     flight_date: el('f_date').value,
+    nickname: el('f_nickname').value.trim() || null,
     launch_site_id: el('f_launch').value,
     landing_site_id: el('f_landing').value || null,
     category_id: el('f_category').value,

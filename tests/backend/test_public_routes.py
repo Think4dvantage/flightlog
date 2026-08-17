@@ -87,6 +87,22 @@ async def test_public_flight_visible_unauthenticated(client, make_token, base_en
     assert "hashed_password" not in body
 
 
+async def test_public_flight_includes_nickname_when_set(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, landing, category, "public")
+    upd = await client.put(
+        f"/api/flights/{flight_id}",
+        json={"nickname": "Bruchlandung special"},
+        headers=headers,
+    )
+    assert upd.status_code == 200
+
+    res = await client.get(f"/api/public/flights/{flight_id}")
+    assert res.status_code == 200
+    assert res.json()["nickname"] == "Bruchlandung special"
+
+
 async def test_unlisted_flight_visible_by_direct_url(client, make_token, base_entities):
     user, launch, landing, category = base_entities
     headers = make_token(user=user)
@@ -151,6 +167,24 @@ async def test_opted_in_profile_lists_only_public_flights(client, make_token, ba
     assert body["display_name"] == user.display_name
     ids = [f["id"] for f in body["flights"]]
     assert ids == [public_id]
+
+
+async def test_profile_flight_list_includes_nickname(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    await client.put("/api/auth/me", json={"public_profile_enabled": True}, headers=headers)
+
+    public_id = await _create_flight(client, headers, launch, landing, category, "public")
+    upd = await client.put(
+        f"/api/flights/{public_id}",
+        json={"nickname": "Bruchlandung special"},
+        headers=headers,
+    )
+    assert upd.status_code == 200
+
+    res = await client.get(f"/api/public/profiles/{user.id}")
+    assert res.status_code == 200
+    assert res.json()["flights"][0]["nickname"] == "Bruchlandung special"
 
 
 async def test_opting_out_removes_profile_immediately(client, make_token, base_entities):

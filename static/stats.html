@@ -69,6 +69,11 @@
       <h2 data-i18n="stats.igc_rollup.title">IGC rollups</h2>
       <div id="igcRollupEmpty" class="muted" hidden data-i18n="stats.igc_rollup.empty">No tracks uploaded yet.</div>
       <div class="stat-grid" id="igcRollupGrid"></div>
+      <div id="igcRollupThermalsChart" hidden>
+        <h3 data-i18n="stats.igc_rollup.avg_thermals_title">Average thermals per flight, by month</h3>
+        <p class="muted" data-i18n="stats.igc_rollup.avg_thermals_hint">Averaged across every year, IGC-analyzed flights only.</p>
+        <div class="chart-container"><canvas id="chartMonthlyThermals"></canvas></div>
+      </div>
 
       <h2 data-i18n="stats.progression.title">Momentum</h2>
       <div class="stat-grid" id="progressionGrid"></div>

@@ -66,7 +66,10 @@ async function loadFlight(id) {
 }
 
 function render(flight) {
-  el('d_date').textContent = fmtDate(flight.flight_date);
+  // flight.nickname is free-text user data — textContent only, never innerHTML.
+  el('d_date').textContent = flight.nickname
+    ? `${flight.nickname} — ${fmtDate(flight.flight_date)}`
+    : fmtDate(flight.flight_date);
 
   linkOrText(el('d_launch'), siteName(flight.launch_site_id), '/sites');
   linkOrText(el('d_landing'), siteName(flight.landing_site_id), '/sites');

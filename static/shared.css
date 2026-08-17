@@ -303,6 +303,7 @@ tbody tr.row-highlight { background: rgba(144, 205, 244, 0.18); transition: back
 
 .site-map { height: 420px; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.25rem; }
 .site-map.armed { outline: 2px solid var(--accent); cursor: crosshair; }
+.site-pin { background: none; border: none; }
 
 .track-map { height: 320px; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.25rem; }
 .barogram-container { position: relative; height: 220px; margin-bottom: 1.25rem; }

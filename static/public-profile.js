@@ -64,6 +64,11 @@ function render(profile) {
     dateTd.appendChild(link);
     tr.appendChild(dateTd);
 
+    // flight.nickname is free-text user data — textContent only, never innerHTML.
+    const nicknameTd = document.createElement('td');
+    nicknameTd.textContent = flight.nickname || notRecorded();
+    tr.appendChild(nicknameTd);
+
     const launchTd = document.createElement('td');
     launchTd.textContent = flight.launch_site_name || notRecorded();
     tr.appendChild(launchTd);

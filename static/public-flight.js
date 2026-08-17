@@ -51,8 +51,11 @@ async function loadFlight(id) {
 }
 
 function render(flight) {
-  el('d_date').textContent = fmtDate(flight.flight_date);
-  // owner_display_name / site / category names are user data — textContent only, never innerHTML.
+  // nickname / owner_display_name / site / category names are user data — textContent only,
+  // never innerHTML.
+  el('d_date').textContent = flight.nickname
+    ? `${flight.nickname} — ${fmtDate(flight.flight_date)}`
+    : fmtDate(flight.flight_date);
   el('d_owner').textContent = window.t('public_flight.shared_by', { name: flight.owner_display_name });
 
   el('d_launch').textContent = flight.launch_site_name || notRecorded();

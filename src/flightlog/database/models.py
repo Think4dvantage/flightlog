@@ -345,6 +345,7 @@ class Flight(Base):
     launch_elev_override_m = Column(Integer, nullable=True)
     landing_elev_override_m = Column(Integer, nullable=True)
     launch_technique = Column(String, nullable=True)  # forward|reverse
+    nickname = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     import_key = Column(String, nullable=True)  # "xlsx:<row>"; NULL for API-created flights
     # private | unlisted | public (v0.9). Plain application-validated string, matching every

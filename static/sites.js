@@ -21,6 +21,7 @@ const DEFAULT_ZOOM = 10;
 const el = (id) => document.getElementById(id);
 
 let map;
+let landingIcon; // set in initMap() — green pin for landing-only sites
 let markers = new Map(); // site id -> Leaflet marker (confirmed, saved position)
 let pickerMarker = null; // preview marker for a not-yet-saved pick, while the drawer is open
 let sites = [];
@@ -65,6 +66,22 @@ function initMap() {
     iconUrl: 'marker-icon.png',
     iconRetinaUrl: 'marker-icon-2x.png',
     shadowUrl: 'marker-shadow.png',
+  });
+
+  // Landing-only sites get a green pin instead of the default blue — same teardrop shape as
+  // Leaflet's vendored marker-icon.png, drawn as inline SVG so no new binary asset is needed.
+  // A site that's both launch and landing keeps the default blue marker (launch takes
+  // priority), so "launches stay blue" holds even for a dual-role site.
+  landingIcon = L.divIcon({
+    className: 'site-pin site-pin-landing',
+    html: '<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" '
+      + 'style="fill:var(--success)" stroke="#1a1a1a" stroke-width="1"/>'
+      + '<circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    tooltipAnchor: [1, -34],
   });
 
   map = L.map('siteMap').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
@@ -136,14 +153,20 @@ function showPickerMarker(lat, lon) {
   map.panTo([lat, lon]);
 }
 
+// Launch (or launch+landing) keeps Leaflet's default blue pin; landing-only gets the green one.
+function iconForSite(site) {
+  return site.is_launch ? undefined : landingIcon;
+}
+
 function addOrMoveMarker(site) {
   if (site.lat == null || site.lon == null) return;
   let marker = markers.get(site.id);
   if (marker) {
     marker.setLatLng([site.lat, site.lon]);
+    marker.setIcon(iconForSite(site) || new L.Icon.Default());
     return;
   }
-  marker = L.marker([site.lat, site.lon]);
+  marker = L.marker([site.lat, site.lon], { icon: iconForSite(site) });
   // Leaflet's bindTooltip(string) sets innerHTML internally — site.name is free-text user
   // data, so pass a DOM node built with textContent instead, per 03-frontend-conventions.md.
   const tooltipNode = document.createElement('span');

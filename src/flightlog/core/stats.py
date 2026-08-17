@@ -496,6 +496,26 @@ def launch_technique(db: Session, owner_id: str) -> LaunchTechniqueOut:
 # ---- P2: IGC rollup, streaks/pace/progression ----
 
 
+def _avg_thermals_by_month(db: Session, owner_id: str) -> dict[int, float | None]:
+    """Average IGC-derived thermal count per flight, bucketed by calendar month across every
+    year — same null-vs-zero convention as `_max_by_month()`: a month with no IGC-analyzed
+    flight is `None`, not `0`."""
+    rows = db.execute(
+        select(Flight.flight_date, IgcTrack.thermal_count)
+        .select_from(IgcTrack)
+        .join(Flight, IgcTrack.flight_id == Flight.id)
+        .where(IgcTrack.owner_id == owner_id, IgcTrack.thermal_count.is_not(None))
+    ).all()
+
+    by_month: dict[int, list[int]] = {m: [] for m in range(1, 13)}
+    for flight_date, thermal_count in rows:
+        by_month[flight_date.month].append(thermal_count)
+
+    return {
+        month: (sum(counts) / len(counts) if counts else None) for month, counts in by_month.items()
+    }
+
+
 def igc_rollup(db: Session, owner_id: str) -> IgcRollupOut:
     """
     SUM(igc_segments.alt_change_m) WHERE kind = 'thermal', joined across the owner's
@@ -503,6 +523,12 @@ def igc_rollup(db: Session, owner_id: str) -> IgcRollupOut:
     `igc_segments` isn't otherwise loaded for any other figure on this page
     (`research.md` — no extra filtering needed, every stored thermal segment is already
     guaranteed climbing).
+
+    `total_thermals` and `total_igc_airtime_min` read `igc_tracks.thermal_count`/`duration_s`
+    directly — both already persisted per-track by the analyzer (v0.5), so this is a plain
+    SUM over the owner's tracks, no join needed. `total_igc_airtime_min` exists specifically to
+    sit beside `TotalsOut.total_airtime_min` (self-reported) so the two can be compared directly
+    — a pilot-reported flight time and the track's actual recorded duration routinely disagree.
     """
     total = db.execute(
         select(func.sum(IgcSegment.alt_change_m))
@@ -513,10 +539,19 @@ def igc_rollup(db: Session, owner_id: str) -> IgcRollupOut:
     tracks_uploaded = db.execute(
         select(func.count(IgcTrack.id)).where(IgcTrack.owner_id == owner_id)
     ).scalar()
+    total_thermals = db.execute(
+        select(func.sum(IgcTrack.thermal_count)).where(IgcTrack.owner_id == owner_id)
+    ).scalar()
+    total_igc_airtime_s = db.execute(
+        select(func.sum(IgcTrack.duration_s)).where(IgcTrack.owner_id == owner_id)
+    ).scalar()
 
     return IgcRollupOut(
         cumulative_thermal_climb_m=total or 0.0,
         tracks_uploaded=tracks_uploaded or 0,
+        total_thermals=total_thermals or 0,
+        total_igc_airtime_min=(total_igc_airtime_s or 0) / 60,
+        avg_thermals_by_month=_avg_thermals_by_month(db, owner_id),
     )
 
 

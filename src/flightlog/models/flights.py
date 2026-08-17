@@ -31,6 +31,7 @@ class FlightCreate(BaseModel):
     launch_elev_override_m: int | None = None
     landing_elev_override_m: int | None = None
     launch_technique: Literal["forward", "reverse"] | None = None
+    nickname: str | None = Field(None, max_length=200)
     notes: str | None = Field(None, max_length=3300)
     buddy_ids: list[str] = Field(default_factory=list)
 
@@ -50,6 +51,7 @@ class FlightUpdate(BaseModel):
     launch_elev_override_m: int | None = None
     landing_elev_override_m: int | None = None
     launch_technique: Literal["forward", "reverse"] | None = None
+    nickname: str | None = Field(None, max_length=200)
     notes: str | None = Field(None, max_length=3300)
     buddy_ids: list[str] | None = None
     visibility: Literal["private", "unlisted", "public"] | None = None
@@ -89,6 +91,7 @@ class FlightOut(BaseModel):
     launch_elev_override_m: int | None
     landing_elev_override_m: int | None
     launch_technique: Literal["forward", "reverse"] | None
+    nickname: str | None
     notes: str | None
     import_key: str | None
     visibility: Literal["private", "unlisted", "public"]

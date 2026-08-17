@@ -121,6 +121,27 @@ async def test_get_update_delete_own_flight(client, make_token, base_entities):
     assert gone.status_code == 404
 
 
+async def test_nickname_is_optional_and_round_trips(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+
+    created = await client.post(
+        "/api/flights",
+        json={"flight_date": "2020-01-01", "launch_site_id": launch.id, "category_id": category.id},
+        headers=headers,
+    )
+    assert created.json()["nickname"] is None
+
+    flight_id = created.json()["id"]
+    updated = await client.put(
+        f"/api/flights/{flight_id}", json={"nickname": "Bruchlandung special"}, headers=headers
+    )
+    assert updated.json()["nickname"] == "Bruchlandung special"
+
+    fetched = await client.get(f"/api/flights/{flight_id}", headers=headers)
+    assert fetched.json()["nickname"] == "Bruchlandung special"
+
+
 async def test_has_igc_track_reflects_presence_on_list_and_single_get(
     client, make_token, base_entities, db_session
 ):

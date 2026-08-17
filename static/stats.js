@@ -30,6 +30,7 @@ let chartMonthlyDistance;
 let chartMonthlyAltitude;
 let chartXcProgression;
 let chartMonthlyByYear;
+let chartMonthlyThermals;
 
 const YEAR_PALETTE = ['#63b3ed', '#68d391', '#f6ad55', '#fc8181', '#b794f4', '#4fd1c5', '#f687b3', '#ecc94b'];
 
@@ -148,7 +149,14 @@ function barChart(canvasId, labels, data, existing, formatter) {
 // ---- totals ----
 
 async function loadTotals() {
-  const data = await getJson('/api/stats/totals');
+  // igc-rollup is fetched here (and again in loadIgcRollup() below) so the IGC-derived total
+  // airtime can render directly beside the self-reported one — a pilot-requested side-by-side
+  // comparison, since the two numbers routinely disagree. A small duplicate GET, accepted rather
+  // than threading shared state between the two independently-owned render functions.
+  const [data, igc] = await Promise.all([
+    getJson('/api/stats/totals'),
+    getJson('/api/stats/igc-rollup'),
+  ]);
   if (!data) return;
 
   totalFlights = data.total_flights;
@@ -157,6 +165,13 @@ async function loadTotals() {
   mount.textContent = '';
   statTile(mount, window.t('stats.totals.total_flights'), String(data.total_flights));
   statTile(mount, window.t('stats.totals.total_airtime'), fmtDuration(data.total_airtime_min));
+  if (igc && igc.tracks_uploaded > 0) {
+    statTile(
+      mount,
+      window.t('stats.totals.total_airtime_igc'),
+      fmtDuration(igc.total_igc_airtime_min),
+    );
+  }
   statTile(mount, window.t('stats.totals.total_distance'), `${fmtNum(data.total_distance_km)} km`);
   statTile(mount, window.t('stats.totals.total_alt_gain'), `${data.total_alt_gain_m} m`);
   statTile(mount, window.t('stats.totals.avg_airtime'), fmtDuration(data.avg_airtime_min));
@@ -535,8 +550,19 @@ async function loadIgcRollup() {
     `${fmtNum(data.cumulative_thermal_climb_m, 0)} m`,
   );
   statTile(mount, window.t('stats.igc_rollup.tracks_uploaded'), String(data.tracks_uploaded));
+  statTile(mount, window.t('stats.igc_rollup.total_thermals'), String(data.total_thermals));
+
+  el('igcRollupThermalsChart').hidden = false;
+  chartMonthlyThermals = barChart(
+    'chartMonthlyThermals',
+    MONTH_LABELS,
+    MONTH_NUMS.map((m) => data.avg_thermals_by_month[m] ?? null),
+    chartMonthlyThermals,
+    (v) => fmtNum(v, 1),
+  );
+
   console.log(
-    `[FL:stats] igc rollup rendered: ${data.cumulative_thermal_climb_m}m over ${data.tracks_uploaded} tracks`,
+    `[FL:stats] igc rollup rendered: ${data.cumulative_thermal_climb_m}m, ${data.total_thermals} thermals over ${data.tracks_uploaded} tracks`,
   );
 }
 

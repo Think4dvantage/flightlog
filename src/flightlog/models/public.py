@@ -28,6 +28,7 @@ class PublicFlightOut(BaseModel):
     site_drop_m: float | None
     total_descent_m: float | None
     launch_technique: Literal["forward", "reverse"] | None
+    nickname: str | None
     notes: str | None
     visibility: Literal["unlisted", "public"]
     owner_display_name: str
@@ -44,6 +45,7 @@ class PublicProfileFlightOut(BaseModel):
     flight_date: date
     launch_site_name: str
     category_name: str | None
+    nickname: str | None
     duration_min: int | None
     distance_km: float | None
     max_alt_m: int | None

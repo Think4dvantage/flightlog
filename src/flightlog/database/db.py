@@ -116,6 +116,12 @@ def _run_column_migrations(engine: Engine) -> None:
             logger.info("Migration: added flights.visibility column")
             applied += 1
 
+        if "nickname" not in flight_cols:
+            conn.execute(text("ALTER TABLE flights ADD COLUMN nickname VARCHAR"))
+            conn.commit()
+            logger.info("Migration: added flights.nickname column")
+            applied += 1
+
         user_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
         if "public_profile_enabled" not in user_cols:
             conn.execute(

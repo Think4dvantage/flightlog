@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.0 (sharing & public readiness) implemented, tested, live-verified this session
+## Current Version: v0.9.3 — three small pilot-requested additions on top of v0.9.0 (sharing & public readiness)
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -466,6 +466,48 @@ explicit confirmation, and independently verified against a fresh `git clone` of
 remote (not just local state) — zero commits, zero blob objects referencing the file anywhere in the
 server's own history. See `04-constraints.md`'s Personal Data section for the exact command
 and rationale.
+
+### v0.9.1–v0.9.3 — small pilot-requested additions on `/sites` and `/stats`
+
+Three point releases, each a single small change requested directly by the pilot rather than a
+new spec cycle, following `v0.7.1`–`v0.7.5`'s existing precedent for post-ship increments.
+
+**`v0.9.1` — landing sites get a green map pin.** `static/sites.js`'s `/sites` Leaflet map drew
+every site with the default blue marker regardless of role. Landing-only sites now render a green
+pin (inline SVG `divIcon`, no new binary asset); a site that's both launch and landing keeps the
+default blue marker, so launch always wins. `static/shared.css` gained one rule
+(`.site-pin { background: none; border: none; }`) to strip Leaflet's default `divIcon` box.
+
+**`v0.9.2` — optional flight nickname.** `flights.nickname` (nullable `VARCHAR`, migrated via the
+usual `_run_column_migrations()` guard) is a short free-text label alongside `notes`, threaded
+through the existing generic `FlightCreate`/`FlightUpdate`/`FlightOut` update path — no router
+change needed. Shown as a new sortable/searchable column on `/flights`, folded into the
+`/flights/{id}` and `/public/flights/{id}` page titles when set, and added as a column on
+`/public/profiles/{id}`. Gets the same public-exposure rule as `notes` (visible only when a
+flight's `visibility` is `unlisted`/`public`) — confirmed with the pilot rather than assumed, since
+it's the kind of exposure decision `04-constraints.md`'s "never leak more than the pilot chose"
+principle exists to protect. `PublicFlightOut`/`PublicProfileFlightOut` (`models/public.py`) both
+extended; the `visibility_hint_unlisted`/`visibility_hint_public` copy on `flight-detail.html`
+updated from "including your notes" to "including your notes and nickname" so it stays accurate.
+
+**`v0.9.3` — IGC-derived thermal and airtime stats.** The pilot noticed self-reported flight
+duration routinely disagrees with the IGC track's actual recorded time, and asked for the IGC
+numbers to sit beside the self-reported ones rather than be trusted blindly. `core/stats.py`'s
+`igc_rollup()` — already the single home for every IGC-derived figure on `/stats` — gained three
+fields, all plain aggregates over already-stored per-track columns from v0.5 (`igc_tracks.
+thermal_count`/`duration_s`), no new analysis: `total_thermals` (a SUM), `total_igc_airtime_min`
+(a SUM, rendered as a "Total airtime (IGC)" tile directly next to the existing self-reported
+"Total airtime" tile in the Totals grid — the pilot's own "beside the self reported one"), and
+`avg_thermals_by_month` (a new per-calendar-month average, mirroring `_max_by_month()`'s existing
+null-vs-zero convention, rendered as a new bar chart in the "IGC rollups" card via the existing
+`barChart()` helper). Live-verified against a real fixture (`tests/backend/fixtures/valid_flight.
+igc`): a flight self-reported as 30 min measured 602s (~10 min) in the track — exactly the
+discrepancy the pilot described, now visible side by side on the page.
+
+All three: `pytest`/`ruff` clean, live-verified via `curl` against a local dev boot with
+test-only state cleaned up afterward. The Chrome extension was not connected in the sessions that
+shipped them, so the actual rendered UI (pin colors, the nickname column/title, the new stat tiles
+and chart) is unconfirmed visually — first thing to check next time a browser is connected.
 
 ### v0.10 — Enrichment
 
