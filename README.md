@@ -89,6 +89,11 @@ and per-dimension matrices (including buddy names), computed over the pilot's en
 history rather than only public-visibility flights. A personal best whose underlying flight isn't
 itself public shows the number without a link, so a shared page never points to a 404.
 
+`v0.9.6` lets a pilot attach links to a flight by hand: multiple YouTube video links plus one
+XContest flight link, pasted directly (no API integration). A flight's detail page gained a
+Links section — a list for videos, a single replaceable slot for XContest — and a public/unlisted
+flight shows the same links on its shared page.
+
 ## Getting started
 
 Requires Python 3.13+ and Poetry, or Docker.

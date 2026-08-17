@@ -299,6 +299,16 @@ tbody tr.row-highlight { background: rgba(144, 205, 244, 0.18); transition: back
 .detail-grid dt { color: var(--text-dim); font-size: 0.875rem; }
 .detail-grid dd { margin: 0; }
 
+.link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.link-row:last-child { border-bottom: none; }
+
 /* ---- map (sites) ---- */
 
 .site-map { height: 420px; border-radius: var(--radius); overflow: hidden; margin-bottom: 1.25rem; }

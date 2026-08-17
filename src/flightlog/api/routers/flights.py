@@ -6,6 +6,8 @@ Flights.
     GET    /api/flights/{id}      — includes computed alt_gain_m / site_drop_m / total_descent_m
     PUT    /api/flights/{id}
     DELETE /api/flights/{id}
+    POST   /api/flights/{id}/links            — kind: "video" | "xcontest" (v0.9.6)
+    DELETE /api/flights/{id}/links/{link_id}
 """
 
 from __future__ import annotations
@@ -19,8 +21,14 @@ from flightlog.api.dependencies import get_current_user
 from flightlog.api.errors import AppException
 from flightlog.core.flights import compute_altitude_figures, list_flights
 from flightlog.database.db import get_db
-from flightlog.database.models import Flight, FlightBuddy, FlightLink, IgcTrack, User
-from flightlog.models.flights import FlightCreate, FlightLinkOut, FlightOut, FlightUpdate
+from flightlog.database.models import Flight, FlightBuddy, FlightLink, IgcTrack, User, new_uuid
+from flightlog.models.flights import (
+    FlightCreate,
+    FlightLinkIn,
+    FlightLinkOut,
+    FlightOut,
+    FlightUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,3 +161,51 @@ def delete_flight(
     db.delete(flight)
     db.commit()
     logger.info("Flight deleted: %s by %s", flight_id, current_user.id)
+
+
+# ---- flight links (v0.9.6) — the pilot's own first write path onto flight_links; VidFactory's
+# push path (api/routers/integration.py) is unaffected and untouched ----
+
+
+@router.post("/{flight_id}/links", response_model=FlightLinkOut, status_code=201)
+def create_flight_link(
+    flight_id: str,
+    body: FlightLinkIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FlightLinkOut:
+    flight = _get_own_flight(flight_id, current_user, db)
+    link = FlightLink(
+        flight_id=flight.id,
+        kind=body.kind,
+        external_id=new_uuid(),
+        url=body.url,
+        label=body.label,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    logger.info(
+        "Flight link created: %s (%s) on flight %s by %s",
+        link.id,
+        body.kind,
+        flight.id,
+        current_user.id,
+    )
+    return FlightLinkOut.model_validate(link)
+
+
+@router.delete("/{flight_id}/links/{link_id}", status_code=204)
+def delete_flight_link(
+    flight_id: str,
+    link_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    flight = _get_own_flight(flight_id, current_user, db)
+    link = db.get(FlightLink, link_id)
+    if link is None or link.flight_id != flight.id:
+        raise AppException(404, "ENTITY_NOT_FOUND", "Link not found")
+    db.delete(link)
+    db.commit()
+    logger.info("Flight link deleted: %s on flight %s by %s", link_id, flight.id, current_user.id)

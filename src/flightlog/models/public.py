@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flightlog.models.igc import IgcTrackGeometryOut
 from flightlog.models.stats import (
@@ -53,6 +53,15 @@ class PublicIgcTrackOut(BaseModel):
     segments: list[PublicIgcSegmentOut]
 
 
+class PublicFlightLinkOut(BaseModel):
+    """No `id`/`external_id` — a visitor has no delete action to target, unlike the pilot-facing
+    `FlightLinkOut`."""
+
+    kind: str
+    url: str
+    label: str | None
+
+
 class PublicFlightOut(BaseModel):
     id: str
     flight_date: date
@@ -73,6 +82,7 @@ class PublicFlightOut(BaseModel):
     owner_id: str
     owner_has_public_profile: bool
     igc: PublicIgcTrackOut | None = None
+    links: list[PublicFlightLinkOut] = Field(default_factory=list)
 
 
 class PublicPersonalBestOut(BaseModel):

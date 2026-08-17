@@ -250,3 +250,120 @@ async def test_import_key_is_never_accepted_from_the_body(client, make_token, ba
     assert resp.status_code in (201, 422)
     if resp.status_code == 201:
         assert resp.json()["import_key"] is None
+
+
+# ---- flight links (v0.9.6) ----
+
+
+async def _create_flight(client, headers, launch, category):
+    resp = await client.post(
+        "/api/flights",
+        json={"flight_date": "2020-01-01", "launch_site_id": launch.id, "category_id": category.id},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def test_create_video_and_xcontest_links(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, category)
+
+    video = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=abc123", "label": "Launch cam"},
+        headers=headers,
+    )
+    assert video.status_code == 201
+    video_body = video.json()
+    assert video_body["kind"] == "video"
+    assert video_body["label"] == "Launch cam"
+    assert "id" in video_body and "external_id" in video_body
+
+    xcontest = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={
+            "kind": "xcontest",
+            "url": "https://www.xcontest.org/world/en/flights-search/detail:flight/id:12345/",
+        },
+        headers=headers,
+    )
+    assert xcontest.status_code == 201
+    assert xcontest.json()["kind"] == "xcontest"
+    assert xcontest.json()["label"] is None
+
+    fetched = await client.get(f"/api/flights/{flight_id}", headers=headers)
+    kinds = {link["kind"] for link in fetched.json()["links"]}
+    assert kinds == {"video", "xcontest"}
+    assert len(fetched.json()["links"]) == 2
+
+
+async def test_delete_flight_link(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, category)
+
+    created = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=abc123"},
+        headers=headers,
+    )
+    link_id = created.json()["id"]
+
+    deleted = await client.delete(f"/api/flights/{flight_id}/links/{link_id}", headers=headers)
+    assert deleted.status_code == 204
+
+    fetched = await client.get(f"/api/flights/{flight_id}", headers=headers)
+    assert fetched.json()["links"] == []
+
+
+async def test_flight_link_rejects_non_http_scheme(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, category)
+
+    resp = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "javascript:alert(1)"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_flight_link_rejects_unknown_kind(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, category)
+
+    resp = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "instagram", "url": "https://instagram.com/p/abc"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_another_users_flight_links_are_404_not_403(client, make_token, base_entities):
+    user, launch, _landing, category = base_entities
+    owner_headers = make_token(user=user)
+    flight_id = await _create_flight(client, owner_headers, launch, category)
+    created = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=abc123"},
+        headers=owner_headers,
+    )
+    link_id = created.json()["id"]
+
+    intruder_headers = make_token(email="link-intruder@example.com")
+    create_resp = await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=xyz789"},
+        headers=intruder_headers,
+    )
+    assert create_resp.status_code == 404
+
+    delete_resp = await client.delete(
+        f"/api/flights/{flight_id}/links/{link_id}", headers=intruder_headers
+    )
+    assert delete_resp.status_code == 404

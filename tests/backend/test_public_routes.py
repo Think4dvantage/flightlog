@@ -152,6 +152,52 @@ async def test_public_flight_with_a_track_includes_igc_data(client, make_token, 
         assert "start_at" not in seg
 
 
+async def test_public_flight_includes_links(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, landing, category, "public")
+
+    await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=abc123", "label": "Highlight"},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={
+            "kind": "xcontest",
+            "url": "https://www.xcontest.org/world/en/flights-search/detail:flight/id:12345/",
+        },
+        headers=headers,
+    )
+
+    res = await client.get(f"/api/public/flights/{flight_id}")
+    assert res.status_code == 200
+    links = res.json()["links"]
+    assert len(links) == 2
+    kinds = {link["kind"] for link in links}
+    assert kinds == {"video", "xcontest"}
+    # Explicit allowlist — no id/external_id, a visitor has no delete action to target.
+    for link in links:
+        assert "id" not in link
+        assert "external_id" not in link
+
+
+async def test_private_flights_links_never_leak(client, make_token, base_entities):
+    user, launch, landing, category = base_entities
+    headers = make_token(user=user)
+    flight_id = await _create_flight(client, headers, launch, landing, category)  # private
+
+    await client.post(
+        f"/api/flights/{flight_id}/links",
+        json={"kind": "video", "url": "https://youtube.com/watch?v=abc123"},
+        headers=headers,
+    )
+
+    res = await client.get(f"/api/public/flights/{flight_id}")
+    assert res.status_code == 404
+
+
 async def test_unlisted_flight_visible_by_direct_url(client, make_token, base_entities):
     user, launch, landing, category = base_entities
     headers = make_token(user=user)

@@ -40,9 +40,18 @@ from flightlog.core import igc as igc_core
 from flightlog.core import stats as stats_core
 from flightlog.core.flights import compute_altitude_figures
 from flightlog.database.db import get_db
-from flightlog.database.models import Flight, FlightCategory, IgcSegment, IgcTrack, Site, User
+from flightlog.database.models import (
+    Flight,
+    FlightCategory,
+    FlightLink,
+    IgcSegment,
+    IgcTrack,
+    Site,
+    User,
+)
 from flightlog.models.igc import IgcTrackGeometryOut
 from flightlog.models.public import (
+    PublicFlightLinkOut,
     PublicFlightOut,
     PublicIgcSegmentOut,
     PublicIgcTrackOut,
@@ -157,6 +166,11 @@ def _stats_to_public_out(db: Session, owner: User) -> PublicStatsOut:
     )
 
 
+def _links_to_public_out(db: Session, flight_id: str) -> list[PublicFlightLinkOut]:
+    links = db.query(FlightLink).filter(FlightLink.flight_id == flight_id).all()
+    return [PublicFlightLinkOut(kind=link.kind, url=link.url, label=link.label) for link in links]
+
+
 def _flight_to_public_out(db: Session, flight: Flight, owner: User) -> PublicFlightOut:
     figures = compute_altitude_figures(db, flight)
 
@@ -180,6 +194,7 @@ def _flight_to_public_out(db: Session, flight: Flight, owner: User) -> PublicFli
         owner_id=owner.id,
         owner_has_public_profile=owner.public_profile_enabled,
         igc=_igc_to_public_out(db, flight.id),
+        links=_links_to_public_out(db, flight.id),
     )
 
 

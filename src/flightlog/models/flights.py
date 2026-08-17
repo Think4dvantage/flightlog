@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FlightCreate(BaseModel):
@@ -66,12 +66,29 @@ class FlightLinkOut(BaseModel):
     pilot-facing `/api/flights` response, or vice versa.
     """
 
+    id: str
     kind: str
     external_id: str
     url: str
     label: str | None
 
     model_config = {"from_attributes": True}
+
+
+class FlightLinkIn(BaseModel):
+    """The pilot's own manual add path (v0.9.6) — `kind` restricted to what's actually
+    supported here, unlike the open-ended DB column VidFactory's own push path writes to."""
+
+    kind: Literal["video", "xcontest"]
+    url: str
+    label: str | None = Field(None, max_length=200)
+
+    @field_validator("url")
+    @classmethod
+    def _validate_scheme(cls, v: str) -> str:
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("url must start with http:// or https://")
+        return v
 
 
 class FlightOut(BaseModel):

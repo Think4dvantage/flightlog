@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.5 — public flights include their IGC track data + public statistics sharing
+## Current Version: v0.9.6 — flight links: multiple YouTube videos + one XContest link per flight
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -649,6 +649,60 @@ keys cross-checked programmatically for both new pages.
 
 No `pyproject.toml` bump for Part 2 — both parts ship together in the same `0.9.5` release
 (`poetry install` already re-run after Part 1's bump).
+
+### v0.9.6 — flight links: multiple YouTube videos + one XContest link per flight
+
+The pilot's own ask: attach multiple YouTube video links and one XContest flight link to each
+flight, entered manually — "no api access just me pasting raw xcontest links to each flight. for
+now." Confirmed with the pilot before building: these links also show on a flight's public page
+when shared, and XContest is a single slot per flight (adding replaces) while YouTube stays a list.
+
+**No new table** — `flight_links` (shipped v0.8) already had exactly this shape
+(`id`/`flight_id`/`kind`/`external_id`/`url`/`label`), previously written only by VidFactory's
+API-key-authenticated push path. This is the pilot's own **first ever write path** onto it.
+
+1. **`POST`/`DELETE /api/flights/{id}/links[/{link_id}]`** (`flights.py`) — `FlightLinkIn`
+   restricts `kind` to `video`\|`xcontest` on this surface (the DB column itself stays
+   open-ended, matching VidFactory's own "future integration, no migration" design), reuses the
+   existing `04-constraints.md` `http(s)://`-only URL scheme validator (already implemented once
+   for the frozen integration contract, now duplicated — deliberately not shared, since
+   `models/integration.py`'s version is part of a frozen contract this project never lets drift
+   with the pilot-facing surface). `external_id` is a fresh `new_uuid()` — there's no natural id
+   to derive from a pasted link, and the "one slot for xcontest" rule lives entirely in the
+   frontend (delete-then-add), not a backend upsert-by-kind, so both routes stay uniform for
+   either kind. No `PUT`/edit route — a typo'd link is delete + re-add, matching the pilot's own
+   "for now" framing.
+2. **`kind="video"` is reused, not a new `"youtube"` kind** — VidFactory already uses
+   `kind="video"` for its own pushed links (`specs/006-public-api-vidfactory/spec.md`). A
+   manually-pasted YouTube link and a VidFactory-produced highlight are both just "a video of this
+   flight" from the pilot's perspective; sharing the kind means they render together in one list
+   with no special-casing anywhere.
+3. **`flight-detail.html`/`.js`** — the old read-only "Linked resources" `<dt>`/`<dd>` pair (only
+   ever populated by VidFactory, never editable) is replaced by a dedicated `linksCard` with two
+   subsections: **Videos** (a list, each row with a "Remove" button, plus an inline add form — no
+   drawer, matching the lightweight paste-a-link intent) and **XContest** (single slot: shows the
+   link + Remove if one exists, otherwise the add form — mutually exclusive, so "replace" is
+   remove-then-add). No delete confirmation dialog — a link is trivially re-addable, unlike a
+   category archive or a flight delete.
+4. **Public surface**: `PublicFlightOut.links` (`list[PublicFlightLinkOut]`, `kind`/`url`/`label`
+   only — no `id`/`external_id`, since a visitor has no delete action) added to
+   `GET /api/public/flights/{id}`; `public-flight.html`/`.js` render the same two subsections
+   read-only, hidden entirely when a flight has no links.
+
+11 new backend tests (`test_flights.py`: create both kinds, delete, reject non-http scheme,
+reject an unsupported kind, cross-owner 404-not-403 on both create and delete;
+`test_public_routes.py`: a public flight's links round-trip with the allowlist confirmed, a
+private flight's links never leak). 245/245 passing project-wide, `ruff check`/`ruff format
+--check` clean. Live-verified against a local dev boot with a throwaway account: created two
+video links and one XContest link, confirmed all three listed with ids, deleted one, rejected a
+`javascript:` URL and an unsupported kind (both 422), marked the flight public and confirmed the
+remaining two links appear on `GET /api/public/flights/{id}` with the allowlisted shape, and
+confirmed both `/flights/{id}` and `/public/flights/{id}` serve with the new markup present.
+Throwaway account and its data fully removed from the dev DB afterward. Chrome extension
+unavailable this session (consistent all session) — DOM ids and `data-i18n` keys cross-checked
+programmatically instead.
+
+`pyproject.toml` bumped `0.9.5` → `0.9.6` (`poetry install` re-run so `APP_VERSION` isn't stale).
 
 ### v0.10 — Enrichment
 

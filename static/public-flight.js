@@ -156,6 +156,36 @@ function renderTrack(igc) {
   console.log(`[FL:public-flight] track rendered: ${igc.offsets_s.length} points, ${igc.segments.length} segments`);
 }
 
+function renderLinks(links) {
+  const videos = links.filter((l) => l.kind === 'video');
+  const xcontest = links.find((l) => l.kind === 'xcontest');
+
+  el('videosTitle').hidden = videos.length === 0;
+  const videoMount = el('videoLinksList');
+  videoMount.textContent = '';
+  for (const link of videos) {
+    const row = document.createElement('div');
+    row.className = 'link-row';
+    const a = document.createElement('a');
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = link.label || link.url; // user data — textContent only
+    row.appendChild(a);
+    videoMount.appendChild(row);
+  }
+
+  el('xcontestTitle').hidden = !xcontest;
+  el('xcontestLinkRow').hidden = !xcontest;
+  if (xcontest) {
+    const a = el('xcontestLinkValue');
+    a.href = xcontest.url;
+    a.textContent = xcontest.label || xcontest.url; // user data — textContent only
+  }
+
+  el('linksCard').hidden = videos.length === 0 && !xcontest;
+}
+
 function render(flight) {
   // nickname / owner_display_name / site / category names are user data — textContent only,
   // never innerHTML.
@@ -193,6 +223,7 @@ function render(flight) {
   }
 
   el('detailBody').hidden = false;
+  renderLinks(flight.links || []);
   renderTrack(flight.igc);
 }
 

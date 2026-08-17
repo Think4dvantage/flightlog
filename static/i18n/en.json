@@ -121,7 +121,6 @@
     "technique_forward": "Forward",
     "technique_reverse": "Reverse",
     "buddies": "Buddies",
-    "links": "Linked resources",
     "notes": "Notes",
     "not_recorded": "Not recorded",
     "visibility_title": "Sharing",
@@ -160,7 +159,19 @@
       "prompt": "Detach this track? This cannot be undone.",
       "yes": "Detach",
       "no": "Cancel"
-    }
+    },
+    "links_title": "Links",
+    "links_videos_title": "Videos",
+    "links_videos_empty": "No videos linked yet.",
+    "links_video_url_label": "Video URL",
+    "links_video_url_placeholder": "https://youtube.com/watch?v=...",
+    "links_label_label": "Label (optional)",
+    "links_add_video": "Add video",
+    "links_xcontest_title": "XContest",
+    "links_xcontest_url_label": "XContest URL",
+    "links_xcontest_url_placeholder": "https://www.xcontest.org/...",
+    "links_xcontest_add": "Add XContest link",
+    "links_remove": "Remove"
   },
   "sites": {
     "title": "Sites",

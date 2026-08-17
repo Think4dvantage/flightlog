@@ -94,33 +94,118 @@ function render(flight) {
 
   el('d_notes').textContent = flight.notes || notRecorded();
 
-  renderLinks(flight.links || []);
-
   el('detailBody').hidden = false;
 }
 
-function renderLinks(links) {
-  const dt = el('d_links_dt');
-  const dd = el('d_links');
-  dd.textContent = '';
+// ---- links: videos + XContest (v0.9.6) ----
 
-  if (links.length === 0) {
-    dt.hidden = true;
-    dd.hidden = true;
-    return;
-  }
+function showLinksAlert(message) {
+  el('linksAlert').textContent = message;
+  el('linksAlert').classList.add('visible');
+  console.error(`[FL:flight-detail] ${message}`);
+}
 
-  dt.hidden = false;
-  dd.hidden = false;
-  for (const link of links) {
+function clearLinksAlert() {
+  el('linksAlert').classList.remove('visible');
+}
+
+function renderVideoLinks(links) {
+  const videos = links.filter((l) => l.kind === 'video');
+  const mount = el('videoLinksList');
+  mount.textContent = '';
+  el('videoLinksEmpty').hidden = videos.length > 0;
+
+  for (const link of videos) {
+    const row = document.createElement('div');
+    row.className = 'link-row';
+
     const a = document.createElement('a');
     a.href = link.url;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
-    a.textContent = link.label || link.url;
-    dd.appendChild(a);
-    dd.appendChild(document.createElement('br'));
+    a.textContent = link.label || link.url; // link.label/url are user data — textContent only
+    row.appendChild(a);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-ghost';
+    removeBtn.textContent = window.t('flight_detail.links_remove');
+    removeBtn.addEventListener('click', () => removeLink(link.id));
+    row.appendChild(removeBtn);
+
+    mount.appendChild(row);
   }
+}
+
+function renderXcontestLink(links) {
+  const xcontest = links.find((l) => l.kind === 'xcontest');
+  el('xcontestLinkRow').hidden = !xcontest;
+  el('xcontestAddRow').hidden = Boolean(xcontest);
+  if (xcontest) {
+    const a = el('xcontestLinkValue');
+    a.href = xcontest.url;
+    a.textContent = xcontest.label || xcontest.url; // user data — textContent only
+    el('removeXcontestBtn').onclick = () => removeLink(xcontest.id);
+  }
+}
+
+function renderLinksSection(links) {
+  renderVideoLinks(links);
+  renderXcontestLink(links);
+}
+
+async function reloadLinks(flightId) {
+  const flight = await loadFlight(flightId);
+  if (!flight) return;
+  renderLinksSection(flight.links || []);
+}
+
+async function addLink(flightId, kind, url, label) {
+  clearLinksAlert();
+  console.log(`[FL:flight-detail] POST /api/flights/${flightId}/links kind=${kind}`);
+  const res = await fetchAuth(`/api/flights/${flightId}/links`, {
+    method: 'POST',
+    body: JSON.stringify({ kind, url, label: label || null }),
+  });
+  if (!res.ok) {
+    showLinksAlert(await errorMessage(res));
+    return false;
+  }
+  await reloadLinks(flightId);
+  console.log(`[FL:flight-detail] link added: kind=${kind}`);
+  return true;
+}
+
+async function removeLink(linkId) {
+  const flightId = flightIdFromUrl();
+  clearLinksAlert();
+  const res = await fetchAuth(`/api/flights/${flightId}/links/${linkId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    showLinksAlert(await errorMessage(res));
+    return;
+  }
+  await reloadLinks(flightId);
+  console.log(`[FL:flight-detail] link removed: ${linkId}`);
+}
+
+function wireLinksEvents(flightId) {
+  el('addVideoBtn').addEventListener('click', async () => {
+    const url = el('videoUrlInput').value.trim();
+    if (!url) return;
+    const label = el('videoLabelInput').value.trim();
+    const ok = await addLink(flightId, 'video', url, label);
+    if (ok) {
+      el('videoUrlInput').value = '';
+      el('videoLabelInput').value = '';
+    }
+  });
+
+  el('addXcontestBtn').addEventListener('click', async () => {
+    const url = el('xcontestUrlInput').value.trim();
+    if (!url) return;
+    const ok = await addLink(flightId, 'xcontest', url, null);
+    if (ok) el('xcontestUrlInput').value = '';
+  });
 }
 
 // ---- visibility (sharing, v0.9) ----
@@ -396,6 +481,9 @@ async function init() {
   const flight = await loadFlight(id);
   if (!flight) return;
   render(flight);
+
+  renderLinksSection(flight.links || []);
+  wireLinksEvents(id);
 
   renderVisibility(id, flight.visibility);
   wireVisibilityEvents(id);

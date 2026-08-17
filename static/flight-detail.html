@@ -58,9 +58,6 @@
 
           <dt data-i18n="flight_detail.buddies">Buddies</dt>
           <dd id="d_buddies"></dd>
-
-          <dt data-i18n="flight_detail.links" id="d_links_dt" hidden>Linked resources</dt>
-          <dd id="d_links" hidden></dd>
         </dl>
 
         <h2 data-i18n="flight_detail.notes">Notes</h2>
@@ -90,6 +87,41 @@
 
       <div class="drawer-actions">
         <button type="button" id="visibilitySaveBtn" data-i18n="flight_detail.visibility_save">Save</button>
+      </div>
+    </div>
+
+    <div class="card" id="linksCard">
+      <h2 data-i18n="flight_detail.links_title">Links</h2>
+
+      <div id="linksAlert" class="alert alert-error"></div>
+
+      <h3 data-i18n="flight_detail.links_videos_title">Videos</h3>
+      <div id="videoLinksList"></div>
+      <p class="muted" id="videoLinksEmpty" data-i18n="flight_detail.links_videos_empty" hidden>
+        No videos linked yet.
+      </p>
+
+      <div class="field">
+        <label for="videoUrlInput" data-i18n="flight_detail.links_video_url_label">Video URL</label>
+        <input type="url" id="videoUrlInput" data-i18n-placeholder="flight_detail.links_video_url_placeholder">
+      </div>
+      <div class="field">
+        <label for="videoLabelInput" data-i18n="flight_detail.links_label_label">Label (optional)</label>
+        <input type="text" id="videoLabelInput" maxlength="200">
+      </div>
+      <button type="button" id="addVideoBtn" data-i18n="flight_detail.links_add_video">Add video</button>
+
+      <h3 data-i18n="flight_detail.links_xcontest_title">XContest</h3>
+      <div id="xcontestLinkRow" class="link-row" hidden>
+        <a id="xcontestLinkValue" target="_blank" rel="noopener noreferrer"></a>
+        <button type="button" id="removeXcontestBtn" class="btn-ghost" data-i18n="flight_detail.links_remove">Remove</button>
+      </div>
+      <div id="xcontestAddRow">
+        <div class="field">
+          <label for="xcontestUrlInput" data-i18n="flight_detail.links_xcontest_url_label">XContest URL</label>
+          <input type="url" id="xcontestUrlInput" data-i18n-placeholder="flight_detail.links_xcontest_url_placeholder">
+        </div>
+        <button type="button" id="addXcontestBtn" data-i18n="flight_detail.links_xcontest_add">Add XContest link</button>
       </div>
     </div>
 
