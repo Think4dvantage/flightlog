@@ -171,6 +171,63 @@ async def test_upload_writes_back_takeoff_and_landing_time_detach_clears_them(
     assert flight.landing_time is None
 
 
+async def test_upload_file_already_attached_to_another_flight_is_409_not_500(
+    client, make_token, base_entities, flight, db_session
+):
+    """uq_igc_tracks_owner_sha256 is per-owner: the same physical recording can only be
+    attached to one flight at a time. A second flight — even one whose own earlier
+    (different) track was already detached — must get a clear 409 CONFLICT, not an
+    unhandled IntegrityError surfacing as a 500."""
+    from flightlog.database.models import Flight
+
+    user = base_entities[0]
+    other_flight = Flight(
+        owner_id=user.id,
+        flight_date=flight.flight_date,
+        launch_site_id=flight.launch_site_id,
+        landing_site_id=flight.landing_site_id,
+        category_id=flight.category_id,
+    )
+    db_session.add(other_flight)
+    db_session.commit()
+
+    headers = make_token(user=user)
+
+    # `flight` ends up holding valid_flight.igc (still attached).
+    resp = await client.post(
+        f"/api/flights/{flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    # `other_flight` had a different (wrong) file uploaded, then detached.
+    wrong = await client.post(
+        f"/api/flights/{other_flight.id}/igc",
+        files={"file": ("no_baro_flight.igc", NO_BARO_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert wrong.status_code == 200
+    detach = await client.delete(f"/api/flights/{other_flight.id}/igc", headers=headers)
+    assert detach.status_code == 204
+
+    # Uploading the file already attached to `flight` onto `other_flight` must not 500.
+    conflict = await client.post(
+        f"/api/flights/{other_flight.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+    body = conflict.json()
+    assert body["error"]["code"] == "CONFLICT"
+    assert body["error"]["details"]["flight_id"] == flight.id
+
+    # `other_flight` must still have no track attached (the failed attempt is not
+    # half-applied).
+    missing = await client.get(f"/api/flights/{other_flight.id}/igc", headers=headers)
+    assert missing.status_code == 404
+
+
 async def test_another_users_flight_is_404_not_403(
     client, make_token, base_entities, flight, make_user
 ):

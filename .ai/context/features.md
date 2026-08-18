@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.6 — flight links: multiple YouTube videos + one XContest link per flight
+## Current Version: v0.9.7 — two production bugfixes (IGC-upload sha256 conflict, API-key reveal)
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -703,6 +703,42 @@ unavailable this session (consistent all session) — DOM ids and `data-i18n` ke
 programmatically instead.
 
 `pyproject.toml` bumped `0.9.5` → `0.9.6` (`poetry install` re-run so `APP_VERSION` isn't stale).
+
+### v0.9.7 — two production bugfixes: IGC-upload sha256 conflict, API-key reveal panel
+
+Both found from real pilot use against `fl.lenti.cloud`, not a spec cycle — a `fix-bug.md` pass
+each: reproduce first, then the minimal fix.
+
+1. **IGC upload 500 when the file is already attached to a different flight.** `igc_tracks` has
+   `UniqueConstraint(owner_id, sha256)` (per-owner, not per-flight — architecture.md's IGC storage
+   section). `_attach_track()` (`api/routers/igc.py`) only ever checked for the *same-flight*
+   no-op (identical file already on this exact flight); it never checked whether that sha256
+   already belonged to a *different* flight of the same owner before inserting. Reported
+   scenario: a flight had a wrong file uploaded and detached, then the pilot uploaded the file
+   that was already correctly attached to another flight — the INSERT hit the constraint as a raw
+   `sqlalchemy.exc.IntegrityError`, uncaught, falling through to the generic handler as an opaque
+   `500 INTERNAL_ERROR`. Reproduced first with a two-flight test that hit the same
+   `IntegrityError`, confirming the hypothesis before touching any code. Fix: `_attach_track` now
+   runs that same-owner/sha256 lookup itself, before the insert, and raises a proper
+   `409 CONFLICT` naming the flight that already holds the file
+   (`test_upload_file_already_attached_to_another_flight_is_409_not_500`). See architecture.md's
+   "Attaching an uploaded IGC to a flight" section for the full note.
+2. **API-key creation never showed the plaintext key.** `static/api-keys.html`'s one-time reveal
+   panel (`#keyReveal`) was nested *inside* `<form id="keyForm">`. `submitKey()`
+   (`static/api-keys.js`) hides the form once the key is created and then unhides the reveal
+   panel — but an ancestor's `hidden` (→ `display:none`) unconditionally removes every
+   descendant's rendered box regardless of that descendant's own `hidden` value, so the panel
+   never actually became visible no matter what the JS set it to. The backend (`POST /api/keys` →
+   `ApiKeyCreateOut.key`) and the JS's own DOM writes were both already correct — this was a pure
+   markup-nesting bug. Fix: moved `#keyReveal` to be a sibling of `#keyForm` inside `#keyDrawer`
+   (no CSS depended on the nesting). A key created before this fix is unrecoverable — only
+   `key_hash` was ever persisted — the pilot must revoke and re-mint.
+
+246/246 backend tests passing (up from 245), `ruff check`/`ruff format --check` clean. The
+API-key fix is markup-only with no backend test surface — verified instead by booting the dev
+server and confirming via `curl` that the served HTML closes `</form>` before `#keyReveal` opens
+(the Chrome extension was unavailable this session, consistent with prior ones — see RESUME.md).
+`pyproject.toml` bumped `0.9.6` → `0.9.7` (`poetry install` re-run).
 
 ### v0.10 — Enrichment
 

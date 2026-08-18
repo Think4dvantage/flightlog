@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.9.6**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
+Status: **v0.9.7**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
@@ -93,6 +93,12 @@ itself public shows the number without a link, so a shared page never points to 
 XContest flight link, pasted directly (no API integration). A flight's detail page gained a
 Links section — a list for videos, a single replaceable slot for XContest — and a public/unlisted
 flight shows the same links on its shared page.
+
+`v0.9.7` fixes two bugs found in live production use: re-uploading an IGC file that was already
+attached to a different flight of the same pilot (even after that other flight's own, unrelated
+track had been detached) crashed with an opaque 500 instead of a clear conflict; and the API-key
+creation drawer wrote the newly minted plaintext key into the page but never actually showed it,
+since the reveal panel was nested inside the form element the code hid right before revealing it.
 
 ## Getting started
 

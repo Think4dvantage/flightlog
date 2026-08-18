@@ -318,6 +318,16 @@ enough to guess a flight automatically — which is exactly why there is only on
 - **Writeback shrinks the problem for any future matching feature**: every attach (`_attach_track` in
   `api/routers/igc.py`) writes `flights.takeoff_time` / `landing_time` from the track's takeoff/
   landing fixes, and a detach clears them back to `NULL`.
+- **`uq_igc_tracks_owner_sha256` is per-owner, not per-flight, and `_attach_track` checks it
+  explicitly before inserting.** The same physical recording can only be attached to one flight at
+  a time for a given pilot — attaching it to a second flight while still attached to the first
+  (even after that second flight's own, *different*, earlier track was uploaded and detached) is a
+  `409 CONFLICT` (`{"flight_id": <the flight already holding it>}` in `details`), not the no-op
+  short-circuit above, which only fires when the identical file is already *this* flight's own
+  current track. Before this explicit check (found in production, `fl.lenti.cloud`, 2026-08-18) the
+  same scenario raised an unhandled `sqlalchemy.exc.IntegrityError` on the INSERT, surfaced to the
+  pilot as an opaque 500 instead of telling them where the file already lives. Pinned by
+  `test_upload_file_already_attached_to_another_flight_is_409_not_500`.
 
 **Bulk upload (`POST /api/igc/bulk`) and its `igc_pending_uploads` review queue were removed in
 v0.8.1.** Shipped in v0.5 with a same-day duration-matching heuristic (auto-attach only when

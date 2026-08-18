@@ -121,6 +121,22 @@ def _attach_track(
         logger.info("IGC upload no-op (identical file already attached): flight=%s", flight.id)
         return existing
 
+    # uq_igc_tracks_owner_sha256 is per-owner, not per-flight — the same physical
+    # recording can only ever be attached to one flight at a time for this pilot. Without
+    # this check the INSERT below hits that constraint as an unhandled IntegrityError,
+    # which surfaces to the pilot as an opaque 500 instead of telling them where the file
+    # already lives.
+    conflict = db.execute(
+        select(IgcTrack).where(IgcTrack.owner_id == current_user.id, IgcTrack.sha256 == sha256)
+    ).scalar_one_or_none()
+    if conflict is not None:
+        raise AppException(
+            409,
+            "CONFLICT",
+            f"{filename}: this IGC file is already attached to another flight",
+            {"flight_id": conflict.flight_id},
+        )
+
     affected_site_ids: set[str] = set()
     if existing is not None:
         affected_site_ids |= set(site_backfill.clear_observations(db, existing.id))

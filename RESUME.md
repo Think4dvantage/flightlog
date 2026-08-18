@@ -1,93 +1,68 @@
-# Resume Notes — 2026-08-17
+# Resume Notes — 2026-08-18
 
 ## In Progress
 
-Nothing in flight. **`v0.9.4`, `v0.9.5` and `v0.9.6` are all implemented, tested, committed,
-tagged and pushed — CI green** (`Backend tests` and `Publish container image` both succeeded on
-GitHub Actions for each tag). This picks up straight from the prior session's `v0.9.3` ship.
+Nothing in flight. **`v0.9.7` implemented, tested, committed, tagged and pushed** — two
+production bugfixes reported directly by the pilot against `fl.lenti.cloud`, each handled as its
+own `fix-bug.md` cycle (reproduce first, root-cause, minimal fix, verify, sync docs).
 
-### What shipped in `v0.9.4`–`v0.9.6`
+### What shipped in `v0.9.7`
 
-Three separate pilot-requested features, each its own plan-mode cycle (explore → plan file →
-explicit approval → implement), each its own commit + tag — not bundled together like
-`v0.9.1`–`v0.9.3` were, since each landed as its own distinct ask across the session rather than
-several small tweaks requested at once. Full detail in `.ai/context/features.md`'s own entries;
-summary here:
+1. **IGC upload 500 on a sha256 conflict.** Uploading an IGC file that was already attached to a
+   *different* flight of the same pilot crashed with an opaque 500 instead of a clear error —
+   `igc_tracks`' `UniqueConstraint(owner_id, sha256)` is per-owner, and `_attach_track()` never
+   checked it before inserting. Reproduced with a two-flight pytest case first (confirmed the
+   exact `sqlalchemy.exc.IntegrityError`), then fixed by checking for that conflict explicitly and
+   raising `409 CONFLICT` with the other flight's id. New test:
+   `test_upload_file_already_attached_to_another_flight_is_409_not_500`
+   (`tests/backend/test_igc_upload.py`).
+2. **API-key creation never showed the plaintext key.** `static/api-keys.html`'s one-time reveal
+   panel was nested *inside* the form that `submitKey()` hides right before revealing it — an
+   ancestor's `hidden` removes descendant rendering unconditionally, so the panel was never
+   visible no matter what the JS set. Fixed by moving `#keyReveal` to be a sibling of `#keyForm`.
+   Markup-only fix, no backend test surface; verified via `curl` against a local dev boot that the
+   served HTML now closes `</form>` before `#keyReveal` opens — the Chrome extension was
+   unavailable this session (consistent with prior ones), so this was **not** visually confirmed
+   in a real browser. First thing to check next time the extension connects: create a key on
+   `/api-keys` and confirm the reveal panel actually appears.
 
-1. **`v0.9.4`** — `/categories` (full create/rename/reorder/archive/delete UI for flight
-   categories — the API had been owner-scoped since v0.2, only the page was missing) and
-   `/profile` (the account-settings home that never existed: display name, password change, the
-   "Public profile" toggle moved off `/api-keys`, which had only ever hosted it as a stand-in).
-2. **`v0.9.5`** — two parts. **Part 1**: `/public/flights/{id}` now shows the same track map,
-   barogram and IGC-derived figures the pilot's own flight-detail page shows, when a track is
-   attached. **Part 2**: public statistics sharing — a new, independent `users.public_stats_enabled`
-   flag (separate from `public_profile_enabled`) publishes `/public/stats/{id}`, mirroring the
-   pilot's own `/stats` dashboard over their **entire** flight history including buddy names (both
-   confirmed explicitly with the pilot via `AskUserQuestion` before building, since the naive
-   version would have leaked more than a per-flight `visibility` choice implies). `stats.js`'s
-   chart/table logic was extracted into a shared `stats-render.js` so the two pages can't drift —
-   see [[flightlog_v0_9_sharing]] and `03-frontend-conventions.md`'s new note on this
-   pattern.
-3. **`v0.9.6`** — flight links: multiple YouTube videos + one XContest link per flight, pasted by
-   hand (no API integration, per the pilot's own "for now" framing). Reuses the existing
-   `flight_links` table (shipped v0.8, previously only written by VidFactory) for the pilot's own
-   first manual write path onto it; manually-pasted video links reuse VidFactory's own
-   `kind="video"` rather than a new kind, so both sources render in one list. Also shows on a
-   flight's public page when shared (confirmed with the pilot).
-
-245/245 backend tests passing (up from 229 at the start of this run), `ruff check`/`ruff format
---check` clean throughout. Docs (`architecture.md`, `features.md`, `README.md`) synced
-incrementally after each release, not batched at the end. `pyproject.toml`: `0.9.3` → `0.9.4` →
-`0.9.5` → `0.9.6`, `poetry install` re-run after each bump.
-
-**Not yet done**: the Chrome extension never connected in any session that shipped `v0.9.4`
-through `v0.9.6` — every UI change (categories page, profile page, public-stats page, the links
-card on flight-detail/public-flight) is functionally verified (curl against a throwaway account,
-DOM-id/`data-i18n` cross-checks) but **never visually confirmed in a real browser**. First thing
-to check next time the extension is available — start with `/public/stats/{id}` (the largest,
-most chart-heavy new page) and the flight-links UI (the newest, least-exercised interaction
-pattern: inline add/remove, no drawer).
+246/246 backend tests passing (up from 245), `ruff check`/`ruff format --check` clean throughout.
+`pyproject.toml` bumped `0.9.6` → `0.9.7`, `poetry install` re-run. Full detail in
+`.ai/context/features.md`'s `v0.9.7` entry and `architecture.md`'s IGC-attach section.
 
 ## Next Step
 
-Carried forward, still open:
+Carried forward, still open (unchanged by this session):
 
 1. **Confirm whether Traefik replaces or appends to `X-Forwarded-For`** before treating the public
    rate limiter's `client_ip` key as abuse-resistant rather than just accidental-burst-resistant.
-   Now higher-stakes than when first noted — `/api/public/*` has grown from 2 to 4 route families
-   since (`flights`, `profiles`, `stats`, and `flights/{id}`'s new `links`), all sharing the same
-   limiter.
-2. **The repository's visibility itself is still private** — the `Flugbuch.xlsx` scrub (done
-   2026-08-16) was the prerequisite, not the act of flipping the switch. Separate step, pilot's
-   call.
-3. **`C:\git\flightlog-pre-scrub-backup\`** (pre-scrub full-repo bundle + a copy of the real
-   workbook) can be deleted once the pilot is confident the scrub is stable — not urgent.
-4. **XContest score import** (the auto-matched, independently-verified `xc_official_score` — not
-   to be confused with `v0.9.6`'s manual link) and **`specs/002-flight-log-ui`'s Phases 10–11**
-   (CSV export, remember-last-filters) remain open backlog items, untouched.
-5. **No visual/browser confirmation of `v0.9.4`–`v0.9.6`'s UI** — see above.
+2. **The repository's visibility itself is still private** — the `Flugbuch.xlsx` scrub is done,
+   flipping the switch is a separate, pilot-owned step.
+3. **`C:\git\flightlog-pre-scrub-backup\`** can be deleted once the pilot is confident the scrub
+   is stable — not urgent.
+4. **XContest score import** and **`specs/002-flight-log-ui`'s Phases 10–11** (CSV export,
+   remember-last-filters) remain open backlog items, untouched.
+5. **No visual/browser confirmation of `v0.9.4`–`v0.9.7`'s UI** — the Chrome extension has not
+   connected in any recent session. `v0.9.7`'s API-key reveal fix is the highest-value thing to
+   check first, since the whole bug was a rendering issue a curl check can't fully rule out.
 
 ## Context
 
 - The dev server needs a restart after every backend edit (no `--reload` in this workflow) — see
   [[flightlog_dev_server_workflow]].
-- **Any new unauthenticated page must use `bootstrapPage({ anonymous: true })`**, not just
-  `{ requireAuth: false }` — see [[flightlog_public_page_pattern]].
-- **`slowapi`'s `Limiter` is a module-level singleton** — see
-  [[flightlog_slowapi_rate_limit_trap]] if a future public-route test starts failing with an
-  unexplained 429.
-- **Prod moved off `fl.sdh.lol`** (retired) to `fl.lenti.cloud` / `flightlog.lenti.cloud`, and the
-  whole-host Traefik OIDC (Pocket-ID) gate that used to front it is gone — see
-  [[flightlog_prod_oidc_layer]] and `architecture.md`'s Deployment section. `/api/public/*` is now
-  genuinely reachable by an anonymous stranger in production, not just in the app's own code.
-- **Every new public disclosure surface gets its own independent opt-in flag** (never reuse or
-  imply from an existing one) and **bundles what would otherwise be several endpoints into one
-  response** (the public surface shares one rate-limit budget per visitor) — both now-established
-  conventions, written up in `04-constraints.md`.
-- **Live-verification pattern used throughout this run**: register a throwaway account via the
-  running dev server, exercise the real feature end-to-end via `curl` (never fabricate output),
-  then delete the throwaway account/flights/sites/categories/on-disk IGC files from the real dev
-  DB afterward. The pilot's own real account and data are never touched.
+- **`igc_tracks.sha256` is unique per owner, not per flight** — the same physical recording can
+  only ever be attached to one flight at a time for a given pilot. Any future code that attaches
+  or re-attaches a track needs to account for this, not just the same-flight no-op case.
+- **A `hidden` (or `display:none`) ancestor hides descendants regardless of their own `hidden`
+  state** — worth a quick structural check (is the thing I'm trying to reveal nested inside
+  something I just hid?) any time a "hide A, show B" UI pattern doesn't visually work despite the
+  DOM writes looking correct.
+- **Prod is `fl.lenti.cloud` / `flightlog.lenti.cloud`** (moved off the retired `fl.sdh.lol`) — see
+  [[flightlog_prod_oidc_layer]] and `architecture.md`'s Deployment section.
+- **Live-verification pattern**: for backend changes, a `fix-bug.md`-style pytest reproduction
+  against a throwaway/in-memory DB; for frontend-only changes, boot the local dev server and
+  `curl` the served markup when the Chrome extension isn't available — real browser confirmation
+  is still owed once it connects.
 
 This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
 feature's own `specs/` folder have the detail.

@@ -92,20 +92,25 @@
       <div class="drawer-actions">
         <button type="submit" id="drawerSave" data-i18n="api_keys.drawer.save">Create key</button>
       </div>
-
-      <div id="keyReveal" class="key-reveal" hidden>
-        <p><strong data-i18n="api_keys.reveal.title">Copy this key now</strong></p>
-        <p class="muted" data-i18n="api_keys.reveal.warning">
-          This is the only time this key's value is shown. It cannot be retrieved again — if you
-          lose it, revoke it and create a new one.
-        </p>
-        <code id="revealKeyValue"></code>
-        <div class="drawer-actions">
-          <button type="button" id="revealCopyBtn" data-i18n="api_keys.reveal.copy">Copy</button>
-          <button type="button" id="revealDoneBtn" class="btn-ghost" data-i18n="api_keys.reveal.done">I've copied this key</button>
-        </div>
-      </div>
     </form>
+
+    <!-- Deliberately a sibling of #keyForm, not nested inside it: submitKey() hides the
+         form (el('keyForm').hidden = true) once the key is created, and an ancestor's
+         `hidden` unconditionally removes every descendant's rendered box regardless of
+         that descendant's own `hidden` value — nesting this here silently made the reveal
+         panel unreachable no matter what submitKey() set it to. -->
+    <div id="keyReveal" class="key-reveal" hidden>
+      <p><strong data-i18n="api_keys.reveal.title">Copy this key now</strong></p>
+      <p class="muted" data-i18n="api_keys.reveal.warning">
+        This is the only time this key's value is shown. It cannot be retrieved again — if you
+        lose it, revoke it and create a new one.
+      </p>
+      <code id="revealKeyValue"></code>
+      <div class="drawer-actions">
+        <button type="button" id="revealCopyBtn" data-i18n="api_keys.reveal.copy">Copy</button>
+        <button type="button" id="revealDoneBtn" class="btn-ghost" data-i18n="api_keys.reveal.done">I've copied this key</button>
+      </div>
+    </div>
   </aside>
 
   <div id="confirmOverlay" class="drawer-overlay" hidden></div>
