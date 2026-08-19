@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.9.7**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
+Status: **v0.9.8**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
@@ -99,6 +99,14 @@ attached to a different flight of the same pilot (even after that other flight's
 track had been detached) crashed with an opaque 500 instead of a clear conflict; and the API-key
 creation drawer wrote the newly minted plaintext key into the page but never actually showed it,
 since the reveal panel was nested inside the form element the code hid right before revealing it.
+
+`v0.9.8` adds self-service spreadsheet import: any pilot can upload their own Excel or CSV
+flight log from `/import`, map their own column headers to Flightlog's fields, preview exactly
+what will be created (including any new sites, gliders, harnesses or categories), and commit —
+or undo the whole run afterward if the mapping was wrong. Not a parser for any specific
+third-party app's export; a generic mapping wizard that works with whatever spreadsheet a pilot
+already has. Reference-data reuse is exact-match only, and nothing is ever silently dropped or
+guessed — a row that can't be imported is reported with a reason, never skipped quietly.
 
 ## Getting started
 

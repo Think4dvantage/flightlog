@@ -141,6 +141,17 @@ def _run_column_migrations(engine: Engine) -> None:
             logger.info("Migration: added users.public_stats_enabled column")
             applied += 1
 
+        # v0.9.8 self-service import (specs/008-self-service-import): tags exactly what an
+        # import run created, on every table it can create a row in. import_runs itself is a
+        # new table, already created by Base.metadata.create_all() above by the time this runs.
+        for table in ("flights", "sites", "gliders", "harnesses", "flight_categories"):
+            cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+            if "import_run_id" not in cols:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN import_run_id VARCHAR"))
+                conn.commit()
+                logger.info("Migration: added %s.import_run_id column", table)
+                applied += 1
+
     logger.info("Column migrations: %d applied, schema up to date", applied)
 
 

@@ -49,6 +49,7 @@ from flightlog.api.routers import health as health_router
 from flightlog.api.routers import hikes as hikes_router
 from flightlog.api.routers import igc as igc_router
 from flightlog.api.routers import import_report as import_report_router
+from flightlog.api.routers import imports as imports_router
 from flightlog.api.routers import integration as integration_router
 from flightlog.api.routers import pages as pages_router
 from flightlog.api.routers import public as public_router
@@ -260,6 +261,7 @@ def create_app() -> FastAPI:
     app.include_router(tandem_flights_router.router)
     app.include_router(goals_router.router)
     app.include_router(api_keys_router.router)
+    app.include_router(imports_router.router)
     app.include_router(integration_router.router)
     app.include_router(stats_router.router)
     app.include_router(public_router.router)

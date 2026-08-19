@@ -1,68 +1,93 @@
-# Resume Notes — 2026-08-18
+# Resume Notes — 2026-08-19
 
 ## In Progress
 
-Nothing in flight. **`v0.9.7` implemented, tested, committed, tagged and pushed** — two
-production bugfixes reported directly by the pilot against `fl.lenti.cloud`, each handled as its
-own `fix-bug.md` cycle (reproduce first, root-cause, minimal fix, verify, sync docs).
+Nothing in flight. **`v0.9.8` implemented and tested — not yet committed, tagged or pushed** (the
+prior `v0.9.7` bugfix release was; this session's work is still uncommitted in the working tree,
+pending the pilot's go-ahead).
 
-### What shipped in `v0.9.7`
+### What shipped in `v0.9.8`
 
-1. **IGC upload 500 on a sha256 conflict.** Uploading an IGC file that was already attached to a
-   *different* flight of the same pilot crashed with an opaque 500 instead of a clear error —
-   `igc_tracks`' `UniqueConstraint(owner_id, sha256)` is per-owner, and `_attach_track()` never
-   checked it before inserting. Reproduced with a two-flight pytest case first (confirmed the
-   exact `sqlalchemy.exc.IntegrityError`), then fixed by checking for that conflict explicitly and
-   raising `409 CONFLICT` with the other flight's id. New test:
-   `test_upload_file_already_attached_to_another_flight_is_409_not_500`
-   (`tests/backend/test_igc_upload.py`).
-2. **API-key creation never showed the plaintext key.** `static/api-keys.html`'s one-time reveal
-   panel was nested *inside* the form that `submitKey()` hides right before revealing it — an
-   ancestor's `hidden` removes descendant rendering unconditionally, so the panel was never
-   visible no matter what the JS set. Fixed by moving `#keyReveal` to be a sibling of `#keyForm`.
-   Markup-only fix, no backend test surface; verified via `curl` against a local dev boot that the
-   served HTML now closes `</form>` before `#keyReveal` opens — the Chrome extension was
-   unavailable this session (consistent with prior ones), so this was **not** visually confirmed
-   in a real browser. First thing to check next time the extension connects: create a key on
-   `/api-keys` and confirm the reveal panel actually appears.
+Self-service spreadsheet import — the pilot picked "import from other logbook formats" as the
+next backlog item, but redirected the scope entirely once asked which specific app (SkyViz/
+XCTrack/FlySkyHy, as the backlog item was originally worded) to build first: "I would imagine a
+gui where they can upload an excel and then match the rows they have with the data structure we
+have," then "excel or CSV" for format. Went through the full `specify → clarify → plan →
+implement` cycle (`specs/008-self-service-import/`).
 
-246/246 backend tests passing (up from 245), `ruff check`/`ruff format --check` clean throughout.
-`pyproject.toml` bumped `0.9.6` → `0.9.7`, `poetry install` re-run. Full detail in
-`.ai/context/features.md`'s `v0.9.7` entry and `architecture.md`'s IGC-attach section.
+A pilot uploads their own Excel/CSV, maps their own column headers to Flightlog fields via a
+4-step wizard on a new `/import` page (upload → map → preview → done), previews exactly what
+will be created before anything is written, commits, and can undo the whole run afterward. Full
+detail in `.ai/context/features.md`'s `v0.9.8` entry and `architecture.md`'s "Self-service
+spreadsheet import" section — key points to remember if resuming work near this code:
+
+- **New table `import_runs`** + a nullable `import_run_id` tag column on `flights`, `sites`,
+  `gliders`, `harnesses`, `flight_categories`. Idempotency reuses the existing
+  `flights.import_key` column (`"upload:<sha256>:<row>"`) rather than a new mechanism.
+- **`core/spreadsheet_import.py`'s `run_import(..., commit: bool)` is one code path** for both
+  preview (rolled back) and commit — never two independently-written rulesets.
+- **Undo checks live usage, not timestamps, for reference rows**: a tagged site/glider/harness/
+  category is deleted only if no flight of this owner still references it, checked at undo time.
+  A tagged flight is deleted only if `updated_at IS NULL` (never edited, never had a track
+  attached — both bump `updated_at` the same way).
+- **Named `v0.9.8`, deliberately not `v0.10`** — `v0.10` is already reserved in `features.md`'s
+  backlog for the unrelated Enrichment milestone (Lenticularis cross-link, DEM, weather). Every
+  in-code reference was written as `v0.10` first during implementation and corrected afterward —
+  if a stray `v0.10` reference to this feature ever turns up, it's a rename that was missed.
+- **`/import` reuses a path** `pages.py` served years ago (v0.7.5) for an unrelated, long-removed
+  frozen import-report page. No practical collision, but noted in `architecture.md` so a future
+  history search doesn't get confused about "the import page."
+
+261/261 backend tests passing (up from 246), `ruff check`/`ruff format --check` clean. Backend
+fully live-verified against a local dev boot with a throwaway account (registered, ran the real
+columns → preview → commit → undo round trip via `curl` for both the API and confirmed the real
+column migration applied cleanly against the existing dev DB, then deleted the throwaway
+account). `pyproject.toml` bumped `0.9.7` → `0.9.8`, `poetry install` re-run.
+
+**Not done yet**: the `/import` page itself was never opened in a real browser — the Chrome
+extension has been unavailable every recent session. The wizard's DOM/JS was written and
+reviewed carefully (in particular, checked for the exact "hidden ancestor" bug `v0.9.7` just
+fixed on the API-keys page — nothing in `import.html` nests a shown/hidden element inside
+another element that gets hidden), but that is not the same as seeing it render. **First thing
+to check once the extension connects**: open `/import`, upload a small real file, and confirm
+each wizard step actually looks right — column dropdowns populated, sample values updating,
+preview summary readable, undo confirm drawer positioned correctly.
 
 ## Next Step
 
-Carried forward, still open (unchanged by this session):
-
-1. **Confirm whether Traefik replaces or appends to `X-Forwarded-For`** before treating the public
-   rate limiter's `client_ip` key as abuse-resistant rather than just accidental-burst-resistant.
-2. **The repository's visibility itself is still private** — the `Flugbuch.xlsx` scrub is done,
-   flipping the switch is a separate, pilot-owned step.
-3. **`C:\git\flightlog-pre-scrub-backup\`** can be deleted once the pilot is confident the scrub
-   is stable — not urgent.
-4. **XContest score import** and **`specs/002-flight-log-ui`'s Phases 10–11** (CSV export,
-   remember-last-filters) remain open backlog items, untouched.
-5. **No visual/browser confirmation of `v0.9.4`–`v0.9.7`'s UI** — the Chrome extension has not
-   connected in any recent session. `v0.9.7`'s API-key reveal fix is the highest-value thing to
-   check first, since the whole bug was a rendering issue a curl check can't fully rule out.
+1. **Get explicit go-ahead to commit/tag/push `v0.9.8`** — this session did not commit, matching
+   how every other feature in this repo has gone through a pilot confirmation step before
+   shipping (unlike the two `v0.9.7` bugfixes, which were committed same-session on request).
+2. **Open `/import` in a real browser** the moment the Chrome extension connects — see above.
+3. Carried forward, unchanged by this session:
+   - Confirm whether Traefik replaces or appends to `X-Forwarded-For` (public rate limiter).
+   - Repo visibility is still private — pilot's call, scrub is done.
+   - `C:\git\flightlog-pre-scrub-backup\` can be deleted once the scrub is confirmed stable.
+   - XContest score import and `specs/002-flight-log-ui`'s Phases 10–11 (CSV export,
+     remember-last-filters) remain open backlog items.
+   - No visual/browser confirmation of `v0.9.4`–`v0.9.8`'s UI, `/import` now included.
 
 ## Context
 
-- The dev server needs a restart after every backend edit (no `--reload` in this workflow) — see
+- The dev server needs a restart after every backend edit (no `--reload`) — see
   [[flightlog_dev_server_workflow]].
-- **`igc_tracks.sha256` is unique per owner, not per flight** — the same physical recording can
-  only ever be attached to one flight at a time for a given pilot. Any future code that attaches
-  or re-attaches a track needs to account for this, not just the same-flight no-op case.
+- **`igc_tracks.sha256` is unique per owner, not per flight** (the `v0.9.7` lesson) —
+  `import_runs`' own idempotency deliberately reuses a *different* existing mechanism
+  (`flights.import_key`), not this one; don't conflate the two content-addressing schemes.
 - **A `hidden` (or `display:none`) ancestor hides descendants regardless of their own `hidden`
-  state** — worth a quick structural check (is the thing I'm trying to reveal nested inside
-  something I just hid?) any time a "hide A, show B" UI pattern doesn't visually work despite the
-  DOM writes looking correct.
-- **Prod is `fl.lenti.cloud` / `flightlog.lenti.cloud`** (moved off the retired `fl.sdh.lol`) — see
-  [[flightlog_prod_oidc_layer]] and `architecture.md`'s Deployment section.
-- **Live-verification pattern**: for backend changes, a `fix-bug.md`-style pytest reproduction
-  against a throwaway/in-memory DB; for frontend-only changes, boot the local dev server and
-  `curl` the served markup when the Chrome extension isn't available — real browser confirmation
-  is still owed once it connects.
+  state** (also `v0.9.7`) — actively checked for in `import.html`'s wizard step
+  show/hide logic while writing it.
+- **Never fuzzy-match reference data** — this feature's exact-string-only site/glider/harness/
+  category reuse is a direct, deliberate continuation of the lesson `v0.8.1`'s bulk-IGC-matcher
+  removal already taught; don't add fuzzy matching to the importer later without revisiting why
+  that lesson exists.
+- **Live-verification pattern**: for backend changes, a `fix-bug.md`/`specify.md`-style pytest
+  suite plus a real dev-server boot with a throwaway account, cleaned up afterward; for
+  frontend-only changes or when the Chrome extension is down, `curl` the served markup and
+  reason carefully about DOM structure — real browser confirmation is still owed once it
+  connects, and is now owed for four-plus pages in a row.
+- **Prod is `fl.lenti.cloud` / `flightlog.lenti.cloud`** — see [[flightlog_prod_oidc_layer]] and
+  `architecture.md`'s Deployment section.
 
-This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and each
-feature's own `specs/` folder have the detail.
+This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and
+`specs/008-self-service-import/` have the detail.

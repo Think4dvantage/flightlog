@@ -1,6 +1,6 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.7 — two production bugfixes (IGC-upload sha256 conflict, API-key reveal)
+## Current Version: v0.9.8 — self-service spreadsheet import (upload, map columns, preview, undo)
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -740,6 +740,66 @@ server and confirming via `curl` that the served HTML closes `</form>` before `#
 (the Chrome extension was unavailable this session, consistent with prior ones — see RESUME.md).
 `pyproject.toml` bumped `0.9.6` → `0.9.7` (`poetry install` re-run).
 
+### v0.9.8 — self-service spreadsheet import
+
+The pilot's own ask, picking the next backlog item directly: "next step would be import from
+other logbook formats — so that new users can import their data!" The backlog item as written
+named three specific apps (SkyViz, XCTrack, FlySkyHy); asked which to build first and whether a
+real export sample was in hand, the pilot redirected the scope entirely — "I expect other users
+to have Excel files aswell — I would imagine a gui where they can upload an excel and then match
+the rows they have with the data structure we have" — followed by "excel or CSV" once the spec
+was underway. Went through this project's full `specify → clarify → plan → implement` cycle
+(`specs/008-self-service-import/`) since it's a genuinely new architectural surface, not a
+same-shape extension of anything existing.
+
+**Not a parser for any specific app.** A pilot uploads their own Excel or CSV, maps their own
+column headers to Flightlog fields (only date + launch site required), previews exactly what
+will be created, then commits — or doesn't. Deliberately independent of `core/importer.py`
+(that module's fixed columns and alias tables are this pilot's own legacy-data cleanup, not a
+generic tool) and deliberately never fuzzy-matches reference data — the same lesson v0.8.1
+already paid for once with the bulk-IGC matcher that "got horribly wrong."
+
+1. **New table `import_runs`** + a nullable `import_run_id` tag column on `flights`, `sites`,
+   `gliders`, `harnesses`, `flight_categories` — marks exactly what a run *created*, never what
+   it only matched by exact name. Idempotent re-upload reuses the existing `flights.import_key`
+   column and its per-owner uniqueness (`import_key = "upload:<sha256>:<sheet>:<row>"`,
+   content-addressed like IGC storage) rather than adding a second mechanism.
+2. **`core/spreadsheet_import.py`**: `run_import(..., commit: bool)` is one code path for both
+   preview and the real thing — it always resolves/creates inside a transaction, then commits or
+   rolls back, so the two can never silently diverge. Reads `.xlsx` via the existing `openpyxl`
+   dependency and `.csv` via the stdlib `csv` module (no new dependency); CSV date parsing tries
+   ISO format then a short fixed list of alternates, never a new `dateutil` dependency.
+3. **`api/routers/imports.py`**: `POST /columns` (header + samples for the mapping UI),
+   `POST /preview`, `POST /commit` (201), `GET` (list past runs), `DELETE /{id}` (undo).
+   `storage.max_import_bytes` (5 MiB default, mirrors `max_igc_bytes`) caps the upload.
+4. **Undo is a safety-checked sweep, not a blind delete**: a tagged flight is removed only if
+   never edited and never had a track attached (`updated_at IS NULL` covers both, since IGC
+   attach touches the same row); a tagged reference row is removed only if no flight of this
+   owner — from this run or otherwise — still references it, checked live at undo time against
+   both `launch_site_id` and `landing_site_id` for sites. Anything not safe to delete is kept,
+   just untagged.
+5. **`/import` page + nav link** — upload → map → preview → done wizard, plus a past-imports
+   list with an undo action reusing `api-keys.html`'s confirm-drawer pattern. Reuses a path
+   `pages.py` last served in v0.7.5 for an unrelated frozen import-report page (long since
+   removed) — no collision in practice, flagged in `architecture.md` so it doesn't confuse a
+   future history search.
+
+15 new backend tests (`test_spreadsheet_import.py`): upload/map/preview/commit round trip for
+both `.xlsx` and `.csv`, preview writes nothing, unparseable rows reported not dropped, unmapped
+category falls back to the auto-created bucket, exact-match reference-data reuse, idempotent
+re-upload, undo removes what it created, undo keeps an edited flight and a reference row still
+used elsewhere, cross-owner 404-not-403, required-field validation. 261/261 passing
+project-wide, `ruff check`/`ruff format --check` clean. Live-verified against a local dev boot
+with a throwaway account: the real migration ran cleanly against the existing dev DB (5 columns
+added), the full columns → preview → commit → undo round trip confirmed via `curl` end to end,
+including confirming preview alone left zero rows written. Chrome extension unavailable this
+session (consistent with prior ones) — the wizard's DOM/JS was reviewed but not visually
+confirmed in a real browser; flagged in RESUME.md as the first thing to check once it connects.
+
+`pyproject.toml` bumped `0.9.7` → `0.9.8` (`poetry install` re-run). Named `v0.9.8`, not `v0.10`
+— that name is already reserved by the Enrichment milestone below; this feature isn't part of
+that scope.
+
 ### v0.10 — Enrichment
 
 Lenticularis cross-link ("what were the conditions at this site on this date"), DEM for AGL, weather
@@ -769,7 +829,9 @@ Mobile-responsive pass, `/help`, `/admin`, one-command backup and export-everyth
 - Duplicate-flight detection on manual entry (same date + site + duration)
 - Gear service reminders — reserve repack due, annual check due
 - Per-site wind-window editing with a compass-rose control
-- Import from other logbook formats (SkyViz, XCTrack, Flyskyhy)
+- Dedicated per-app logbook import (XCTrack/FlySkyHy/SkyViz native export parsing) — superseded
+  for the general case by v0.9.8's generic upload-and-map importer; would only be worth building
+  if a specific app's export turns out common enough to justify skipping the manual mapping step
 - Photo thumbnails resolved from `media_links` without hosting the images
 - Grant the deploy `gh` token `read:packages` so published image tags can be verified from this repo
   rather than inferred from the workflow config

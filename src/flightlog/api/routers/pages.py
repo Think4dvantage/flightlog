@@ -141,6 +141,11 @@ def profile_page(request: Request) -> Response:
     return _page(request, "profile.html")
 
 
+@router.get("/import")
+def import_page(request: Request) -> Response:
+    return _page(request, "import.html")
+
+
 # ---- public surface (v0.9) — distinct /public/... prefix so a shared link is unambiguous
 # about which surface it's hitting; no JWT, no redirect-to-login (contracts/endpoints.md) ----
 

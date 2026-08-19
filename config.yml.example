@@ -28,6 +28,7 @@ storage:
   # Raw IGC files live on disk, content-addressed. Never in the database.
   igc_dir: data/igc
   max_igc_bytes: 5242880
+  max_import_bytes: 5242880
 
 sites:
   # Creating a site within this radius of an existing one returns 409 with the candidates.

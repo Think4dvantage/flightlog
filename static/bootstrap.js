@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { page: 'goals', href: '/goals', key: 'nav.goals' },
   { page: 'contacts', href: '/contacts', key: 'nav.contacts' },
   { page: 'stats', href: '/stats', key: 'nav.stats' },
+  { page: 'import', href: '/import', key: 'nav.import' },
   { page: 'api-keys', href: '/api-keys', key: 'nav.api_keys' },
 ];
 

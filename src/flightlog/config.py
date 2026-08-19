@@ -76,6 +76,7 @@ class AuthConfig(BaseModel):
 class StorageConfig(BaseModel):
     igc_dir: str = "data/igc"
     max_igc_bytes: int = 5 * 1024 * 1024
+    max_import_bytes: int = 5 * 1024 * 1024
 
 
 class SitesConfig(BaseModel):
@@ -171,6 +172,7 @@ def log_effective_config(cfg: MainConfig) -> None:
     logger.info("Config database.path=%s", cfg.database.path)
     logger.info("Config storage.igc_dir=%s", cfg.storage.igc_dir)
     logger.info("Config storage.max_igc_bytes=%d", cfg.storage.max_igc_bytes)
+    logger.info("Config storage.max_import_bytes=%d", cfg.storage.max_import_bytes)
     logger.info("Config sites.dedup_radius_m=%.1f", cfg.sites.dedup_radius_m)
     logger.info(
         "Config igc.parsing.min_bearing_change_circling=%.1f "

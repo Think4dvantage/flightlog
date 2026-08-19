@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import — Flightlog</title>
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body>
+  <div id="appNav"></div>
+
+  <main class="container">
+    <div class="card">
+      <div class="page-head">
+        <h1 data-i18n="import_page.title">Import from a spreadsheet</h1>
+      </div>
+      <p class="muted" data-i18n="import_page.intro">
+        Upload your own Excel or CSV flight log, map your columns to Flightlog's fields, preview
+        what will be created, then import.
+      </p>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <!-- Step 1: upload -->
+      <section id="uploadStep">
+        <h2 data-i18n="import_page.step_upload">1. Upload</h2>
+        <div class="field">
+          <label for="fileInput" data-i18n="import_page.upload.label">Choose a file</label>
+          <input type="file" id="fileInput" accept=".xlsx,.csv">
+          <p class="muted" data-i18n="import_page.upload.hint">Excel (.xlsx) or CSV.</p>
+        </div>
+        <div class="field" id="sheetField" hidden>
+          <label for="sheetSelect" data-i18n="import_page.upload.sheet_label">Sheet</label>
+          <select id="sheetSelect"></select>
+          <p class="muted" data-i18n="import_page.upload.sheet_hint">This file has more than one sheet — pick the one with your flights.</p>
+        </div>
+        <button type="button" id="uploadContinueBtn" data-i18n="import_page.upload.button">Continue</button>
+      </section>
+
+      <!-- Step 2: map columns -->
+      <section id="mapStep" hidden>
+        <h2 data-i18n="import_page.step_map">2. Map columns</h2>
+        <p class="muted" data-i18n="import_page.map.intro">
+          Tell us which of your columns is which. Date and Launch site are required — everything
+          else is optional.
+        </p>
+        <div class="table-scroll">
+          <table id="mapTable">
+            <thead>
+              <tr>
+                <th data-i18n="import_page.map.field_header">Flightlog field</th>
+                <th data-i18n="import_page.map.column_header">Your column</th>
+                <th data-i18n="import_page.map.samples_header">Example values</th>
+              </tr>
+            </thead>
+            <tbody id="mapBody"></tbody>
+          </table>
+        </div>
+        <div class="drawer-actions">
+          <button type="button" id="mapBackBtn" class="btn-ghost" data-i18n="import_page.map.back">Back</button>
+          <button type="button" id="mapPreviewBtn" data-i18n="import_page.map.preview_button">Preview</button>
+        </div>
+      </section>
+
+      <!-- Step 3: preview -->
+      <section id="previewStep" hidden>
+        <h2 data-i18n="import_page.step_preview">3. Preview</h2>
+        <p id="previewSummary"></p>
+        <p id="previewAlreadyImported" class="muted" hidden></p>
+
+        <div id="previewNewData"></div>
+
+        <div id="previewErrorsBlock" hidden>
+          <h3 data-i18n="import_page.preview.errors_title">Rows that can't be imported</h3>
+          <ul id="previewErrorsList"></ul>
+        </div>
+
+        <div class="drawer-actions">
+          <button type="button" id="previewBackBtn" class="btn-ghost" data-i18n="import_page.preview.back">Back to mapping</button>
+          <button type="button" id="previewConfirmBtn"></button>
+        </div>
+      </section>
+
+      <!-- Step 4: done -->
+      <section id="doneStep" hidden>
+        <h2 data-i18n="import_page.done.title">Import complete</h2>
+        <p id="doneSummary"></p>
+        <div class="drawer-actions">
+          <a id="doneViewFlights" href="/flights" data-i18n="import_page.done.view_flights">View your flights</a>
+          <button type="button" id="doneAnotherBtn" class="btn-ghost" data-i18n="import_page.done.another">Import another file</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="card">
+      <div class="page-head">
+        <h2 data-i18n="import_page.runs.title">Past imports</h2>
+      </div>
+      <div id="runsResultCount" class="muted"></div>
+      <div class="table-scroll">
+        <table id="runsTable">
+          <thead>
+            <tr>
+              <th data-i18n="import_page.runs.col.file">File</th>
+              <th data-i18n="import_page.runs.col.date">Date</th>
+              <th data-i18n="import_page.runs.col.imported">Imported</th>
+              <th data-i18n="import_page.runs.col.actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="runsBody"></tbody>
+        </table>
+      </div>
+      <div id="runsEmptyState" class="empty-state" hidden>
+        <p data-i18n="import_page.runs.empty">No imports yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="confirmOverlay" class="drawer-overlay" hidden></div>
+  <aside id="confirmDrawer" class="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <h2 data-i18n="import_page.runs.undo">Undo</h2>
+      <button type="button" id="confirmClose" class="btn-ghost" aria-label="Close">×</button>
+    </div>
+    <p data-i18n="import_page.undo_confirm.prompt">
+      Undo this import? Flights and reference data it created will be removed, unless you've
+      since edited them or they're now used elsewhere.
+    </p>
+    <div class="drawer-actions">
+      <button type="button" id="confirmYes" class="btn-danger" data-i18n="import_page.undo_confirm.yes">Undo</button>
+      <button type="button" id="confirmNo" class="btn-ghost" data-i18n="import_page.undo_confirm.no">Cancel</button>
+    </div>
+  </aside>
+
+  <script type="module" src="/static/import.js"></script>
+</body>
+</html>

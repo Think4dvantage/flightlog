@@ -25,6 +25,8 @@ tandem_flights     — Tandemflüge sheet; the pilot as passenger, deliberately 
 goals              — Ziele sheet; the one imported type that stays editable afterward
 api_keys           — pilot-minted, scoped machine credentials (v0.8); plaintext never stored
 flight_links       — external resources (e.g. VidFactory videos) pushed back onto a flight
+import_runs        — one self-service spreadsheet upload (v0.9.8); flights/sites/gliders/
+                     harnesses/flight_categories it created carry its id in import_run_id
 
 Tables arriving in later milestones are listed in .ai/context/architecture.md.
 """
@@ -212,6 +214,10 @@ class Site(Base):
     region_id = Column(String, ForeignKey("regions.id"), nullable=True)
     coord_source = Column(String, nullable=True)  # "manual" in v0.2; "igc_median" arrives v0.4
     coord_accuracy_m = Column(Float, nullable=True)  # unpopulated until v0.4, same reasoning
+    # Set only when a self-service spreadsheet import (v0.9.8) created this row — never when
+    # it merely matched an existing one. Lets that import run's undo find exactly what it
+    # created (specs/008-self-service-import).
+    import_run_id = Column(String, ForeignKey("import_runs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
@@ -247,6 +253,7 @@ class Glider(Base):
     en_class = Column(String, nullable=True)  # not in the legacy data — left null on import
     is_own = Column(Boolean, nullable=False, default=True)
     retired_at = Column(UtcDateTime, nullable=True)
+    import_run_id = Column(String, ForeignKey("import_runs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
@@ -266,6 +273,7 @@ class Harness(Base):
     harness_type = Column(String, nullable=True)  # not in the legacy data — left null on import
     reserve_next_repack = Column(UtcDateTime, nullable=True)
     retired_at = Column(UtcDateTime, nullable=True)
+    import_run_id = Column(String, ForeignKey("import_runs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
@@ -288,6 +296,7 @@ class FlightCategory(Base):
     is_training = Column(Boolean, nullable=False, default=False)
     sort_order = Column(Integer, nullable=False, default=0)
     archived_at = Column(UtcDateTime, nullable=True)
+    import_run_id = Column(String, ForeignKey("import_runs.id", ondelete="SET NULL"), nullable=True)
 
     owner = relationship("User", back_populates="flight_categories")
 
@@ -351,11 +360,16 @@ class Flight(Base):
     launch_technique = Column(String, nullable=True)  # forward|reverse
     nickname = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
-    import_key = Column(String, nullable=True)  # "xlsx:<row>"; NULL for API-created flights
+    # "xlsx:<row>" (the developer-run legacy importer) or "upload:<sha256>:<sheet>:<row>" (v0.9.8's
+    # self-service import, content-addressed like IGC storage — makes a byte-identical
+    # re-upload a no-op via this column's existing owner-scoped uniqueness, no new mechanism
+    # needed). NULL for flights created any other way.
+    import_key = Column(String, nullable=True)
     # private | unlisted | public (v0.9). Plain application-validated string, matching every
     # other enum-shaped column in this schema (buddies.link_state, sites.coord_source, ...) —
     # never a DB-level enum or lookup table. See specs/007-sharing-public-readiness/research.md.
     visibility = Column(String, nullable=False, default="private")
+    import_run_id = Column(String, ForeignKey("import_runs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
 
@@ -626,3 +640,30 @@ class FlightLink(Base):
     label = Column(String, nullable=True)
     created_at = Column(UtcDateTime, nullable=False, default=utcnow)
     updated_at = Column(UtcDateTime, nullable=True, onupdate=utcnow)
+
+
+class ImportRun(Base):
+    """
+    One self-service spreadsheet upload (v0.9.8, specs/008-self-service-import) — a pilot's own
+    Excel/CSV, mapped through the UI rather than a developer-run script. Every flight and every
+    reference row (site/glider/harness/category) this run *created* — never one it only matched
+    by exact name — carries this row's id in its own `import_run_id`, which is how undo finds
+    exactly what to remove without guessing.
+    """
+
+    __tablename__ = "import_runs"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_filename = Column(String, nullable=False)
+    # JSON object: {flightlog_field: source_column_header}. Kept verbatim rather than
+    # normalised into columns — it's write-once display/audit data, never queried by shape.
+    column_mapping = Column(Text, nullable=False)
+    row_count = Column(Integer, nullable=False)
+    imported_count = Column(Integer, nullable=False)
+    skipped_count = Column(Integer, nullable=False)
+    created_at = Column(UtcDateTime, nullable=False, default=utcnow)
+
+    owner = relationship("User")

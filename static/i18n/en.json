@@ -14,6 +14,7 @@
     "goals": "Goals",
     "contacts": "Contacts",
     "stats": "Statistics",
+    "import": "Import",
     "api_keys": "API keys",
     "login": "Log in",
     "logout": "Log out"
@@ -667,5 +668,81 @@
   "public_stats": {
     "title_for": "{name}'s statistics",
     "view_profile": "View {name}'s public profile"
+  },
+  "import_page": {
+    "title": "Import from a spreadsheet",
+    "intro": "Upload your own Excel or CSV flight log, map your columns to Flightlog's fields, preview what will be created, then import.",
+    "step_upload": "1. Upload",
+    "step_map": "2. Map columns",
+    "step_preview": "3. Preview",
+    "step_done": "Done",
+    "upload": {
+      "label": "Choose a file",
+      "hint": "Excel (.xlsx) or CSV.",
+      "button": "Continue",
+      "sheet_label": "Sheet",
+      "sheet_hint": "This file has more than one sheet — pick the one with your flights."
+    },
+    "map": {
+      "intro": "Tell us which of your columns is which. Date and Launch site are required — everything else is optional.",
+      "column_header": "Your column",
+      "field_header": "Flightlog field",
+      "samples_header": "Example values",
+      "unmapped": "— not mapped —",
+      "back": "Back",
+      "preview_button": "Preview"
+    },
+    "field": {
+      "flight_date": "Date *",
+      "launch_site": "Launch site *",
+      "landing_site": "Landing site",
+      "category": "Category",
+      "glider": "Glider",
+      "harness": "Harness",
+      "duration_min": "Duration (min)",
+      "distance_km": "Distance (km)",
+      "max_alt_m": "Max altitude (m)",
+      "launch_technique": "Launch technique",
+      "nickname": "Nickname",
+      "notes": "Notes"
+    },
+    "preview": {
+      "summary": "{importable} of {total} rows can be imported.",
+      "already_imported": "{count} row(s) already imported previously — will be skipped.",
+      "all_already_imported": "Every importable row here was already imported by a previous run. To re-import with a different mapping, undo that run first (see Past imports below).",
+      "new_sites": "New sites",
+      "new_categories": "New categories",
+      "new_gliders": "New gliders",
+      "new_harnesses": "New harnesses",
+      "none": "None",
+      "errors_title": "Rows that can't be imported",
+      "row_label": "Row {row}",
+      "back": "Back to mapping",
+      "confirm_button": "Import {count} flight(s)"
+    },
+    "done": {
+      "title": "Import complete",
+      "summary": "{count} flight(s) imported.",
+      "view_flights": "View your flights",
+      "another": "Import another file"
+    },
+    "runs": {
+      "title": "Past imports",
+      "empty": "No imports yet.",
+      "result_count": "{count} import(s)",
+      "col": {
+        "file": "File",
+        "date": "Date",
+        "imported": "Imported",
+        "actions": "Actions"
+      },
+      "undo": "Undo"
+    },
+    "undo_confirm": {
+      "prompt": "Undo this import? Flights and reference data it created will be removed, unless you've since edited them or they're now used elsewhere.",
+      "yes": "Undo",
+      "no": "Cancel"
+    },
+    "undo_result": "{deleted} flight(s) removed, {kept} kept because they were edited or had a track attached since."
   }
 }

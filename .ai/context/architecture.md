@@ -35,6 +35,8 @@ everything since builds on — see `specs/001-core-data-import/`.)
 | `tandem_flights` | **shipped v0.6** | flights as a passenger — deliberately NOT in `flights`; `tandem_operator` stays free text, never a `buddies` FK (real source values include company names) |
 | `goals` | **shipped v0.6** | `Ziele` sheet; the one imported type that stays fully editable afterward (full CRUD + a `mark-done` action) — every other type in this milestone is import-and-view only |
 
+| `import_runs` | **shipped v0.9.8** | `id`, `owner_id`, `source_filename`, `column_mapping` (JSON text), `row_count`, `imported_count`, `skipped_count`, `created_at` — one row per self-service spreadsheet upload. `flights`, `sites`, `gliders`, `harnesses` and `flight_categories` each carry a nullable `import_run_id` (`ondelete="SET NULL"`, but see "Foreign keys are NOT enforced" below — the app clears it explicitly on undo) tagging exactly what a run *created*, never what it only matched by exact name. See "Self-service spreadsheet import" below |
+
 ### Tables that do NOT exist — do not code against them
 
 - **`igc_fixes`.** Track points are never stored in SQLite. 600 tracks × ~3000 fixes is ~2M rows for data
@@ -527,6 +529,96 @@ into a routine feature-implementation step (`04-constraints.md`,
 
 ---
 
+## Self-service spreadsheet import
+
+**Shipped v0.9.8** (`specs/008-self-service-import/`). A pilot uploads their own Excel or CSV
+and maps their own column headers to Flightlog fields through the UI — a generic mapping
+wizard, not a parser for any specific third-party export format (XCTrack/FlySkyHy/SkyViz were
+the original ask; the pilot redirected mid-spec once asked which format to build first, since
+every pilot already has *some* spreadsheet and chasing unconfirmed third-party schemas would
+have repeated the exact mistake `features.md`'s XContest-import backlog item is already
+blocked on avoiding).
+
+**Deliberately independent of `core/importer.py`.** That module's fixed column positions and
+`core/aliases.py` alias tables are this pilot's own legacy-workbook cleanup, not something that
+generalises to an arbitrary new pilot's spreadsheet. `core/spreadsheet_import.py` does
+exact-string (never fuzzy) reference-data matching only — the same "never guess-match"
+principle that made the old bulk-IGC matcher get pulled entirely in v0.8.1, applied here from
+the start rather than learned the hard way twice.
+
+**One function, two modes, never two implementations.** `run_import(..., commit: bool)` always
+parses, resolves/creates reference rows and flights inside a transaction, then either commits
+or rolls back. Preview (`commit=False`) and the real import (`commit=True`) are therefore
+guaranteed to produce identical outcomes for identical input — a duplicated preview/commit
+ruleset is exactly how that kind of silent drift usually starts. Every value pulled out of the
+transaction before a possible rollback is plain Python (`ImportOutcome`'s fields), never an
+ORM object — `Session.rollback()` expires every object still attached to the session, so
+touching one afterward would re-query a transaction that no longer has the row.
+
+**Idempotency reuses `flights.import_key` and its existing per-owner uniqueness — no new
+mechanism.** `import_key = f"upload:{sha256_hex(file_bytes)}:{sheet}:{row_index}"`,
+content-addressed like IGC storage. A byte-identical re-upload produces the same keys; a
+lookup-before-insert (same pattern `core/importer.py` already uses for `"xlsx:<row>"`) skips
+rows already imported rather than duplicating them. `sheet` is always the *resolved* worksheet
+name — even when the caller left sheet selection to its default — never a raw `None`, since two
+different sheets of the same file share one `sha256` and would otherwise collide on the same
+key for the same row number.
+
+**An Excel workbook's first sheet is never assumed to be the right one.** This project's own
+legacy workbook is the proof: `Flugbuch` (the actual flight data) is one of six sheets
+alongside `Fitnessprogramm`/`Groundhandling`/`Tandemflüge`/`Ziele`/`Übersicht`, and
+`core/importer.py` targets it *by name* for exactly this reason. `read_columns()` (and the
+`columns` endpoint) returns every real worksheet name via `list_sheet_names()`; the mapping UI
+lets the pilot pick one, defaulting to the first only when there's just one to pick from.
+
+**Duplicate column headers are suffixed, never silently collapsed.** `_dedupe_headers()` is the
+one place both `read_columns()` and `parse_rows()` derive header names from — a workbook with
+two columns literally both named `Notes` gets `Notes` and `Notes (2)`, so the mapping UI always
+shows two distinct, selectable options instead of one dictionary key silently keeping whichever
+column a `{header: index}` comprehension happened to see last. Blank cells still become distinct
+`Column N` placeholders, which was already collision-free before this fix; only genuine
+duplicate names needed the counter.
+
+**A row with no mapped category — or a blank cell in a mapped one — lands in a single
+auto-created "Imported" category**, never blocking on `flights.category_id`'s `NOT NULL`
+constraint and never guessing which of the pilot's real categories was meant. Every other
+optional field left unmapped or blank simply stays `NULL`.
+
+**Undo is a two-part safety check, not a blind delete of everything the run tagged.** A tagged
+flight is removed only if `updated_at IS NULL` — never edited, and never had a track attached,
+since IGC attach (`igc.py`'s `_attach_track`) writes `takeoff_time`/`landing_time` on the same
+row and `onupdate=utcnow` fires on any UPDATE regardless of which columns changed, so this one
+check covers both cases for free. A tagged reference row (site/glider/harness/category) is
+removed only if no flight belonging to this owner — imported by this run or not — still
+references it, checked at undo time by querying live, not inferred from the row's own
+timestamps: the real risk undo must guard against is a *different*, later flight now depending
+on it, not whether the row's own fields were edited. A site can be referenced as either a
+launch or a landing site, so both `Flight.launch_site_id` and `Flight.landing_site_id` are
+checked before a tagged site is judged unused. Anything not safe to delete is kept with its
+`import_run_id` cleared rather than blocking the rest of the undo. `ImportRun.import_run_id`'s
+`ondelete="SET NULL"` is documentation only, same as every other FK in this schema (PRAGMA
+foreign_keys is never enabled) — the application clears every surviving reference explicitly
+before deleting the `import_runs` row itself, last.
+
+**Both `.xlsx` (via the existing `openpyxl` dependency) and `.csv` (stdlib `csv`, no new
+dependency) are accepted** — confirmed directly with the pilot rather than assumed. CSV parsing
+tries `utf-8-sig` then `cp1252` (a common Excel-on-Windows export encoding) and uses
+`csv.Sniffer` for the delimiter with a comma-delimited fallback. Date parsing tries ISO format
+first, then a short fixed list of common alternates (`%d.%m.%Y`, `%d/%m/%Y`, `%m/%d/%Y`,
+`%d-%m-%Y`) — never a new `dateutil` dependency for what a handful of `strptime` attempts
+already covers. openpyxl returns real `date`/`datetime` objects for Excel date cells directly,
+so only the CSV path exercises the string-parsing fallbacks.
+
+**`POST /api/imports/columns`/`preview`/`commit`, `GET /api/imports`, `DELETE
+/api/imports/{id}`** (`api/routers/imports.py`) — JWT-authenticated, owner-scoped like every
+other domain router, never confused with `api/routers/integration.py`'s API-key-authenticated
+external surface. The file is re-sent on every step rather than cached server-side between
+wizard steps — deliberately stateless, so there is no orphaned-upload cleanup problem and no
+"import session expired" edge case. `storage.max_import_bytes` (default 5 MiB, mirroring
+`max_igc_bytes`) caps the upload.
+
+---
+
 ## API Contracts
 
 Error envelope on every route — **not RFC 7807**:
@@ -542,7 +634,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 |---|---|---|
 | `/api/auth` | `auth.py` | **shipped v0.1** — `POST /register` (flag-gated, 201), `POST /login`, `POST /refresh`, `GET /me`, `PUT /me`, `POST /me/password` (204), `GET /registration-status` |
 | `/health` | `health.py` | **shipped v0.1** — unauthenticated, the only public router |
-| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. **v0.9:** `/public/flights/{flight_id}`, `/public/profiles/{user_id}` added — a distinct `/public/...` prefix from the existing authenticated `/flights/{id}`, no JWT, no redirect-to-login. **v0.9.4:** `/categories` (owner-scoped category CRUD/reorder/archive UI — `/api/categories` had been owner-scoped since v0.2 with no page ever built against it) and `/profile` (the real account-settings home: display name, password change, the public-profile toggle moved off `/api-keys`) added. **v0.9.5:** `/public/stats/{user_id}` added (the read-only public statistics dashboard). All `include_in_schema=False` |
+| — | `pages.py` | **shipped v0.2:** `/`, `/login`, `/register`. **shipped v0.3:** `/flights`, `/flights/{flight_id}`, `/sites`, `/equipment`. **shipped v0.5:** `/igc`. **shipped v0.6:** `/hikes`, `/groundhandling`, `/tandem-flights`, `/goals`. **shipped v0.7:** `/stats`. **v0.7.5:** `/contacts` added; `/import` removed (see `/api/import-report`'s row — the backend endpoint and its frozen data are untouched, only the page is gone). **v0.8:** `/api-keys` added (key management UI). **v0.8.1:** `/igc` removed along with bulk upload (see `igc.py`'s row) — IGC tracks are attached only from a flight's own edit page now, which already had this since v0.5. **v0.9:** `/public/flights/{flight_id}`, `/public/profiles/{user_id}` added — a distinct `/public/...` prefix from the existing authenticated `/flights/{id}`, no JWT, no redirect-to-login. **v0.9.4:** `/categories` (owner-scoped category CRUD/reorder/archive UI — `/api/categories` had been owner-scoped since v0.2 with no page ever built against it) and `/profile` (the real account-settings home: display name, password change, the public-profile toggle moved off `/api-keys`) added. **v0.9.5:** `/public/stats/{user_id}` added (the read-only public statistics dashboard). **v0.9.8:** `/import` added — **reuses a path v0.7.5 removed**, but is an unrelated page: the old `/import` (removed alongside its own row's note above) rendered `import_report.py`'s frozen one-shot Excel-import summary; this `/import` is the new self-service upload/map/preview wizard (`imports.py`). No collision in practice since the old route was gone for several milestones before this one claimed the path, but don't confuse the two if searching history for "the import page." All `include_in_schema=False` |
 | `/api/regions` | `regions.py` | **shipped v0.2** — `GET` only, shared reference data |
 | `/api/sites` | `sites.py` | **shipped v0.2**, **behavior changed v0.3** — CRUD + `PUT /{id}/prefs`; `POST`/`PUT` now set `coord_source = "manual"` server-side whenever the request includes a non-null `lat` and/or `lon` (no schema change — `coord_source` is never accepted from the client). `coord_source = "igc_median"` also now written, but only ever by `core/site_backfill.py` (v0.5), never through this HTTP surface |
 | `/api/gliders` `/api/harnesses` | `gliders.py`, `harnesses.py` | **shipped v0.2** — CRUD + `POST /{id}/retire` |
@@ -561,6 +653,7 @@ Codes: `VALIDATION_FAILED` (400/422), `AUTH_REQUIRED` (401), `PERMISSION_DENIED`
 | `/api/public` | `public.py` | **shipped v0.9** — **unauthenticated by design**, no auth dependency anywhere in the file, rate-limited via `slowapi` (independent of the authenticated surface). `GET /flights/{id}` 404s unless `visibility` is `unlisted`\|`public`; `GET /profiles/{user_id}` 404s unless `public_profile_enabled`. Both 404 byte-identically whether the row is missing or simply not public — never a distinguishing signal. `PublicFlightOut`/`PublicProfileOut` (`models/public.py`) are an explicit field allowlist, not derived from `FlightOut`/`UserOut`. **v0.9.5**: `PublicFlightOut.igc` (nullable `PublicIgcTrackOut`) nests the IGC map/barogram/summary data on `GET /flights/{id}` when the flight has a track — `null` otherwise. One more explicit allowlist (`PublicIgcTrackOut`/`PublicIgcSegmentOut`), never the private `IgcTrackOut`/`IgcSegmentOut`; embedded in the existing response rather than new endpoints, since three separate public IGC routes would have tripled the per-page-view cost against the shared `slowapi` rate limit for no benefit. `core/igc.py`'s `parse_simplified_track()` is shared with the authenticated `.../igc/track.geojson` route so both stay in sync. **v0.9.5**: `GET /stats/{user_id}` added, gated by `users.public_stats_enabled` (independent flag from `public_profile_enabled`). Bundles all ten `/api/stats/*` aggregates plus every `matrix/{dimension}` into one `PublicStatsOut` response — a deliberate departure from mirroring `/api/stats`'s ten-plus-endpoint shape, since that page alone makes 10 requests per load and this surface shares one `slowapi` budget per visitor IP. Scope mirrors the authenticated page's **entire lifetime flight history** (not scoped to public-visibility flights) and includes real buddy display names in `matrix.buddy` — both confirmed explicitly with the pilot before building, since the naive version would have leaked more than a per-flight `visibility` choice implies. `PublicStatsOut` reuses `models/stats.py`'s response shapes directly for every sub-object except personal bests (none of those shapes carry or could plausibly grow an owner-identifying/credential field, so the usual "never inherit the private schema" risk doesn't apply) — `PublicPersonalBestOut.flight_id` is the one exception, set to `null` unless that specific record's flight is itself public/unlisted, so a shared link can never 404. **v0.9.6**: `PublicFlightOut.links` (`list[PublicFlightLinkOut]`) added — a public/unlisted flight's video and XContest links are visible on its public page, same consent boundary as its IGC data; `PublicFlightLinkOut` carries only `kind`/`url`/`label`, no `id`/`external_id` since a visitor has no delete action to target. See "Sharing & public readiness" above |
 | `/api/flights/{id}` visibility | `flights.py` | **v0.9**: `PUT` accepts one more field, `visibility` (`private`\|`unlisted`\|`public`) — no new route, no schema change beyond the field itself |
 | `/api/auth/me` public profile | `auth.py` | **v0.9**: `PUT` accepts one more field, `public_profile_enabled` — same generic update path every other profile field already uses |
+| `/api/imports` | `imports.py` | **shipped v0.9.8** — JWT-authenticated, owner-scoped, five routes: `POST /columns` (header + sample values for the mapping UI), `POST /preview` (dry-run, no writes), `POST /commit` (writes for real, 201), `GET` (list past runs), `DELETE /{id}` (undo). `preview`/`commit` share one `core/spreadsheet_import.py` code path (`commit: bool`), never two independently-written rulesets. See "Self-service spreadsheet import" above |
 
 Routes are not enumerated here beyond the prefix — **read the router file, which is the source of truth.**
 
