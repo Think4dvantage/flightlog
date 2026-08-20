@@ -1,6 +1,10 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.8 — self-service spreadsheet import (upload, map columns, preview, undo)
+## Current Version: v0.9.9 — fix: `/sites` map crash on launch-site markers
+
+v0.9.9 is a one-line frontend bugfix reported directly by the pilot against `fl.lenti.cloud`: "the
+Sites page is not loading the sites — but they are present on the flights page!" See that entry
+below for the full root-cause detail.
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -799,6 +803,41 @@ confirmed in a real browser; flagged in RESUME.md as the first thing to check on
 `pyproject.toml` bumped `0.9.7` → `0.9.8` (`poetry install` re-run). Named `v0.9.8`, not `v0.10`
 — that name is already reserved by the Enrichment milestone below; this feature isn't part of
 that scope.
+
+### v0.9.9 — fix: `/sites` map crash on launch-site markers
+
+Reported directly by the pilot against the live `fl.lenti.cloud` deployment (still on `v0.9.7` at
+the time): "the Sites page is not loading the sites — but they are present on the flights page!"
+A `fix-bug.md`-style pass — reproduce first, then the minimal fix — using the pilot's own pasted
+browser console trace rather than a guess, since the Chrome extension wasn't connected this
+session either.
+
+**Root cause**: `static/sites.js`'s `addOrMoveMarker()` had two icon-selection code paths that
+disagreed. The existing-marker path correctly falls back to the default pin
+(`iconForSite(site) || new L.Icon.Default()`, from v0.9.1's landing-site green-pin feature), but
+the new-marker path passed `{ icon: iconForSite(site) }` straight into `L.marker()` with no
+fallback. `iconForSite()` returns `undefined` for every launch site (only landing-only sites get
+the green `divIcon`) — and passing an explicit `icon: undefined` isn't the same as omitting the
+key: Leaflet's option merging treats the own-property `undefined` as overriding the prototype's
+default icon rather than falling through to it. `marker.options.icon` stayed `undefined`, and
+Leaflet's `_initIcon()` crashed calling `.createIcon()` on it
+(`Cannot read properties of undefined (reading 'createIcon')`) the moment the first launch site
+with coordinates was placed. That throw is synchronous inside `init()`'s
+`for (const site of sites) addOrMoveMarker(site)` loop, which has no try/catch, so it aborted the
+rest of `init()` — `renderTable()` never ran, leaving the table empty even though `GET
+/api/sites` had already succeeded (confirmed in the pilot's own console log: "loaded 62 sites"
+immediately followed by the uncaught `TypeError`). `/flights` never builds Leaflet markers, which
+is exactly why sites showed there but not on `/sites` — no backend or data bug at all, latent
+since v0.9.1 and only needing a launch site to be first in line for placement to trigger.
+
+**Fix**: one line, mirroring the already-correct update path —
+`{ icon: iconForSite(site) || new L.Icon.Default() }`. Confirmed no other `L.marker(...)` call in
+`static/` shares this pattern (`grep` across `static/`).
+
+Static-asset-only change; `pyproject.toml` bumped `0.9.8` → `0.9.9` anyway since the version is
+the cache-busting key for `sites.js` (`03-frontend-conventions.md`) — a bump-less deploy would
+leave returning browsers on the crashing file for up to a year. `poetry install` re-run so
+`APP_VERSION` isn't stale.
 
 ### v0.10 — Enrichment
 

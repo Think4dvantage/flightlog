@@ -166,7 +166,7 @@ function addOrMoveMarker(site) {
     marker.setIcon(iconForSite(site) || new L.Icon.Default());
     return;
   }
-  marker = L.marker([site.lat, site.lon], { icon: iconForSite(site) });
+  marker = L.marker([site.lat, site.lon], { icon: iconForSite(site) || new L.Icon.Default() });
   // Leaflet's bindTooltip(string) sets innerHTML internally — site.name is free-text user
   // data, so pass a DOM node built with textContent instead, per 03-frontend-conventions.md.
   const tooltipNode = document.createElement('span');

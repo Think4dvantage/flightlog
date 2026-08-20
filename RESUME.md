@@ -1,10 +1,22 @@
-# Resume Notes — 2026-08-19
+# Resume Notes — 2026-08-20
 
 ## In Progress
 
-Nothing in flight. **`v0.9.8` implemented and tested — not yet committed, tagged or pushed** (the
-prior `v0.9.7` bugfix release was; this session's work is still uncommitted in the working tree,
-pending the pilot's go-ahead).
+Nothing in flight. `v0.9.8` was committed and tagged after this file's last update (superseding
+the stale note below). **`v0.9.9`, a one-line frontend bugfix, is this session's work**: `/sites`
+crashed rendering its table whenever a launch site was the first marker placed on the map —
+`static/sites.js`'s `addOrMoveMarker()` passed an explicit `icon: undefined` to `L.marker()` for
+launch sites instead of falling back to `L.Icon.Default()` (the existing-marker update path
+already did this correctly; the new-marker creation path didn't). Leaflet's option merging treats
+an own-property `undefined` as overriding the prototype default rather than falling through to
+it, so the marker crashed with `Cannot read properties of undefined (reading 'createIcon')` —
+synchronously inside `init()`'s marker-placement loop, aborting before `renderTable()` ever ran.
+`/flights` never builds Leaflet markers, which is why sites showed there but not on `/sites` — no
+backend or data bug. Diagnosed from the pilot's own pasted browser console trace against
+`fl.lenti.cloud` (still on `v0.9.7`), not a guess — the Chrome extension was unavailable to this
+session too. Full detail in `.ai/context/features.md`'s `v0.9.9` entry. 265/265 tests passing,
+`pyproject.toml` bumped `0.9.8` → `0.9.9`, `poetry install` re-run. Committed, tagged, pushed this
+session per the pilot's explicit request.
 
 ### What shipped in `v0.9.8`
 
