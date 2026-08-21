@@ -19,6 +19,7 @@ import {
   MATRIX_DIMENSIONS,
   MONTH_LABELS,
   MONTH_NUMS,
+  renderAirtimeByMonthChart,
   renderMatrixTable,
   renderMonthlyByYearChart,
   renderSiteDiversityNote,
@@ -35,6 +36,7 @@ let totalFlights = null;
 
 let chartByYear;
 let chartByMonth;
+let chartAirtimeByMonth;
 let chartDurationDist;
 let chartDistanceDist;
 let chartAltitudeDist;
@@ -131,6 +133,18 @@ async function loadTimeBreakdown() {
   renderYearMonthMatrix(data.year_month_matrix, years);
   chartMonthlyByYear = renderMonthlyByYearChart(data.year_month_matrix, years, chartMonthlyByYear);
   console.log(`[FL:stats] time breakdown rendered: ${years.length} years`);
+}
+
+// ---- airtime by month ----
+
+async function loadAirtimeByMonth() {
+  const data = await getJson('/api/stats/airtime-by-month');
+  if (!data) return;
+
+  chartAirtimeByMonth = renderAirtimeByMonthChart(data.by_month, chartAirtimeByMonth);
+  console.log(
+    `[FL:stats] airtime by month rendered: ${MONTH_NUMS.map((m) => data.by_month[m].length).join(',')} flights/month`,
+  );
 }
 
 // ---- XC progression ----
@@ -400,6 +414,7 @@ async function init() {
 
   await Promise.all([
     loadTimeBreakdown(),
+    loadAirtimeByMonth(),
     loadXcProgression(),
     loadDistribution(),
     loadMonthlyExtremes(),

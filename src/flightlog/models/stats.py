@@ -45,6 +45,19 @@ class MonthlyExtremesOut(BaseModel):
     max_alt_gain_m_by_month: dict[int, float | None]
 
 
+class AirtimeByMonthOut(BaseModel):
+    """Combined airtime per calendar month, summed across every year. `by_month` keeps each
+    contributing flight's own `duration_min` as a separate entry (largest-first), not just the
+    sum — the frontend stacks them into one bar per month so the chart shows *how* a month's
+    total was built (a few big flights vs. many small ones), not only what it added up to.
+    `total_by_month` is the same information pre-summed, for the on-bar total label and any
+    caller that only wants the number. All 12 months are always present; a month with no
+    flights is an empty list / `0`, never omitted."""
+
+    by_month: dict[int, list[int]]
+    total_by_month: dict[int, int]
+
+
 class PersonalBestOut(BaseModel):
     label: str
     value: float

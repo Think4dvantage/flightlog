@@ -423,6 +423,13 @@ class IgcTrack(Base):
     # libigc's own AltitudeSource value ("PRESS" | "GNSS") — read from flight.alt_source,
     # never recomputed from the raw fixes; see research.md for why.
     alt_source = Column(String, nullable=True)
+    # The offset core/igc.py::calibrate_altitude() applied to this track's absolute altitude
+    # figures (max_alt_igc_m, the takeoff/landing fixes, track_simplified_json) to anchor them
+    # to the launch site's known elevation. NULL means no correction was made — either no
+    # known launch elevation existed at analysis time, or the track was GNSS-sourced (that
+    # function is deliberately PRESS-only; see its docstring). Never applied to alt_gain_igc_m
+    # or any other difference-based figure, which a constant offset cannot change.
+    alt_calibration_offset_m = Column(Float, nullable=True)
     track_simplified_json = Column(Text, nullable=True)
     analyzer_version = Column(String, nullable=False)
     analyzed_at = Column(UtcDateTime, nullable=False)

@@ -82,6 +82,52 @@ async def test_upload_attaches_track_and_computes_figures(
     assert len(gj["geometry"]["coordinates"]) > 0
 
 
+async def test_upload_calibrates_altitude_to_known_launch_elevation(
+    client, make_token, db_session, make_user
+):
+    """End-to-end version of the pilot's own reported case: the fixture's real barometric
+    takeoff reading is 1900m; a launch site known to sit at 2000m should shift every absolute
+    altitude figure by the same +100m, leave alt_gain_igc_m alone, and — critically — must
+    still record the *raw* 1900m into site_observations, not the calibrated 2000m, or the
+    site's own elevation_igc_m comparison would become tautological."""
+    from flightlog.database.models import Flight, FlightCategory, Site, SiteObservation
+
+    user = make_user()
+    launch = Site(owner_id=user.id, name="Launch", is_launch=True, elevation_m=2000)
+    category = FlightCategory(owner_id=user.id, name="Thermikflug", slug="thermikflug")
+    db_session.add_all([launch, category])
+    db_session.commit()
+
+    f = Flight(
+        owner_id=user.id,
+        flight_date=date(2024, 8, 15),
+        launch_site_id=launch.id,
+        category_id=category.id,
+    )
+    db_session.add(f)
+    db_session.commit()
+
+    headers = make_token(user=user)
+    resp = await client.post(
+        f"/api/flights/{f.id}/igc",
+        files={"file": ("valid_flight.igc", VALID_IGC, "application/octet-stream")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["alt_calibration_offset_m"] == 100.0  # 2000 - 1900
+    assert body["max_alt_igc_m"] == 2531  # uncalibrated 2431 + 100
+    assert body["alt_gain_igc_m"] == 531  # a difference — unaffected by the shift
+
+    geojson = await client.get(f"/api/flights/{f.id}/igc/track.geojson", headers=headers)
+    first_point_alt = geojson.json()["geometry"]["coordinates"][0][2]
+    assert first_point_alt == 2000.0  # the map/barogram also reflect the calibrated value
+
+    observation = db_session.query(SiteObservation).filter_by(kind="takeoff").one()
+    assert observation.alt_m == 1900.0  # the RAW reading, never the calibrated one
+
+
 async def test_reupload_identical_file_is_a_noop(client, make_token, base_entities, flight):
     headers = make_token(user=base_entities[0])
     first = await client.post(

@@ -157,6 +157,7 @@ def _stats_to_public_out(db: Session, owner: User) -> PublicStatsOut:
         time_breakdown=stats_core.time_breakdown(db, owner.id),
         distribution=stats_core.distribution(db, owner.id),
         monthly_extremes=stats_core.monthly_extremes(db, owner.id),
+        airtime_by_month=stats_core.airtime_by_month(db, owner.id),
         xc_progression=stats_core.xc_progression(db, owner.id),
         personal_bests=public_bests,
         matrices=matrices,

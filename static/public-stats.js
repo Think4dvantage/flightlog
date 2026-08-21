@@ -22,6 +22,7 @@ import {
   MATRIX_DIMENSIONS,
   MONTH_LABELS,
   MONTH_NUMS,
+  renderAirtimeByMonthChart,
   renderMatrixTable,
   renderMonthlyByYearChart,
   renderSiteDiversityNote,
@@ -36,6 +37,7 @@ let stats = null;
 
 let chartByYear;
 let chartByMonth;
+let chartAirtimeByMonth;
 let chartDurationDist;
 let chartDistanceDist;
 let chartAltitudeDist;
@@ -112,6 +114,12 @@ function renderTimeBreakdown() {
 
   renderYearMonthMatrix(data.year_month_matrix, years);
   chartMonthlyByYear = renderMonthlyByYearChart(data.year_month_matrix, years, chartMonthlyByYear);
+}
+
+// ---- airtime by month ----
+
+function renderAirtimeByMonth() {
+  chartAirtimeByMonth = renderAirtimeByMonthChart(stats.airtime_by_month.by_month, chartAirtimeByMonth);
 }
 
 // ---- XC progression ----
@@ -359,6 +367,7 @@ function render() {
   renderHeader();
   renderTotals();
   renderTimeBreakdown();
+  renderAirtimeByMonth();
   renderXcProgression();
   renderDistribution();
   renderMonthlyExtremes();

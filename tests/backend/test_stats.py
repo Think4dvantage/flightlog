@@ -230,6 +230,36 @@ async def test_monthly_extremes(client, make_token, stats_setup):
     assert body["max_alt_gain_m_by_month"]["5"] == 500  # tied with June, both included per-month
 
 
+async def test_airtime_by_month(client, make_token, stats_setup, db_session):
+    """Combined across every year (not per-year), and each month keeps every contributing
+    flight's own duration — largest first — rather than just the pre-summed total, since the
+    frontend stacks them into one bar per month."""
+    from flightlog.database.models import Flight
+
+    # A second May flight, a different year, to exercise both cross-year combination and
+    # within-month stacking/ordering.
+    extra = Flight(
+        owner_id=stats_setup.user.id,
+        launch_site_id=stats_setup.launch_a.id,
+        landing_site_id=stats_setup.landing.id,
+        category_id=stats_setup.category.id,
+        flight_date=date(2024, 5, 15),
+        duration_min=30,
+    )
+    db_session.add(extra)
+    db_session.commit()
+
+    headers = make_token(user=stats_setup.user)
+    body = (await client.get("/api/stats/airtime-by-month", headers=headers)).json()
+
+    assert body["by_month"]["5"] == [90, 30]  # f1 (2023) + extra (2024), largest-first
+    assert body["total_by_month"]["5"] == 120
+    assert body["by_month"]["6"] == [60]  # f2
+    assert body["total_by_month"]["6"] == 60
+    assert body["by_month"]["1"] == []  # no January flight at all
+    assert body["total_by_month"]["1"] == 0
+
+
 async def test_personal_bests_tie_resolves_to_earliest_flight(client, make_token, stats_setup):
     headers = make_token(user=stats_setup.user)
     body = (await client.get("/api/stats/personal-bests", headers=headers)).json()

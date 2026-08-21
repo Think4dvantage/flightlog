@@ -114,6 +114,94 @@ export function barChart(canvasId, labels, data, existing, formatter) {
   return chart;
 }
 
+function cardColor() {
+  const styles = getComputedStyle(document.documentElement);
+  return styles.getPropertyValue('--card').trim() || '#1a1f2e';
+}
+
+/**
+ * Draws the combined total above each stacked bar's full height, not each segment's own
+ * value — `barValueLabelPlugin` labels one dataset's bars directly; a stacked chart with one
+ * dataset per contributing flight would otherwise need a label per segment, unreadable the
+ * moment a month has more than a couple of flights. Computed from the datasets already on
+ * the chart rather than passed in separately, so the caller can't let the two drift apart.
+ * Same "formatter lives on the chart instance, never inside `options`" rule as
+ * `barValueLabelPlugin` — see that plugin's own docstring for why.
+ */
+export const stackedTotalLabelPlugin = {
+  id: 'stackedTotalLabel',
+  afterDatasetsDraw(chart) {
+    const formatter = chart.$stackedTotalFormatter;
+    if (!formatter) return;
+    const { ctx } = chart;
+    const meta = chart.getDatasetMeta(0);
+    chart.data.labels.forEach((_, index) => {
+      const total = chart.data.datasets.reduce((sum, ds) => sum + (ds.data[index] ?? 0), 0);
+      if (total === 0) return;
+      const bar = meta.data[index];
+      const yPixel = chart.scales.y.getPixelForValue(total);
+      ctx.save();
+      ctx.fillStyle = textColor();
+      ctx.font = '11px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(formatter(total), bar.x, yPixel - 4);
+      ctx.restore();
+    });
+  },
+};
+
+/**
+ * One bar per calendar month, each stacked from every contributing flight's own
+ * `duration_min` (largest first — see `core/stats.py::airtime_by_month`'s docstring) rather
+ * than a single pre-summed value. `borderColor` matches the card background so each segment
+ * gets a hairline seam: a month built from many short flights renders as fine stripes, a
+ * month built from a few long ones renders as a handful of solid chunks — the visual point
+ * of this chart. Months don't all have the same number of flights, so shorter months get
+ * `null` in the higher-numbered slots; Chart.js simply omits a `null` segment rather than
+ * drawing a zero-height one.
+ */
+export function renderAirtimeByMonthChart(byMonth, existing) {
+  const maxSlots = Math.max(0, ...MONTH_NUMS.map((m) => (byMonth[m] || []).length));
+  const seam = cardColor();
+  const fill = accentColor();
+
+  const datasets = Array.from({ length: maxSlots }, (_, slot) => ({
+    data: MONTH_NUMS.map((m) => (byMonth[m] || [])[slot] ?? null),
+    backgroundColor: fill,
+    borderColor: seam,
+    borderWidth: 1,
+    stack: 'airtime',
+  }));
+
+  existing?.destroy();
+  const chart = new Chart(el('chartAirtimeByMonth').getContext('2d'), {
+    type: 'bar',
+    data: { labels: MONTH_LABELS, datasets },
+    plugins: [stackedTotalLabelPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 18 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: () => '',
+            label: (ctx) => (ctx.raw == null ? '' : fmtDuration(ctx.raw)),
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true, ticks: { callback: (v) => fmtDuration(v) } },
+      },
+    },
+  });
+  chart.$stackedTotalFormatter = fmtDuration;
+  return chart;
+}
+
 export function renderYearMonthMatrix(matrix, years) {
   const table = el('yearMonthTable');
   const thead = table.querySelector('thead');

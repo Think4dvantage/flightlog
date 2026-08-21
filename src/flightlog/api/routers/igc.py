@@ -31,6 +31,7 @@ from flightlog.api.errors import AppException
 from flightlog.config import get_config
 from flightlog.core import igc as igc_core
 from flightlog.core import igc_storage, site_backfill
+from flightlog.core.flights import effective_elevation_m
 from flightlog.database.db import get_db
 from flightlog.database.models import (
     Flight,
@@ -144,9 +145,20 @@ def _attach_track(
         db.flush()
 
     # architecture.md's "writeback shrinks the problem" — later bulk-match runs can use these
-    # to match on time overlap, not just date+duration.
+    # to match on time overlap, not just date+duration. Timing is untouched by altitude
+    # calibration below, so this reads from the raw analysis either way.
     flight.takeoff_time = analysis.takeoff_fix.at
     flight.landing_time = analysis.landing_fix.at
+
+    # Anchor absolute altitude to the launch site's known elevation (see
+    # core/igc.py::calibrate_altitude()'s own docstring) — computed from the *raw* analysis,
+    # before site_backfill.record_observations() below, which must keep seeing genuine raw
+    # sensor readings. Feeding it a calibrated fix would make sites.elevation_igc_m a shifted
+    # copy of the very elevation it's meant to be compared against.
+    reference_elev_m = effective_elevation_m(
+        db, current_user.id, flight.launch_site_id, flight.launch_elev_override_m
+    )
+    calibrated, offset_m = igc_core.calibrate_altitude(analysis, reference_elev_m)
 
     track = IgcTrack(
         owner_id=current_user.id,
@@ -154,23 +166,24 @@ def _attach_track(
         original_filename=filename,
         sha256=sha256,
         file_path=file_path,
-        duration_s=analysis.duration_s,
-        distance_km=analysis.distance_km,
-        max_alt_igc_m=analysis.max_alt_igc_m,
-        alt_gain_igc_m=analysis.alt_gain_igc_m,
-        thermal_count=analysis.thermal_count,
-        best_climb_ms=analysis.best_climb_ms,
-        peak_climb_ms=analysis.peak_climb_ms,
-        glide_ratio=analysis.glide_ratio,
-        alt_source=analysis.alt_source,
-        track_simplified_json=analysis.track_simplified_json,
+        duration_s=calibrated.duration_s,
+        distance_km=calibrated.distance_km,
+        max_alt_igc_m=calibrated.max_alt_igc_m,
+        alt_gain_igc_m=calibrated.alt_gain_igc_m,
+        thermal_count=calibrated.thermal_count,
+        best_climb_ms=calibrated.best_climb_ms,
+        peak_climb_ms=calibrated.peak_climb_ms,
+        glide_ratio=calibrated.glide_ratio,
+        alt_source=calibrated.alt_source,
+        alt_calibration_offset_m=offset_m,
+        track_simplified_json=calibrated.track_simplified_json,
         analyzer_version=igc_core.ANALYZER_VERSION,
         analyzed_at=utcnow(),
     )
     db.add(track)
     db.flush()
 
-    for seg in analysis.segments:
+    for seg in calibrated.segments:
         db.add(
             IgcSegment(
                 track_id=track.id,
@@ -308,8 +321,21 @@ def reanalyze(
             logger.error("Re-analysis failed for track %s: %s", track.id, exc.notes)
             continue
 
+        # No site_backfill.record_observations() call in this sweep at all, unlike upload —
+        # so, unlike there, no raw-vs-calibrated split is needed here; calibrating in place
+        # is safe.
+        flight = db.get(Flight, track.flight_id)
+        reference_elev_m = (
+            effective_elevation_m(
+                db, track.owner_id, flight.launch_site_id, flight.launch_elev_override_m
+            )
+            if flight is not None
+            else None
+        )
+        calibrated, offset_m = igc_core.calibrate_altitude(analysis, reference_elev_m)
+
         db.execute(IgcSegment.__table__.delete().where(IgcSegment.track_id == track.id))
-        for seg in analysis.segments:
+        for seg in calibrated.segments:
             db.add(
                 IgcSegment(
                     track_id=track.id,
@@ -323,16 +349,17 @@ def reanalyze(
                 )
             )
 
-        track.duration_s = analysis.duration_s
-        track.distance_km = analysis.distance_km
-        track.max_alt_igc_m = analysis.max_alt_igc_m
-        track.alt_gain_igc_m = analysis.alt_gain_igc_m
-        track.thermal_count = analysis.thermal_count
-        track.best_climb_ms = analysis.best_climb_ms
-        track.peak_climb_ms = analysis.peak_climb_ms
-        track.glide_ratio = analysis.glide_ratio
-        track.alt_source = analysis.alt_source
-        track.track_simplified_json = analysis.track_simplified_json
+        track.duration_s = calibrated.duration_s
+        track.distance_km = calibrated.distance_km
+        track.max_alt_igc_m = calibrated.max_alt_igc_m
+        track.alt_gain_igc_m = calibrated.alt_gain_igc_m
+        track.thermal_count = calibrated.thermal_count
+        track.best_climb_ms = calibrated.best_climb_ms
+        track.peak_climb_ms = calibrated.peak_climb_ms
+        track.glide_ratio = calibrated.glide_ratio
+        track.alt_source = calibrated.alt_source
+        track.alt_calibration_offset_m = offset_m
+        track.track_simplified_json = calibrated.track_simplified_json
         track.analyzer_version = igc_core.ANALYZER_VERSION
         track.analyzed_at = utcnow()
         count += 1

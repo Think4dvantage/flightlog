@@ -325,6 +325,21 @@ function renderTrackFigures(track) {
       : track.alt_source === 'GNSS'
         ? window.t('flight_detail.track_alt_source_gnss')
         : notRecorded();
+
+  // Only ever set for a PRESS-sourced track anchored to a known launch site elevation — see
+  // core/igc.py::calibrate_altitude(). Absent (null) means no correction was made, not that
+  // one of exactly zero was.
+  const note = el('t_altCalibrationNote');
+  if (track.alt_calibration_offset_m != null) {
+    note.hidden = false;
+    const rounded = Math.round(track.alt_calibration_offset_m);
+    note.textContent =
+      rounded >= 0
+        ? window.t('flight_detail.track_alt_calibrated_up', { amount: rounded })
+        : window.t('flight_detail.track_alt_calibrated_down', { amount: Math.abs(rounded) });
+  } else {
+    note.hidden = true;
+  }
 }
 
 async function renderTrackMap(flightId) {

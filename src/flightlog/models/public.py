@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from flightlog.models.igc import IgcTrackGeometryOut
 from flightlog.models.stats import (
+    AirtimeByMonthOut,
     DimensionYearMatrixOut,
     DistributionOut,
     IgcRollupOut,
@@ -113,6 +114,7 @@ class PublicStatsOut(BaseModel):
     time_breakdown: TimeBreakdownOut
     distribution: DistributionOut
     monthly_extremes: MonthlyExtremesOut
+    airtime_by_month: AirtimeByMonthOut
     xc_progression: XcProgressionOut
     personal_bests: list[PublicPersonalBestOut]
     matrices: dict[str, DimensionYearMatrixOut]

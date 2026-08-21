@@ -36,6 +36,7 @@ from flightlog.database.models import (
     utcnow,
 )
 from flightlog.models.stats import (
+    AirtimeByMonthOut,
     CurrentStreakOut,
     DimensionYearMatrixOut,
     DimensionYearMatrixRow,
@@ -317,6 +318,32 @@ def monthly_extremes(db: Session, owner_id: str) -> MonthlyExtremesOut:
         max_distance_km_by_month=_max_by_month(flights, "distance_km"),
         max_alt_gain_m_by_month=_max_by_month(flights, "alt_gain_m"),
     )
+
+
+def airtime_by_month(db: Session, owner_id: str) -> AirtimeByMonthOut:
+    """Combined airtime per calendar month, summed across every year — distinct from
+    `monthly_extremes` (a single best flight per month) and from `time_breakdown` (flight
+    *counts*, not minutes). Per-month durations are kept as an individual list, sorted
+    largest-first, rather than collapsed to just the sum: the frontend stacks them into one
+    bar per month, so a month built from a handful of big flights renders as a few solid
+    chunks and a month built from many short ones renders as fine stripes — the sum alone
+    can't draw that. Largest-first ordering anchors the big "chunks" at the bottom of each
+    bar, with any short flights as thin slices on top, matching that intent visually. A
+    flight with no recorded duration contributes to no month at all, not a zero-length slice."""
+    flights = _load_owner_data(db, owner_id).flights
+
+    by_month: dict[int, list[int]] = {m: [] for m in range(1, 13)}
+    for f in flights:
+        if f.duration_min is None:
+            continue
+        by_month[f.flight_date.month].append(f.duration_min)
+
+    for durations in by_month.values():
+        durations.sort(reverse=True)
+
+    total_by_month = {m: sum(durations) for m, durations in by_month.items()}
+
+    return AirtimeByMonthOut(by_month=by_month, total_by_month=total_by_month)
 
 
 # label -> (attribute getter, is_min)

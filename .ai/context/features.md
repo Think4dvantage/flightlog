@@ -1,10 +1,13 @@
 # Feature History & Backlog
 
-## Current Version: v0.9.9 — fix: `/sites` map crash on launch-site markers
+## Current Version: v0.9.11 — combined-airtime stat + IGC altitude calibration
 
-v0.9.9 is a one-line frontend bugfix reported directly by the pilot against `fl.lenti.cloud`: "the
-Sites page is not loading the sites — but they are present on the flights page!" See that entry
-below for the full root-cause detail.
+Two pilot-requested features shipped together as one release: **Part 1**, a new `/stats` chart —
+combined airtime per calendar month, each bar built from its own contributing flights. **Part 2**,
+IGC altitude calibration — a no-climb sledder's IGC max altitude read 1488m when the launch site
+is known to sit at 1588m; anchored to the known, trusted launch elevation rather than switched to
+GPS. See that entry below for the full detail on both. Preceded by `v0.9.9` (a one-line `/sites`
+bugfix) — see that entry below.
 
 v0.1 through v0.7.4 are all tagged (`v0.1.0`–`v0.7.4`) and each triggered `docker-publish.yml`. v0.6
 shipped the secondary-sheet imports (hikes, ground-handling, tandem flights) and full goals CRUD; the
@@ -838,6 +841,138 @@ Static-asset-only change; `pyproject.toml` bumped `0.9.8` → `0.9.9` anyway sin
 the cache-busting key for `sites.js` (`03-frontend-conventions.md`) — a bump-less deploy would
 leave returning browsers on the crashing file for up to a year. `poetry install` re-run so
 `APP_VERSION` isn't stale.
+
+### v0.9.11 — combined-airtime stat + IGC altitude calibration
+
+Two pilot-requested features, implemented in the same session and shipped together as one
+release rather than as two separate point versions.
+
+**Part 1: new stat, combined airtime per month.** The pilot's own ask, with the visual mechanic
+specified up front: "Combined Airtime per Month —
+and if you want to be real fancy show a sub bar in the bar chart for each flight (so a month with
+loads of small flights will just be built out of lines but a month with a few big ones will have
+chunks on the bar chart)." A genuinely new aggregate — nothing existing summed *duration* per
+calendar month across years; `time_breakdown()` only counts flights, and `monthly_extremes()`
+tracks a single best flight, not a total.
+
+One disclosure decision confirmed via `AskUserQuestion` before building, per this project's own
+precedent for public-surface scope calls: whether this new stat also joins the public stats
+bundle. Confirmed yes — same "mirrors the entire lifetime history" scope every other `/api/stats`
+figure already has there, and this one carries no per-flight identifying information at all
+(just durations), so no `personal_bests`-style nulling logic was needed.
+
+1. **`core/stats.py::airtime_by_month()`** — groups every flight's `duration_min` into its
+   calendar month (combined across all years), keeping each flight's own duration as a separate,
+   largest-first list entry rather than collapsing to just the sum, plus a pre-summed
+   `total_by_month` alongside it for the on-bar total label. A flight with no recorded duration
+   contributes to no month at all, not a zero-length slice.
+2. **`GET /api/stats/airtime-by-month`** (`AirtimeByMonthOut`) — a thin wrapper, same shape as
+   every other endpoint in this router. Bundled into `PublicStatsOut`/`_stats_to_public_out()`
+   alongside every other aggregate.
+3. **`static/stats-render.js`'s `renderAirtimeByMonthChart()`** — a Chart.js **stacked** bar
+   chart, one dataset per "slot" (slot count = the busiest month's flight count; shorter months
+   pad with `null`, which Chart.js omits rather than drawing a zero-height segment). Each
+   segment's border is set to the card background color (`--card`) rather than left borderless —
+   that hairline seam between segments is what actually delivers the pilot's "lines vs. chunks"
+   ask; without it, same-color adjacent segments would look like one solid bar regardless of how
+   many flights built it. A new `stackedTotalLabelPlugin` draws the combined total above each
+   bar's full stack (summed from that bar's own datasets at draw time, never passed in
+   separately, so the label can't drift from what's actually drawn) — mirrors
+   `barValueLabelPlugin`'s "formatter lives on the chart instance, never inside `options`" rule
+   from the v0.7.2 Chart.js scriptable-option bug (see `architecture.md`).
+4. **Shared between all three chart consumers** — `/stats` (`stats.js`), `/public/stats/{id}`
+   (`public-stats.js`), placed right after the existing "Year × month" table in both, since it's
+   a monthly view of the same section. No page needed its own copy of the render logic, same
+   `stats-render.js` extraction pattern `v0.9.5` established.
+
+New tests: a pure-aggregation test (`core/stats.py`, a second same-month flight in a different
+year to exercise both cross-year combination and within-month largest-first ordering) and a
+public-stats bundling assertion. 266/266 backend tests passing, `ruff check`/`ruff format --check`
+clean. Live-verified against the real dev DB via `curl`: `/api/stats/airtime-by-month` returns a
+believable seasonal shape (peak combined airtime in June–August, lowest in December), and the
+public bundle was confirmed to include the same field by toggling `public_stats_enabled` on the
+real dev account just long enough to check, then reverting it. Chrome extension unavailable this
+session too — DOM ids (`chartAirtimeByMonth`) and `data-i18n` keys cross-checked against the
+served HTML instead, same fallback as every session before it.
+
+**Part 2: IGC altitude calibration to known launch elevation.** The pilot's own report, with the
+diagnosis requested up front: "the max height of the IGC file is
+most of the time 100m lower than the actual max height... shouldn't there be a GPS measured
+height as well — can we switch to GPS Height or do we need a formular to correct the barometric
+height?" Answered as an exploratory question first (per this project's own norm for "should we"
+asks): confirmed `libigc` prefers barometric altitude whenever it passes a smooth-and-in-bounds
+per-fix check — which a QNH/altitude-reference miscalibration at launch still passes, since that
+check has no absolute-accuracy component — and recommended a formula anchored to the pilot's own
+known, trusted launch elevation over a blanket switch to GPS (GNSS error is per-fix noise, not a
+constant bias, and this project already trusts hand-curated site elevation over a single GNSS fix
+for exactly that reason — see `architecture.md`'s "Coordinates are backfilled" section). The
+pilot confirmed: "yes please built that."
+
+1. **`core/igc.py::calibrate_altitude()`** — new pure function, `(AnalysisResult, reference_
+   elev_m) -> (AnalysisResult, offset_m | None)`. **PRESS-sourced only**: skips (returns the
+   analysis unchanged, offset `None`) for a GNSS-sourced track or when no reference elevation
+   is known at all. Otherwise shifts only the genuinely *absolute* readings —
+   `max_alt_igc_m`, the takeoff/landing fixes, `track_simplified_json`'s altitude column —
+   and leaves every difference-based figure (`alt_gain_igc_m`, segment `alt_change_m`, climb
+   rates, glide ratio) untouched, since a constant shift cancels out of a difference by
+   construction. No magnitude cutoff gates it — logged instead
+   (`_LARGE_OFFSET_WARNING_M = 150.0`) — since a huge offset more likely flags a wrong
+   launch-site match than a wrong formula, and this project's stance is to report a
+   disagreement, never silently swallow it.
+2. **`igc_tracks.alt_calibration_offset_m`** (nullable float, new column via the usual
+   `_run_column_migrations()` guard) — the offset actually applied, `NULL` when none was.
+   Surfaced on `IgcTrackOut` and, on `flight-detail.html`, a small note under "Altitude
+   source" reading e.g. "Altitude adjusted +100 m to match this launch site's known
+   elevation" whenever it's set.
+3. **A real ordering bug caught before shipping, not after**: `api/routers/igc.py`'s
+   `_attach_track()` must call `site_backfill.record_observations()` (which feeds
+   `site_observations.alt_m`) with the **raw**, uncalibrated analysis — calibrating first
+   would make any future `sites.elevation_igc_m` comparison tautological, since the
+   "observed" value would already have been shifted to match the reference it's meant to be
+   checked against. Only what's actually persisted onto the `IgcTrack` row itself is
+   calibrated.
+4. **`ANALYZER_VERSION` bumped `"1"` → `"2"`** so `POST /api/admin/reanalyze` recalibrates
+   every already-uploaded track under the new formula, including the pilot's own reported
+   flight — this is the existing mechanism for exactly this kind of retroactive fix, not a
+   new one. The admin sweep needed its own fix to actually benefit: it previously looped over
+   `IgcTrack` rows alone with no flight/site lookup at all, which would have stamped every
+   track `analyzer_version = "2"` without ever computing a reference elevation — silently
+   marking them "done" with no correction applied. Caught by an advisor review before
+   shipping, not found the hard way afterward.
+5. **A doc-drift fix found during this investigation, not a new feature**: `architecture.md`'s
+   "Coordinates are backfilled" section claimed `sites.elevation_igc_m` "is persisted
+   alongside for comparison" — a `grep` across the whole codebase found zero writers of that
+   column anywhere; `site_backfill.py`'s `recompute_site_coords()` only ever sets
+   `lat`/`lon`/`coord_source`/`coord_accuracy_m`. Corrected in `architecture.md` rather than
+   left as a doc claim the code doesn't back — computing it is still a real, un-scoped gap if
+   that comparison is ever wanted.
+
+7 new tests (`test_igc_calibration.py`: shift-to-known-elevation using the pilot's own
+1488→1588m numbers, the simplified-track altitude column shifts while lat/lon/offset_s don't,
+every difference-based figure is untouched, GNSS-sourced and no-reference-elevation both skip,
+a large offset is applied anyway but logged; `test_igc_upload.py`: one end-to-end test asserting
+the raw-vs-calibrated split holds through the real API — `site_observations.alt_m` stays the
+fixture's real 1900m even though the persisted `max_alt_igc_m` is calibrated). One existing test
+(`test_igc_reanalyze.py`) updated for the `ANALYZER_VERSION` bump. 273/273 backend tests passing,
+`ruff check`/`ruff format --check` clean.
+
+**The pilot's own reported flight (23.07.2026) is not in the local dev DB** (dev is behind prod —
+its most recent flight is 2026-07-12), and per `04-constraints.md`, prod is never touched
+directly — so the exact real-world numbers for that flight are unconfirmed by this session. The
+formula was instead verified against `tests/backend/fixtures/valid_flight.igc`'s real, known
+numbers (a genuine `PRESS`-sourced fixture, confirmed takeoff altitude 1900.0m, `max_alt_igc_m`
+2431 uncalibrated) end-to-end through a live dev-server boot: uploaded to a throwaway flight
+against a launch site deliberately set to 2000m, confirmed `alt_calibration_offset_m == 100.0`,
+`max_alt_igc_m == 2531`, `alt_gain_igc_m` unchanged at `531`, the map/barogram's own first point
+altitude at the corrected `2000.0m`, and — the critical check — `site_observations.alt_m` still
+the raw `1900.0m`. Throwaway account/flight/site removed afterward. Once this ships to prod, the
+pilot running `POST /api/admin/reanalyze` themselves (or asking a future session to) will
+recalibrate the 23.07.2026 flight for real and can confirm the exact number then.
+
+**Both parts**: 273/273 backend tests passing project-wide (up from 266 before Part 1, 273 after
+Part 2's own 7 new tests), `ruff check`/`ruff format --check` clean. `pyproject.toml` bumped
+`0.9.9` → `0.9.11` directly (`poetry install` re-run) — no separate `0.9.10` tag, since both
+parts ship in this one release.
 
 ### v0.10 — Enrichment
 

@@ -12,6 +12,10 @@ see specs/003-igc-ingest-analysis/research.md:
     not the four differently-named ones originally guessed. There is no separate glide-tuning
     parameter; a glide is simply the gap between two thermals.
 
+`calibrate_altitude()` (v0.9.11) anchors a barometric track's absolute altitude to a known,
+trusted launch elevation — see its own docstring for why this is a source-*agnostic* GNSS
+question with a source-*specific* answer.
+
 CPU-bound. 04-constraints.md's rule against blocking the event loop applies to an `async def`
 handler calling this directly — every route in `api/routers/igc.py` is a plain sync `def`
 instead (matching every other router in this app), so FastAPI's own threadpool dispatch
@@ -22,7 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from libigc import Flight, FlightParsingConfig
@@ -33,7 +37,15 @@ logger = logging.getLogger(__name__)
 
 # Bump whenever the analysis algorithm or its tuning changes in a way that should make
 # POST /api/admin/reanalyze reprocess existing tracks.
-ANALYZER_VERSION = "1"
+ANALYZER_VERSION = "2"
+
+# libigc's own AltitudeSource.PRESSURE.value (confirmed against the installed 1.2.0 package,
+# not guessed) — this is the literal string `analyze()` below stores in `alt_source`.
+_PRESSURE_SOURCE = "PRESS"
+
+# Not a cutoff that gates the correction — see calibrate_altitude()'s docstring for why a
+# large offset is logged, never suppressed.
+_LARGE_OFFSET_WARNING_M = 150.0
 
 # Enough points for a smooth map line and barogram without re-parsing the raw file on
 # ordinary viewing (architecture.md: track_simplified_json is "derived, regenerable").
@@ -269,3 +281,65 @@ def analyze(path: str, parsing_config: IgcParsingConfig) -> AnalysisResult:
         landing_fix=_to_fix_point(landing_fix),
         segments=segments,
     )
+
+
+def _shift_simplified_track(track_simplified_json: str, offset_m: float) -> str:
+    """Re-stamps every point's stored altitude by a constant offset — the lat/lon/offset_s
+    columns are untouched. `_build_track_simplified_json` is the only writer of this shape
+    ([offset_s, lat, lon, alt_m]); this is the one place that ever rewrites it after the fact."""
+    points = json.loads(track_simplified_json)
+    shifted = [
+        [offset_s, lat, lon, round(alt_m + offset_m, 1)] for offset_s, lat, lon, alt_m in points
+    ]
+    return json.dumps(shifted)
+
+
+def calibrate_altitude(
+    analysis: AnalysisResult, reference_launch_elev_m: float | None
+) -> tuple[AnalysisResult, float | None]:
+    """Anchors a barometric track's absolute altitude to a known, trusted launch elevation.
+
+    A vario/GPS unit with the wrong QNH/altitude-reference set at launch produces a
+    barometric trace that is perfectly smooth and passes libigc's own per-fix validity check
+    (rate-of-change + bounds only) — it just sits at a roughly constant offset from reality
+    for the whole flight. That offset is exactly what this corrects, using the launch site's
+    own known elevation (already trusted more than a single GNSS fix — see architecture.md's
+    "Coordinates are backfilled, never geocoded" section) as ground truth.
+
+    Deliberately **PRESS-sourced tracks only**. A GNSS fix's error is per-fix noise, not a
+    constant bias, so anchoring an entire GNSS-sourced track to one (possibly noisy) GNSS
+    takeoff fix would trade a real, roughly-constant barometric offset for a new, unjustified
+    one — the failure mode this function exists to fix doesn't apply to GNSS at all.
+
+    Every figure derived from an altitude *difference* — `alt_gain_igc_m`, every segment's
+    `alt_change_m`, `best_climb_ms`/`peak_climb_ms`, `glide_ratio` — is invariant under a
+    constant shift by construction and is deliberately left untouched; only genuinely
+    absolute readings (`max_alt_igc_m`, the takeoff/landing fixes, the simplified track's own
+    altitude column) are shifted.
+
+    No magnitude cutoff gates this correction — a huge offset is far more likely to mean the
+    flight is attached to the wrong launch site than that this formula is wrong, and silently
+    declining to correct it would hide that mismatch rather than surface it (this project's
+    "report, never silently overwrite" stance — see architecture.md's Statistics section).
+    It's logged instead, and the caller persists the applied offset (`alt_calibration_offset_m`)
+    so it's visible on the flight's own IGC summary.
+
+    Returns the (possibly unchanged) analysis and the offset actually applied — `None` when no
+    correction was possible (no known launch elevation) or appropriate (GNSS-sourced)."""
+    if reference_launch_elev_m is None or analysis.alt_source != _PRESSURE_SOURCE:
+        return analysis, None
+
+    offset_m = reference_launch_elev_m - analysis.takeoff_fix.alt_m
+    if abs(offset_m) > _LARGE_OFFSET_WARNING_M:
+        logger.warning(
+            "Large altitude calibration offset (%.1fm) — check the launch site match", offset_m
+        )
+
+    calibrated = replace(
+        analysis,
+        max_alt_igc_m=round(analysis.max_alt_igc_m + offset_m),
+        takeoff_fix=replace(analysis.takeoff_fix, alt_m=analysis.takeoff_fix.alt_m + offset_m),
+        landing_fix=replace(analysis.landing_fix, alt_m=analysis.landing_fix.alt_m + offset_m),
+        track_simplified_json=_shift_simplified_track(analysis.track_simplified_json, offset_m),
+    )
+    return calibrated, offset_m

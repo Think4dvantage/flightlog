@@ -5,6 +5,7 @@ Statistics.
     GET /api/stats/time-breakdown
     GET /api/stats/distribution
     GET /api/stats/monthly-extremes
+    GET /api/stats/airtime-by-month
     GET /api/stats/xc-progression
     GET /api/stats/personal-bests
     GET /api/stats/matrix/{dimension}   -- site|region|glider|harness|category|buddy
@@ -30,6 +31,7 @@ from flightlog.core import stats as stats_core
 from flightlog.database.db import get_db
 from flightlog.database.models import User
 from flightlog.models.stats import (
+    AirtimeByMonthOut,
     DimensionYearMatrixOut,
     DistributionOut,
     IgcRollupOut,
@@ -73,6 +75,13 @@ def get_monthly_extremes(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> MonthlyExtremesOut:
     return stats_core.monthly_extremes(db, current_user.id)
+
+
+@router.get("/airtime-by-month", response_model=AirtimeByMonthOut)
+def get_airtime_by_month(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> AirtimeByMonthOut:
+    return stats_core.airtime_by_month(db, current_user.id)
 
 
 @router.get("/xc-progression", response_model=XcProgressionOut)

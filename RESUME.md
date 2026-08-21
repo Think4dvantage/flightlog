@@ -1,22 +1,46 @@
-# Resume Notes — 2026-08-20
+# Resume Notes — 2026-08-21
 
 ## In Progress
 
-Nothing in flight. `v0.9.8` was committed and tagged after this file's last update (superseding
-the stale note below). **`v0.9.9`, a one-line frontend bugfix, is this session's work**: `/sites`
-crashed rendering its table whenever a launch site was the first marker placed on the map —
-`static/sites.js`'s `addOrMoveMarker()` passed an explicit `icon: undefined` to `L.marker()` for
-launch sites instead of falling back to `L.Icon.Default()` (the existing-marker update path
-already did this correctly; the new-marker creation path didn't). Leaflet's option merging treats
-an own-property `undefined` as overriding the prototype default rather than falling through to
-it, so the marker crashed with `Cannot read properties of undefined (reading 'createIcon')` —
-synchronously inside `init()`'s marker-placement loop, aborting before `renderTable()` ever ran.
-`/flights` never builds Leaflet markers, which is why sites showed there but not on `/sites` — no
-backend or data bug. Diagnosed from the pilot's own pasted browser console trace against
-`fl.lenti.cloud` (still on `v0.9.7`), not a guess — the Chrome extension was unavailable to this
-session too. Full detail in `.ai/context/features.md`'s `v0.9.9` entry. 265/265 tests passing,
-`pyproject.toml` bumped `0.9.8` → `0.9.9`, `poetry install` re-run. Committed, tagged, pushed this
-session per the pilot's explicit request.
+Nothing in flight. `v0.9.8` and `v0.9.9` were committed, tagged, and pushed in a prior session.
+This session implemented two pilot-requested features and — per the pilot's explicit request —
+ships them together as **one release, `v0.9.11`** (no separate `0.9.10` tag).
+
+**Part 1: combined airtime per calendar month**, a stacked bar chart where each bar is built
+from its own contributing flights (a hairline seam between segments — `borderColor` set to the
+card background — so a month of many short flights reads as fine stripes and a month of a few
+long ones reads as a handful of solid chunks). New `core/stats.py::airtime_by_month()`,
+`GET /api/stats/airtime-by-month`, `stats-render.js`'s `renderAirtimeByMonthChart()` +
+`stackedTotalLabelPlugin`, wired into `/stats` and `/public/stats/{id}` (confirmed via
+`AskUserQuestion` that it should join the public bundle).
+
+**Part 2: IGC altitude calibration to a known launch elevation.** The pilot's own report: a
+no-climb sledder's barometric IGC max altitude read 1488m against a known 1588m launch site —
+asked whether to switch to GPS altitude or apply a correction formula. Answered as an exploratory question first, recommended a formula anchored to the known
+launch elevation over a blanket GPS switch (GNSS error is per-fix noise, not a constant bias), and
+built it once the pilot confirmed. `core/igc.py::calibrate_altitude()` — PRESS-sourced tracks
+only, shifts only genuinely absolute readings (`max_alt_igc_m`, takeoff/landing fixes,
+`track_simplified_json`'s altitude column), leaves every difference-based figure untouched, no
+magnitude cutoff (logged instead). New `igc_tracks.alt_calibration_offset_m` column, surfaced as a
+small note on `flight-detail.html`. `ANALYZER_VERSION` bumped `"1"` → `"2"` so
+`POST /api/admin/reanalyze` recalibrates every already-uploaded track — the reanalyze sweep itself
+needed a fix first (it had no flight/site lookup at all, which an advisor review caught before
+shipping, not after). A genuine doc-drift fix landed alongside: `architecture.md` claimed
+`sites.elevation_igc_m` was actively populated; a `grep` found zero writers anywhere, corrected in
+place. Full detail in `.ai/context/features.md`'s `v0.9.11` entry.
+
+**The pilot's own reported flight (23.07.2026) is not in the local dev DB** (dev is behind prod —
+latest local flight is 2026-07-12) — verified instead end-to-end against
+`tests/backend/fixtures/valid_flight.igc`'s real numbers through a live dev-server boot
+(throwaway account/site/flight, cleaned up afterward): `alt_calibration_offset_m`, `max_alt_igc_m`,
+the unaffected `alt_gain_igc_m`, the corrected map/barogram altitude, and — the critical check —
+`site_observations.alt_m` staying the *raw* reading, never the calibrated one.
+
+**Both parts**: 273/273 tests passing, `ruff check`/`ruff format --check` clean, `pyproject.toml`
+bumped `0.9.9` → `0.9.11` directly (`poetry install` re-run) — not committed, tagged, or pushed
+as of this note being written, but the pilot has now explicitly asked for exactly that. Chrome
+extension unavailable again this session; DOM ids/`data-i18n` keys cross-checked
+against served HTML instead.
 
 ### What shipped in `v0.9.8`
 

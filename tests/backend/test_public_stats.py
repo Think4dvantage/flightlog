@@ -89,6 +89,11 @@ async def test_enabled_stats_include_full_lifetime_history_and_buddy_names(
     buddy_rows = body["matrices"]["buddy"]["rows"]
     assert any(row["name"] == "Tom Realname" for row in buddy_rows)
 
+    # Bundled the same as every other /api/stats aggregate — the flight_date default above
+    # is 2020-01-01, so its 90 minutes land in month 1.
+    assert body["airtime_by_month"]["by_month"]["1"] == [90]
+    assert body["airtime_by_month"]["total_by_month"]["1"] == 90
+
     # Explicit allowlist — nothing private ever appears.
     assert "email" not in body
     assert "hashed_password" not in body

@@ -172,9 +172,16 @@ observations the site's `lat`/`lon` is set to the **median** — robust against 
 outlier — with `coord_source='igc_median'` and `coord_accuracy_m` recording the spread. A manual pin
 drop sets `coord_source='manual'`, and the backfill never overwrites that.
 
-Elevation stays from the hand-curated `DropDownData` list, which is better than a GNSS takeoff fix, but
-`elevation_igc_m` is persisted alongside for comparison. A disagreement over 100 m is a real data-quality
-signal.
+Elevation stays from the hand-curated `DropDownData` list, which is better than a single GNSS takeoff
+fix. **`sites.elevation_igc_m` is declared in the schema and exposed on `SiteOut` for exactly this
+comparison, but no code path has ever actually written it** — `site_backfill.py`'s
+`recompute_site_coords()` only ever sets `lat`/`lon`/`coord_source`/`coord_accuracy_m` from
+`site_observations`, never a corresponding elevation median. Found while investigating the v0.9.11
+altitude-calibration feature below, which reads `site_observations.alt_m` for a different purpose
+(anchoring a barometric track, never comparing it against `elevation_igc_m`) and needed to confirm this
+column really was inert before relying on that. Corrected here rather than left as a doc claim the code
+doesn't back — computing it is still a real, un-scoped gap if the ">100 m disagreement" comparison is
+ever wanted.
 
 ---
 
@@ -251,7 +258,35 @@ no `async def` handler anywhere and no `asyncio.to_thread` call for this.
    ⚠ libigc flags *any* circling as a thermal, including descending spirals and wingovers, both of which
    are routine in paragliding. Without this filter `best_climb` and `avg_climb` are poisoned. Verified
    against a generated fixture with one genuine climbing thermal (`tests/backend/fixtures/valid_flight.igc`).
-4. **Tuning is config, not constants.** `libigc.FlightParsingConfig` overrides live under `igc.parsing:`
+4. **Altitude calibration (v0.9.11), pilot-reported**: a barometric track's absolute altitude
+   can sit at a roughly constant offset from reality when a vario/GPS unit's QNH/altitude
+   reference was wrong at launch — the pilot's own report: a no-climb sledder's IGC max
+   altitude read 1488m when the known launch elevation was 1588m. The offset passes libigc's
+   own per-fix validity check (rate-of-change + bounds only, no absolute-accuracy check), so
+   `flight.alt_source` still resolves to `PRESS` and nothing about the file looks invalid.
+   `core/igc.py::calibrate_altitude()` anchors the whole track to the launch site's own known,
+   trusted elevation (`core/flights.py::effective_elevation_m()` — the same
+   flight-override → user-pref-override → `sites.elevation_m` chain "Derived values" above
+   already uses) — **PRESS-sourced only**: a GNSS fix's error is per-fix noise, not a constant
+   bias, so anchoring a GNSS-sourced track to one possibly-noisy GNSS takeoff fix would trade
+   a real, roughly-constant barometric offset for a new, unjustified one. Every
+   difference-based figure (`alt_gain_igc_m`, segment `alt_change_m`, climb rates, glide
+   ratio) is invariant under a constant shift and is deliberately left untouched; only
+   genuinely absolute readings (`max_alt_igc_m`, the takeoff/landing fixes,
+   `track_simplified_json`'s own altitude column) are shifted. No magnitude cutoff gates the
+   correction — a huge offset more likely means the flight is attached to the wrong launch
+   site than that the formula is wrong, and silently declining to correct it would hide that
+   mismatch rather than surface it; it's logged instead (`_LARGE_OFFSET_WARNING_M`) and the
+   applied offset is always persisted (`igc_tracks.alt_calibration_offset_m`, `NULL` when no
+   correction was possible or appropriate) so it's visible on the flight's own IGC summary.
+   **Must run on the *raw* analysis before `site_backfill.record_observations()`** — that
+   function feeds `site_observations.alt_m`, which is exactly the raw signal a future
+   `sites.elevation_igc_m` computation (see "Coordinates are backfilled, never geocoded"
+   above — declared but currently unwired) would need to stay genuine; feeding it an
+   already-calibrated fix would make that future comparison tautological by construction.
+   `ANALYZER_VERSION` bumped `"1"` → `"2"` so `POST /api/admin/reanalyze` recalibrates every
+   already-uploaded track, including ones from before this shipped.
+5. **Tuning is config, not constants.** `libigc.FlightParsingConfig` overrides live under `igc.parsing:`
    in `config.yml` and every resolved value is logged at startup — but the real parameter names, checked
    against the installed 1.2.0 source, are **`min_bearing_change_circling`**,
    **`min_time_for_bearing_change`**, and **`min_time_for_thermal`** — not the four differently-named,
@@ -261,13 +296,13 @@ no `async def` handler anywhere and no `asyncio.to_thread` call for this.
    instance) to `create_from_file`'s `config_class=` argument — that's the shape the library expects.
    Paraglider thermals are slower and sloppier than the sailplane defaults; these will need iteration
    against real tracks.
-5. **Glide ratio** = Σ(track_length of descending glides) / Σ(−alt_change of descending glides). This is
+6. **Glide ratio** = Σ(track_length of descending glides) / Σ(−alt_change of descending glides). This is
    an **over-ground** ratio including air-mass lift, not the wing's still-air L/D. The aggregate form is
    deliberate: one shallow segment cannot inflate it.
-6. **`best_climb_ms` is the best thermal *average*, not the instantaneous peak** — peaks are GPS noise.
+7. **`best_climb_ms` is the best thermal *average*, not the instantaneous peak** — peaks are GPS noise.
    `peak_climb_ms` from a 10 s rolling window (`core/igc.py`'s `_peak_climb_ms`, a two-pointer sliding
    window) is a separate, clearly named field.
-7. `analyzer_version` is persisted per track. `POST /api/admin/reanalyze` sweeps every track whose stored
+8. `analyzer_version` is persisted per track. `POST /api/admin/reanalyze` sweeps every track whose stored
    value doesn't match the running build's `igc.ANALYZER_VERSION` constant — admin-only
    (`require_admin`; this is its first use anywhere in the app), no request body, always a full filtered
    pass, never a partial/targeted one (`specs/003-igc-ingest-analysis/research.md`).
@@ -405,6 +440,30 @@ was proposed in the same pass and explicitly declined by the pilot — do not re
 framing reason behind all of this (why currency is a safety nudge, not a volume push) is a personal-context
 decision, not a technical one — see `RESUME.md` and this session's memory record before changing the tone
 of any of this copy.
+
+**`airtime_by_month()` (v0.9.11), pilot-requested**: combined airtime per calendar month, summed
+across every year — distinct from `time_breakdown()` (flight *counts*, not minutes) and from
+`monthly_extremes()` (a single best flight per month, not a sum). `by_month[m]` keeps every
+contributing flight's own `duration_min` as a separate list entry, largest-first, rather than
+collapsing to just `total_by_month[m]`'s sum — the pilot's own ask was a bar chart where "a month
+with loads of small flights will just be built out of lines" and "a month with a few big ones
+will have chunks," which needs the individual values, not only their total. `GET
+/api/stats/airtime-by-month` (`api/routers/stats.py`) is a thin wrapper, same shape as every other
+endpoint in this router; bundled into `PublicStatsOut` (confirmed with the pilot, same "mirrors
+the entire lifetime history" scope every other `/api/stats` figure already has on the public
+surface — durations carry no per-flight identifying information the way `personal_bests.flight_id`
+does, so no nulling logic was needed here).
+
+`static/stats-render.js`'s `renderAirtimeByMonthChart()` renders this as a Chart.js **stacked**
+bar chart with one dataset per "slot" (slot count = the busiest month's flight count; shorter
+months pad with `null`, which Chart.js simply omits rather than drawing a zero-height segment).
+Every segment's `borderColor` is set to the card background (`--card`) rather than left borderless
+— that hairline seam is what makes the stack legible as individual flights: a month built from
+many short ones renders as fine stripes, a month built from a few long ones renders as a handful
+of solid chunks. A `stackedTotalLabelPlugin` (same "formatter lives on the chart instance, never
+inside `options`" rule as `barValueLabelPlugin` below) draws one combined-total label above each
+bar's full stack, computed by summing that bar's own datasets rather than a value passed in
+separately, so the label can't drift from what's actually drawn.
 
 **Chart.js gotcha, hit and fixed in v0.7.2: never store a callback function as a leaf value inside
 `chart.options`.** `static/stats.js`'s `barChart()` helper draws each bar's own value on the chart (per

@@ -152,6 +152,15 @@ def _run_column_migrations(engine: Engine) -> None:
                 logger.info("Migration: added %s.import_run_id column", table)
                 applied += 1
 
+        igc_track_cols = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(igc_tracks)")).fetchall()
+        }
+        if "alt_calibration_offset_m" not in igc_track_cols:
+            conn.execute(text("ALTER TABLE igc_tracks ADD COLUMN alt_calibration_offset_m FLOAT"))
+            conn.commit()
+            logger.info("Migration: added igc_tracks.alt_calibration_offset_m column")
+            applied += 1
+
     logger.info("Column migrations: %d applied, schema up to date", applied)
 
 

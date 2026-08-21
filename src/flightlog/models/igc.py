@@ -22,6 +22,7 @@ class IgcTrackOut(BaseModel):
     peak_climb_ms: float | None
     glide_ratio: float | None
     alt_source: str | None
+    alt_calibration_offset_m: float | None
     analyzer_version: str
     analyzed_at: datetime
     created_at: datetime

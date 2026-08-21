@@ -150,6 +150,8 @@
     "track_alt_source": "Altitude source",
     "track_alt_source_press": "Barometric",
     "track_alt_source_gnss": "GPS",
+    "track_alt_calibrated_up": "Altitude adjusted +{amount} m to match this launch site's known elevation.",
+    "track_alt_calibrated_down": "Altitude adjusted -{amount} m to match this launch site's known elevation.",
     "track_chart_legend": "Orange marks climbing (thermal), blue marks gliding.",
     "track_chart_x": "Time since takeoff (s)",
     "track_chart_y": "Altitude (m)",
@@ -466,6 +468,10 @@
       "by_year_title": "Flights per year",
       "by_month_title": "Flights per month",
       "matrix_title": "Year × month"
+    },
+    "airtime_by_month": {
+      "title": "Combined airtime per month",
+      "hint": "Every flight's airtime, summed across every year — each bar is built from its own contributing flights, so a month of many short flights looks different from one made of a few long ones."
     },
     "distribution": {
       "title": "Distributions",

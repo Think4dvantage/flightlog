@@ -67,5 +67,5 @@ async def test_reanalyze_reprocesses_stale_tracks(
     assert resp.json()["reanalyzed_count"] == 1
 
     db_session.refresh(track)
-    assert track.analyzer_version == "1"
+    assert track.analyzer_version == "2"
     assert track.analyzed_at != old_analyzed_at
