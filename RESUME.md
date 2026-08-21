@@ -2,128 +2,86 @@
 
 ## In Progress
 
-Nothing in flight. `v0.9.8` and `v0.9.9` were committed, tagged, and pushed in a prior session.
-This session implemented two pilot-requested features and — per the pilot's explicit request —
-ships them together as **one release, `v0.9.11`** (no separate `0.9.10` tag).
+Nothing in flight. `v0.9.11` — the latest tag — is committed and pushed to `origin/main`.
 
-**Part 1: combined airtime per calendar month**, a stacked bar chart where each bar is built
-from its own contributing flights (a hairline seam between segments — `borderColor` set to the
-card background — so a month of many short flights reads as fine stripes and a month of a few
-long ones reads as a handful of solid chunks). New `core/stats.py::airtime_by_month()`,
-`GET /api/stats/airtime-by-month`, `stats-render.js`'s `renderAirtimeByMonthChart()` +
-`stackedTotalLabelPlugin`, wired into `/stats` and `/public/stats/{id}` (confirmed via
-`AskUserQuestion` that it should join the public bundle).
+## Recently shipped
 
-**Part 2: IGC altitude calibration to a known launch elevation.** The pilot's own report: a
-no-climb sledder's barometric IGC max altitude read 1488m against a known 1588m launch site —
-asked whether to switch to GPS altitude or apply a correction formula. Answered as an exploratory question first, recommended a formula anchored to the known
-launch elevation over a blanket GPS switch (GNSS error is per-fix noise, not a constant bias), and
-built it once the pilot confirmed. `core/igc.py::calibrate_altitude()` — PRESS-sourced tracks
-only, shifts only genuinely absolute readings (`max_alt_igc_m`, takeoff/landing fixes,
-`track_simplified_json`'s altitude column), leaves every difference-based figure untouched, no
-magnitude cutoff (logged instead). New `igc_tracks.alt_calibration_offset_m` column, surfaced as a
-small note on `flight-detail.html`. `ANALYZER_VERSION` bumped `"1"` → `"2"` so
-`POST /api/admin/reanalyze` recalibrates every already-uploaded track — the reanalyze sweep itself
-needed a fix first (it had no flight/site lookup at all, which an advisor review caught before
-shipping, not after). A genuine doc-drift fix landed alongside: `architecture.md` claimed
-`sites.elevation_igc_m` was actively populated; a `grep` found zero writers anywhere, corrected in
-place. Full detail in `.ai/context/features.md`'s `v0.9.11` entry.
+- **`v0.9.9`** — one-line `/sites` bugfix: a Leaflet marker-creation path passed an explicit
+  `icon: undefined` for launch sites instead of falling back to the default pin, crashing the
+  page's own render loop before the table ever painted. Diagnosed from the pilot's own pasted
+  browser console trace against `fl.lenti.cloud`.
+- **`v0.9.11`** — two pilot-requested features shipped together as one release (no separate
+  `0.9.10` tag, per the pilot's explicit request):
+  - **Combined airtime per calendar month** on `/stats` and `/public/stats/{id}` — a stacked
+    bar chart where each bar is built from its own contributing flights (a hairline seam
+    between segments so many-short-flights vs. few-long-flights months look visibly
+    different), with a total-duration label above each bar.
+  - **IGC altitude calibration to a known launch elevation** — `core/igc.py::
+    calibrate_altitude()` anchors a *barometric*-sourced track's absolute altitude
+    (`max_alt_igc_m`, takeoff/landing fixes, the map/barogram's altitude column) to the
+    launch site's own known elevation, fixing a QNH/altitude-reference miscalibration that
+    otherwise still passes `libigc`'s own per-fix validity check. Deliberately left alone for
+    GNSS-sourced tracks (per-fix noise, not a constant bias) and for every difference-based
+    figure (`alt_gain_igc_m`, climb rates, glide ratio — a constant shift cancels out of a
+    difference by construction). `ANALYZER_VERSION` bumped `"1"` → `"2"` so `POST
+    /api/admin/reanalyze` recalibrates every already-uploaded track.
 
-**The pilot's own reported flight (23.07.2026) is not in the local dev DB** (dev is behind prod —
-latest local flight is 2026-07-12) — verified instead end-to-end against
-`tests/backend/fixtures/valid_flight.igc`'s real numbers through a live dev-server boot
-(throwaway account/site/flight, cleaned up afterward): `alt_calibration_offset_m`, `max_alt_igc_m`,
-the unaffected `alt_gain_igc_m`, the corrected map/barogram altitude, and — the critical check —
-`site_observations.alt_m` staying the *raw* reading, never the calibrated one.
+Full detail on both, plus every earlier release back through v0.1, lives in
+`.ai/context/features.md` — this file is a pointer, not a duplicate.
 
-**Both parts**: 273/273 tests passing, `ruff check`/`ruff format --check` clean, `pyproject.toml`
-bumped `0.9.9` → `0.9.11` directly (`poetry install` re-run) — not committed, tagged, or pushed
-as of this note being written, but the pilot has now explicitly asked for exactly that. Chrome
-extension unavailable again this session; DOM ids/`data-i18n` keys cross-checked
-against served HTML instead.
+## Next steps / open backlog
 
-### What shipped in `v0.9.8`
+- **Prod (`fl.lenti.cloud`) is still on `v0.9.7`** — three releases behind. Once the `v0.9.11`
+  image is deployed there, run `POST /api/admin/reanalyze` (admin-only) to actually recalibrate
+  the pilot's own 23.07.2026 flight and any other barometric tracks — that's the step this
+  session's live verification (against a throwaway account and a test fixture, not against real
+  prod data) couldn't reach.
+- **No visual/browser confirmation** of any UI shipped since `v0.9.4` — the Chrome extension has
+  not connected in any recent session. Every one of these has instead been verified via `curl`
+  against a live dev boot plus programmatic DOM-id/`data-i18n` cross-checks. First thing to do
+  the moment the extension connects: open `/sites`, `/stats`, `/public/stats/{id}`, and a flight
+  with an attached IGC track, and just look at them.
+- Carried forward, unchanged for several sessions:
+  - Confirm whether Traefik replaces or appends to `X-Forwarded-For` (affects the public
+    rate-limiter's per-visitor bucketing).
+  - Repo visibility is still private — pilot's call; the `Flugbuch.xlsx` git-history scrub is
+    done and stable.
+  - `C:\git\flightlog-pre-scrub-backup\` can be deleted once that scrub is confirmed stable.
+  - XContest score import, and `specs/002-flight-log-ui`'s Phases 10–11 (CSV export,
+    remember-last-filters), remain open backlog items — see `features.md`'s Backlog section.
+  - `sites.elevation_igc_m` is declared in the schema and exposed on `SiteOut` but has no
+    writer anywhere (found while building `v0.9.11`, corrected in `architecture.md` as doc
+    drift) — a real, un-scoped gap if that comparison is ever wanted.
 
-Self-service spreadsheet import — the pilot picked "import from other logbook formats" as the
-next backlog item, but redirected the scope entirely once asked which specific app (SkyViz/
-XCTrack/FlySkyHy, as the backlog item was originally worded) to build first: "I would imagine a
-gui where they can upload an excel and then match the rows they have with the data structure we
-have," then "excel or CSV" for format. Went through the full `specify → clarify → plan →
-implement` cycle (`specs/008-self-service-import/`).
-
-A pilot uploads their own Excel/CSV, maps their own column headers to Flightlog fields via a
-4-step wizard on a new `/import` page (upload → map → preview → done), previews exactly what
-will be created before anything is written, commits, and can undo the whole run afterward. Full
-detail in `.ai/context/features.md`'s `v0.9.8` entry and `architecture.md`'s "Self-service
-spreadsheet import" section — key points to remember if resuming work near this code:
-
-- **New table `import_runs`** + a nullable `import_run_id` tag column on `flights`, `sites`,
-  `gliders`, `harnesses`, `flight_categories`. Idempotency reuses the existing
-  `flights.import_key` column (`"upload:<sha256>:<row>"`) rather than a new mechanism.
-- **`core/spreadsheet_import.py`'s `run_import(..., commit: bool)` is one code path** for both
-  preview (rolled back) and commit — never two independently-written rulesets.
-- **Undo checks live usage, not timestamps, for reference rows**: a tagged site/glider/harness/
-  category is deleted only if no flight of this owner still references it, checked at undo time.
-  A tagged flight is deleted only if `updated_at IS NULL` (never edited, never had a track
-  attached — both bump `updated_at` the same way).
-- **Named `v0.9.8`, deliberately not `v0.10`** — `v0.10` is already reserved in `features.md`'s
-  backlog for the unrelated Enrichment milestone (Lenticularis cross-link, DEM, weather). Every
-  in-code reference was written as `v0.10` first during implementation and corrected afterward —
-  if a stray `v0.10` reference to this feature ever turns up, it's a rename that was missed.
-- **`/import` reuses a path** `pages.py` served years ago (v0.7.5) for an unrelated, long-removed
-  frozen import-report page. No practical collision, but noted in `architecture.md` so a future
-  history search doesn't get confused about "the import page."
-
-261/261 backend tests passing (up from 246), `ruff check`/`ruff format --check` clean. Backend
-fully live-verified against a local dev boot with a throwaway account (registered, ran the real
-columns → preview → commit → undo round trip via `curl` for both the API and confirmed the real
-column migration applied cleanly against the existing dev DB, then deleted the throwaway
-account). `pyproject.toml` bumped `0.9.7` → `0.9.8`, `poetry install` re-run.
-
-**Not done yet**: the `/import` page itself was never opened in a real browser — the Chrome
-extension has been unavailable every recent session. The wizard's DOM/JS was written and
-reviewed carefully (in particular, checked for the exact "hidden ancestor" bug `v0.9.7` just
-fixed on the API-keys page — nothing in `import.html` nests a shown/hidden element inside
-another element that gets hidden), but that is not the same as seeing it render. **First thing
-to check once the extension connects**: open `/import`, upload a small real file, and confirm
-each wizard step actually looks right — column dropdowns populated, sample values updating,
-preview summary readable, undo confirm drawer positioned correctly.
-
-## Next Step
-
-1. **Get explicit go-ahead to commit/tag/push `v0.9.8`** — this session did not commit, matching
-   how every other feature in this repo has gone through a pilot confirmation step before
-   shipping (unlike the two `v0.9.7` bugfixes, which were committed same-session on request).
-2. **Open `/import` in a real browser** the moment the Chrome extension connects — see above.
-3. Carried forward, unchanged by this session:
-   - Confirm whether Traefik replaces or appends to `X-Forwarded-For` (public rate limiter).
-   - Repo visibility is still private — pilot's call, scrub is done.
-   - `C:\git\flightlog-pre-scrub-backup\` can be deleted once the scrub is confirmed stable.
-   - XContest score import and `specs/002-flight-log-ui`'s Phases 10–11 (CSV export,
-     remember-last-filters) remain open backlog items.
-   - No visual/browser confirmation of `v0.9.4`–`v0.9.8`'s UI, `/import` now included.
-
-## Context
+## Context — lessons worth keeping
 
 - The dev server needs a restart after every backend edit (no `--reload`) — see
-  [[flightlog_dev_server_workflow]].
+  [[flightlog_dev_server_workflow]]. Static-file-only changes (`static/*.js`, `*.html`) are live
+  immediately, no restart needed.
+- **`igc_tracks.alt_source` is `"PRESS"` / `"GNSS"`** (libigc's `AltitudeSource` `StrEnum`
+  values) — not `"PRESSURE"`. Confirmed by reading the installed `libigc` source directly, not
+  guessed; any new code gating on this value must match the literal, not the enum member name.
+- **`core/igc.py::calibrate_altitude()` must run on the *raw* analysis before `site_backfill.
+  record_observations()`** — that function feeds `site_observations.alt_m`, and calibrating
+  first would make any future `sites.elevation_igc_m` comparison tautological. This ordering bug
+  was caught by an advisor review before shipping, not found the hard way afterward.
 - **`igc_tracks.sha256` is unique per owner, not per flight** (the `v0.9.7` lesson) —
   `import_runs`' own idempotency deliberately reuses a *different* existing mechanism
   (`flights.import_key`), not this one; don't conflate the two content-addressing schemes.
 - **A `hidden` (or `display:none`) ancestor hides descendants regardless of their own `hidden`
-  state** (also `v0.9.7`) — actively checked for in `import.html`'s wizard step
-  show/hide logic while writing it.
-- **Never fuzzy-match reference data** — this feature's exact-string-only site/glider/harness/
-  category reuse is a direct, deliberate continuation of the lesson `v0.8.1`'s bulk-IGC-matcher
-  removal already taught; don't add fuzzy matching to the importer later without revisiting why
-  that lesson exists.
-- **Live-verification pattern**: for backend changes, a `fix-bug.md`/`specify.md`-style pytest
-  suite plus a real dev-server boot with a throwaway account, cleaned up afterward; for
-  frontend-only changes or when the Chrome extension is down, `curl` the served markup and
-  reason carefully about DOM structure — real browser confirmation is still owed once it
-  connects, and is now owed for four-plus pages in a row.
+  state** (`v0.9.7`) — check for this whenever a new show/hide panel nests inside another one.
+- **Never fuzzy-match reference data** — every importer (`core/importer.py`,
+  `core/spreadsheet_import.py`) does exact-string matching only, a lesson `v0.8.1`'s bulk-IGC-
+  matcher removal already paid for once.
+- **Live-verification pattern**: for backend changes, a pytest suite plus a real dev-server boot
+  with a throwaway account/site/flight, cleaned up afterward via the API (or a direct DB script
+  when no API path exists, e.g. deleting a throwaway user); for frontend-only changes or when the
+  Chrome extension is down, `curl` the served markup and cross-check DOM ids / `data-i18n` keys
+  programmatically.
+- **Windows/Git Bash path gotcha**: this repo is worked on from a Windows machine via a Bash
+  tool. `/tmp/...` paths written by `curl`/bash are not visible to a Windows-native `python`
+  invocation (different path-root translation) — use the actual scratchpad directory (an
+  absolute Windows path) for any file a Python script also needs to read.
 - **Prod is `fl.lenti.cloud` / `flightlog.lenti.cloud`** — see [[flightlog_prod_oidc_layer]] and
-  `architecture.md`'s Deployment section.
-
-This file is a pointer, not a duplicate — `.ai/context/features.md`, `architecture.md`, and
-`specs/008-self-service-import/` have the detail.
+  `architecture.md`'s Deployment section. Never touched directly (no SSH/`docker-compose`); the
+  pilot deploys and runs any prod-side one-shot command themselves.

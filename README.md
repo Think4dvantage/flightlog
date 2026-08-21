@@ -8,7 +8,7 @@ It replaces a 600-flight Excel workbook covering 2018–2026.
 **The API is the product.** Other services consume this one rather than keeping their own copy of your
 flights — video tooling pulls flight metadata and thermal-based highlight timestamps straight from here.
 
-Status: **v0.9.8**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
+Status: **v0.9.11**, tagged and published (`ghcr.io/think4dvantage/flightlog`). See
 `.ai/context/features.md` for the roadmap and `specs/001-core-data-import/` for v0.2's spec and design.
 
 ## Features
@@ -107,6 +107,23 @@ or undo the whole run afterward if the mapping was wrong. Not a parser for any s
 third-party app's export; a generic mapping wizard that works with whatever spreadsheet a pilot
 already has. Reference-data reuse is exact-match only, and nothing is ever silently dropped or
 guessed — a row that can't be imported is reported with a reason, never skipped quietly.
+
+`v0.9.9` fixes a `/sites` bug found in live production use: the map crashed rendering its table
+whenever a launch site was the first marker placed, because the marker-creation code path (unlike
+the marker-update path next to it) never fell back to the default pin icon. The sites list itself
+had loaded fine the whole time — only the map crash, thrown before the table render, made it look
+otherwise.
+
+`v0.9.11` ships two more pilot-requested pieces together. A new `/stats` chart shows combined
+airtime per calendar month, each bar built from its own contributing flights rather than a single
+pre-summed value — a month of many short flights reads as fine stripes, a month of a few long
+ones reads as solid chunks. And IGC-derived altitude is now calibrated to a flight's known launch
+site elevation whenever the track is barometric: a vario/GPS unit with the wrong QNH set at
+launch produces a smooth, validity-check-passing altitude trace that's still offset from reality
+by a roughly constant amount, and this anchors it back to the truth the pilot already has on
+file — never applied to a GPS-sourced track, whose error is per-fix noise rather than a constant
+bias, and never applied to any figure that's already a difference (altitude gain, climb rate,
+glide ratio), which a constant offset can't change anyway.
 
 ## Getting started
 
